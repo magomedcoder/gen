@@ -309,7 +309,6 @@ func (l *LLama) TokenizeString(text string, opts ...PredictOption) (int32, []int
 	)
 	defer C.llama_free_params(params)
 	tokRet := C.llama_tokenize_string(params, l.state, (*C.int)(unsafe.Pointer(&out[0])))
-
 	if tokRet < 0 {
 		return int32(tokRet), nil, fmt.Errorf("tokenize вернул %d", tokRet)
 	}

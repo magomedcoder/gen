@@ -13,6 +13,6 @@ func main() {
 		logger.E("config: %v", err)
 		os.Exit(1)
 	}
-	logger.Default.SetLevel(logger.ParseLevel(cfg.LogLevel))
+	logger.Default.SetLevel(logger.ParseLevel(cfg.Log.Level))
 	logger.I("started")
 }

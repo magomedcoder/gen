@@ -7,9 +7,20 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+type Llama struct {
+	ModelPath        string `yaml:"model_path"`
+	MaxContextTokens int    `yaml:"max_context_tokens"`
+}
+
+type LogConfig struct {
+	Level string `yaml:"level"`
+}
+
 type Config struct {
-	ListenAddr string `yaml:"listen_addr"`
-	LogLevel   string `yaml:"log_level"`
+	ListenAddr               string    `yaml:"listen_addr"`
+	Log                      LogConfig `yaml:"log"`
+	Llama                    Llama     `yaml:"llama"`
+	MaxConcurrentGenerations int       `yaml:"max_concurrent_generations"`
 }
 
 func Load() (*Config, error) {

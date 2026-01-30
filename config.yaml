@@ -1,2 +1,10 @@
 listen_addr: "127.0.0.1:50052"
-log_level: "info"
+
+log:
+  level: "info"
+
+llama:
+  model_path: "./models"
+  max_context_tokens: 4096
+
+max_concurrent_generations: 0
