@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package llmrunner;
+
+option go_package = "github.com/magomedcoder/llm-runner/pb;pb";
+
+service LLMRunnerService {
+  rpc Ping(Empty) returns (PingResponse);
+
+  rpc GetModels(Empty) returns (GetModelsResponse);
+}
+
+message Empty {}
+
+message PingResponse {
+  bool ok = 1;
+}
+
+message GetModelsResponse {
+  repeated string models = 1;
+}
