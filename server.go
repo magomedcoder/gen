@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/magomedcoder/llm-runner/domain"
@@ -17,6 +18,8 @@ type Server struct {
 	textProvider     provider.TextProvider
 	inferenceMetrics *InferenceMetrics
 	sem              chan struct{}
+	addresses        []string
+	addressesMu      sync.Mutex
 }
 
 func NewServer(textProvider provider.TextProvider, maxConcurrentGenerations int) *Server {
@@ -121,6 +124,32 @@ func (s *Server) Generate(req *pb.GenerateRequest, stream pb.LLMRunnerService_Ge
 	}
 
 	return stream.Send(resp)
+}
+
+func (s *Server) Register(ctx context.Context, req *pb.RegisterRunnerRequest) (*pb.Empty, error) {
+	if req != nil && req.Address != "" {
+		s.addressesMu.Lock()
+		s.addresses = append(s.addresses, req.Address)
+		s.addressesMu.Unlock()
+	}
+
+	return &pb.Empty{}, nil
+}
+
+func (s *Server) Unregister(ctx context.Context, req *pb.UnregisterRunnerRequest) (*pb.Empty, error) {
+	if req != nil && req.Address != "" {
+		s.addressesMu.Lock()
+		for i, a := range s.addresses {
+			if a == req.Address {
+				s.addresses = append(s.addresses[:i], s.addresses[i+1:]...)
+				break
+			}
+		}
+
+		s.addressesMu.Unlock()
+	}
+
+	return &pb.Empty{}, nil
 }
 
 func buildGenParamsFromRequest(req *pb.GenerateRequest) *domain.GenerationParams {

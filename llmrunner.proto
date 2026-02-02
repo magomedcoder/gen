@@ -10,6 +10,10 @@ service LLMRunnerService {
   rpc GetModels(Empty) returns (GetModelsResponse);
 
   rpc Generate(GenerateRequest) returns (stream GenerateResponse);
+
+  rpc Register(RegisterRunnerRequest) returns (Empty);
+
+  rpc Unregister(UnregisterRunnerRequest) returns (Empty);
 }
 
 message Empty {}
@@ -66,4 +70,12 @@ message GenerateResponse {
   string content = 1;
   bool done = 2;
   repeated ToolCall tool_calls = 3;
+}
+
+message RegisterRunnerRequest {
+  string address = 1;
+}
+
+message UnregisterRunnerRequest {
+  string address = 1;
 }

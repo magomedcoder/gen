@@ -16,6 +16,10 @@ var DefaultModelOptions = ModelOptions{
 	FreqRopeScale: 1.0,
 }
 
+var EnableEmbeddings ModelOption = func(p *ModelOptions) {
+	p.Embeddings = true
+}
+
 func NewModelOptions(opts ...ModelOption) ModelOptions {
 	p := DefaultModelOptions
 	for _, opt := range opts {
