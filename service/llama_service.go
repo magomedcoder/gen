@@ -278,7 +278,6 @@ func buildPrompt(messages []*domain.AIChatMessage, genParams *domain.GenerationP
 func buildToolsPrompt(tools []domain.Tool) string {
 	var b strings.Builder
 	b.WriteString("\nTools:\n")
-
 	for _, t := range tools {
 		b.WriteString("- ")
 		b.WriteString(t.Name)
@@ -293,7 +292,6 @@ func buildToolsPrompt(tools []domain.Tool) string {
 		}
 		b.WriteString("\n")
 	}
-
 	b.WriteString("\nReply with JSON: {\"name\": \"tool_name\", \"arguments\": {...}}\n\n")
 
 	return b.String()

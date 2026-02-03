@@ -6,8 +6,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	runner "github.com/magomedcoder/llm-runner"
+	"github.com/magomedcoder/llm-runner"
 	"github.com/magomedcoder/llm-runner/config"
+	"github.com/magomedcoder/llm-runner/gpu"
 	"github.com/magomedcoder/llm-runner/logger"
 	"github.com/magomedcoder/llm-runner/pb"
 	"github.com/magomedcoder/llm-runner/provider"
@@ -27,7 +28,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	runnerServer := runner.NewServer(textProvider, cfg.MaxConcurrentGenerations)
+	gpuCollector := gpu.NewCollector()
+	runnerServer := runner.NewServer(textProvider, gpuCollector, cfg.MaxConcurrentGenerations)
 	lis, err := net.Listen("tcp", cfg.ListenAddr)
 	if err != nil {
 		logger.E("listen: %v", err)

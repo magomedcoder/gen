@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/magomedcoder/llm-runner/domain"
+	"github.com/magomedcoder/llm-runner/gpu"
 	"github.com/magomedcoder/llm-runner/pb"
 	"github.com/magomedcoder/llm-runner/provider"
 	"google.golang.org/grpc/codes"
@@ -16,13 +17,18 @@ import (
 type Server struct {
 	pb.UnimplementedLLMRunnerServiceServer
 	textProvider     provider.TextProvider
+	gpuCollector     gpu.Collector
 	inferenceMetrics *InferenceMetrics
 	sem              chan struct{}
 	addresses        []string
 	addressesMu      sync.Mutex
 }
 
-func NewServer(textProvider provider.TextProvider, maxConcurrentGenerations int) *Server {
+func NewServer(textProvider provider.TextProvider, gpuCollector gpu.Collector, maxConcurrentGenerations int) *Server {
+	if gpuCollector == nil {
+		gpuCollector = gpu.NewCollector()
+	}
+
 	var sem chan struct{}
 	if maxConcurrentGenerations > 0 {
 		sem = make(chan struct{}, maxConcurrentGenerations)
@@ -30,6 +36,7 @@ func NewServer(textProvider provider.TextProvider, maxConcurrentGenerations int)
 
 	return &Server{
 		textProvider:     textProvider,
+		gpuCollector:     gpuCollector,
 		inferenceMetrics: NewInferenceMetrics(),
 		sem:              sem,
 	}
@@ -124,6 +131,76 @@ func (s *Server) Generate(req *pb.GenerateRequest, stream pb.LLMRunnerService_Ge
 	}
 
 	return stream.Send(resp)
+}
+
+func (s *Server) GetInferenceMetrics(ctx context.Context, _ *pb.Empty) (*pb.InferenceMetricsResponse, error) {
+	if s.inferenceMetrics == nil {
+		return &pb.InferenceMetricsResponse{}, nil
+	}
+
+	tokens, latencyMs, tokensPerSec := s.inferenceMetrics.Get()
+
+	return &pb.InferenceMetricsResponse{
+		Tokens:       tokens,
+		LatencyMs:    latencyMs,
+		TokensPerSec: tokensPerSec,
+	}, nil
+}
+
+func (s *Server) GetGpuInfo(ctx context.Context, _ *pb.Empty) (*pb.GetGpuInfoResponse, error) {
+	list := s.gpuCollector.Collect()
+	gpus := make([]*pb.GpuInfo, len(list))
+	for i := range list {
+		gpus[i] = &pb.GpuInfo{
+			Name:               list[i].Name,
+			TemperatureC:       list[i].TemperatureC,
+			MemoryTotalMb:      list[i].MemoryTotalMB,
+			MemoryUsedMb:       list[i].MemoryUsedMB,
+			UtilizationPercent: list[i].UtilizationPercent,
+		}
+	}
+
+	return &pb.GetGpuInfoResponse{Gpus: gpus}, nil
+}
+
+func (s *Server) GetServerInfo(ctx context.Context, _ *pb.Empty) (*pb.ServerInfo, error) {
+	si := CollectSysInfo()
+	out := &pb.ServerInfo{
+		Hostname:      si.Hostname,
+		Os:            si.OS,
+		Arch:          si.Arch,
+		CpuCores:      si.CPUCores,
+		MemoryTotalMb: si.MemoryTotalMB,
+	}
+
+	if s.textProvider != nil {
+		if models, err := s.textProvider.GetModels(ctx); err == nil && len(models) > 0 {
+			out.Models = models
+		}
+	}
+
+	return out, nil
+}
+
+func (s *Server) Embed(ctx context.Context, req *pb.EmbedRequest) (*pb.EmbedResponse, error) {
+	if s.textProvider == nil {
+		return nil, status.Error(codes.Unavailable, "Поставщик текста не задан\n")
+	}
+
+	if req == nil || req.Text == "" {
+		return &pb.EmbedResponse{
+			Embedding: nil,
+		}, nil
+	}
+
+	embedding, err := s.textProvider.Embed(ctx, req.Model, req.Text)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	return &pb.EmbedResponse{
+		Embedding: embedding,
+	}, nil
 }
 
 func (s *Server) Register(ctx context.Context, req *pb.RegisterRunnerRequest) (*pb.Empty, error) {
