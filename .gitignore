@@ -1,5 +1,5 @@
 .idea
 build
 /api/pb/
-/client/lib/generated/
+/client-app/lib/generated/
 /llm-runner

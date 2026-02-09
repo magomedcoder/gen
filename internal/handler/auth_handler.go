@@ -23,11 +23,7 @@ func NewAuthHandler(authUseCase *usecase.AuthUseCase) *AuthHandler {
 }
 
 func (a *AuthHandler) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginResponse, error) {
-	user, accessToken, refreshToken, err := a.authUseCase.Login(
-		ctx,
-		req.Email,
-		req.Password,
-	)
+	user, accessToken, refreshToken, err := a.authUseCase.Login(ctx, req.Username, req.Password)
 	if err != nil {
 		return nil, status.Error(codes.Unauthenticated, err.Error())
 	}
