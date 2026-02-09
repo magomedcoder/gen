@@ -12,14 +12,15 @@ gen:
 			--go-grpc_out=paths=source_relative:./api/pb \
 			$$proto; \
 	done
-	protoc --proto_path=./llm-runner \
-		--go_out=paths=source_relative:./api/pb \
-		--go-grpc_out=paths=source_relative:./api/pb \
-		./llm-runner/llmrunner.proto
 
 	protoc --proto_path=./api/proto \
 		--dart_out=grpc:./client-app/lib/generated/grpc_pb \
 		./api/proto/*.proto
+
+	protoc --proto_path=./llm-runner \
+		--go_out=paths=source_relative:./api/pb \
+		--go-grpc_out=paths=source_relative:./api/pb \
+		./llm-runner/llmrunner.proto
 
 .PHONY: run
 run:

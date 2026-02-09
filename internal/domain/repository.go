@@ -9,7 +9,7 @@ type UserRepository interface {
 
 	GetById(ctx context.Context, id int) (*User, error)
 
-	GetByEmail(ctx context.Context, email string) (*User, error)
+	GetByUsername(ctx context.Context, username string) (*User, error)
 
 	Update(ctx context.Context, user *User) error
 }
@@ -44,5 +44,6 @@ type MessageRepository interface {
 
 type LLMRepository interface {
 	SendMessage(ctx context.Context, sessionID string, messages []*Message) (chan string, error)
+
 	CheckConnection(ctx context.Context) (bool, error)
 }
