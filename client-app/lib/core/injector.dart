@@ -1,6 +1,7 @@
 import 'package:get_it/get_it.dart';
-import 'package:grpc/grpc.dart';
 import 'package:gen/core/auth_interceptor.dart';
+import 'package:gen/core/grpc_channel_manager.dart';
+import 'package:gen/core/server_config.dart';
 import 'package:gen/data/data_sources/local/auth_local_data_source.dart';
 import 'package:gen/data/data_sources/remote/auth_remote_datasource.dart';
 import 'package:gen/data/data_sources/remote/chat_remote_datasource.dart';
@@ -12,6 +13,7 @@ import 'package:gen/domain/repositories/auth_repository.dart';
 import 'package:gen/domain/repositories/chat_repository.dart';
 import 'package:gen/domain/repositories/user_repository.dart';
 import 'package:gen/domain/usecases/auth/login_usecase.dart';
+import 'package:gen/domain/usecases/auth/change_password_usecase.dart';
 import 'package:gen/domain/usecases/auth/logout_usecase.dart';
 import 'package:gen/domain/usecases/auth/refresh_token_usecase.dart';
 import 'package:gen/domain/usecases/chat/connect_usecase.dart';
@@ -23,14 +25,11 @@ import 'package:gen/domain/usecases/chat/get_sessions_usecase.dart';
 import 'package:gen/domain/usecases/chat/send_message_usecase.dart';
 import 'package:gen/domain/usecases/chat/update_session_title_usecase.dart';
 import 'package:gen/domain/usecases/users/create_user_usecase.dart';
-import 'package:gen/domain/usecases/users/edit_user_usecase.dart';
 import 'package:gen/domain/usecases/users/get_users_usecase.dart';
-import 'package:gen/generated/grpc_pb/auth.pbgrpc.dart';
-import 'package:gen/generated/grpc_pb/chat.pbgrpc.dart';
-import 'package:gen/generated/grpc_pb/user.pbgrpc.dart';
-import 'package:gen/presentation/screens/admin/bloc/users_admin_bloc.dart';
+import 'package:gen/domain/usecases/users/edit_user_usecase.dart';
 import 'package:gen/presentation/screens/auth/bloc/auth_bloc.dart';
 import 'package:gen/presentation/screens/chat/bloc/chat_bloc.dart';
+import 'package:gen/presentation/screens/admin/bloc/users_admin_bloc.dart';
 
 final sl = GetIt.instance;
 
@@ -38,43 +37,27 @@ Future<void> init() async {
   sl.registerLazySingleton<AuthLocalDataSourceImpl>(() => AuthLocalDataSourceImpl());
   await sl<AuthLocalDataSourceImpl>().init();
 
+  sl.registerLazySingleton<ServerConfig>(() => ServerConfig());
+  await sl<ServerConfig>().init();
+
   sl.registerLazySingleton<AuthInterceptor>(
     () => AuthInterceptor(sl<AuthLocalDataSourceImpl>()),
   );
 
-  sl.registerLazySingleton<ClientChannel>(() {
-    return ClientChannel(
-      '10.11.61.37',
-      port: 50051,
-      options: const ChannelOptions(
-        credentials: ChannelCredentials.insecure(),
-        idleTimeout: Duration(seconds: 30),
-      ),
-    );
-  });
-
-  sl.registerLazySingleton(() => ChatServiceClient(
-        sl<ClientChannel>(),
-        interceptors: [sl<AuthInterceptor>()],
-      ));
-  sl.registerLazySingleton(() => AuthServiceClient(
-        sl<ClientChannel>(),
-        interceptors: [sl<AuthInterceptor>()],
-      ));
-  sl.registerLazySingleton(() => UserServiceClient(
-        sl<ClientChannel>(),
-        interceptors: [sl<AuthInterceptor>()],
-      ));
+  sl.registerLazySingleton<GrpcChannelManager>(
+    () => GrpcChannelManager(sl<ServerConfig>(), sl<AuthInterceptor>()),
+  );
 
   sl.registerLazySingleton<IChatRemoteDataSource>(
-    () => ChatRemoteDataSource(sl()),
+    () => ChatRemoteDataSource(sl<GrpcChannelManager>()),
   );
 
   sl.registerLazySingleton<IAuthRemoteDataSource>(
-    () => AuthRemoteDataSource(sl()),
+    () => AuthRemoteDataSource(sl<GrpcChannelManager>()),
   );
+
   sl.registerLazySingleton<IUserRemoteDataSource>(
-    () => UserRemoteDataSource(sl()),
+    () => UserRemoteDataSource(sl<GrpcChannelManager>()),
   );
 
   sl.registerLazySingleton<ChatRepository>(() => ChatRepositoryImpl(sl()));
@@ -90,13 +73,14 @@ Future<void> init() async {
   sl.registerFactory(() => DeleteSessionUseCase(sl()));
   sl.registerFactory(() => UpdateSessionTitleUseCase(sl()));
 
-  sl.registerFactory(() => GetUsersUseCase(sl()));
-  sl.registerFactory(() => CreateUserUseCase(sl()));
-  sl.registerFactory(() => EditUserUseCase(sl()));
-
   sl.registerFactory(() => LoginUseCase(sl()));
   sl.registerFactory(() => RefreshTokenUseCase(sl()));
   sl.registerFactory(() => LogoutUseCase(sl()));
+  sl.registerFactory(() => ChangePasswordUseCase(sl()));
+
+  sl.registerFactory(() => GetUsersUseCase(sl()));
+  sl.registerFactory(() => CreateUserUseCase(sl()));
+  sl.registerFactory(() => EditUserUseCase(sl()));
 
   sl.registerFactory(
     () => ChatBloc(
@@ -117,6 +101,7 @@ Future<void> init() async {
       refreshTokenUseCase: sl(),
       logoutUseCase: sl(),
       tokenStorage: sl(),
+      channelManager: sl(),
     ),
   );
 

@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:gen/core/grpc_channel_manager.dart';
 import 'package:gen/data/data_sources/local/auth_local_data_source.dart';
 import 'package:gen/domain/usecases/auth/login_usecase.dart';
 import 'package:gen/domain/usecases/auth/logout_usecase.dart';
@@ -11,12 +12,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final RefreshTokenUseCase refreshTokenUseCase;
   final LogoutUseCase logoutUseCase;
   final AuthLocalDataSourceImpl tokenStorage;
+  final GrpcChannelManager channelManager;
 
   AuthBloc({
     required this.loginUseCase,
     required this.refreshTokenUseCase,
     required this.logoutUseCase,
     required this.tokenStorage,
+    required this.channelManager,
   }) : super(const AuthState()) {
     on<AuthLoginRequested>(_onLoginRequested);
     on<AuthRefreshTokenRequested>(_onRefreshTokenRequested);
@@ -104,6 +107,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     emit(state.copyWith(isLoading: true, error: null));
 
     try {
+      await channelManager.setServer(event.host, event.port);
       final result = await loginUseCase(event.username, event.password);
 
       tokenStorage.saveTokens(
