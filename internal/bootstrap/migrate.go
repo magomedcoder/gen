@@ -16,7 +16,7 @@ func RunMigrations(ctx context.Context, pool *pgxpool.Pool, fs embed.FS) error {
 		return fmt.Errorf("инициализация таблицы миграций: %w", err)
 	}
 
-	migrationsDir := "migrations/postgres"
+	migrationsDir := "migrations"
 	entries, err := fs.ReadDir(migrationsDir)
 	if err != nil {
 		return fmt.Errorf("чтение каталога миграций: %w", err)

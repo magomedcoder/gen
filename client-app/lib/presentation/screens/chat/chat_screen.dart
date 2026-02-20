@@ -4,6 +4,8 @@ import 'package:gen/core/layout/responsive.dart';
 import 'package:gen/domain/entities/message.dart';
 import 'package:gen/domain/entities/session.dart';
 import 'package:gen/core/injector.dart' as di;
+import 'package:gen/presentation/screens/admin/bloc/runners_admin_bloc.dart';
+import 'package:gen/presentation/screens/admin/bloc/runners_admin_event.dart';
 import 'package:gen/presentation/screens/admin/bloc/users_admin_bloc.dart';
 import 'package:gen/presentation/screens/admin/bloc/users_admin_event.dart';
 import 'package:gen/presentation/screens/auth/bloc/auth_bloc.dart';
@@ -13,8 +15,8 @@ import 'package:gen/presentation/screens/chat/bloc/chat_event.dart';
 import 'package:gen/presentation/screens/chat/bloc/chat_state.dart';
 import 'package:gen/presentation/screens/chat/widgets/chat_input_bar.dart';
 import 'package:gen/presentation/screens/chat/widgets/sessions_sidebar.dart';
-import 'package:gen/presentation/screens/profile/profile_screen.dart';
 import 'package:gen/presentation/widgets/chat_bubble.dart';
+import 'package:gen/presentation/screens/admin/runners_admin_screen.dart';
 import 'package:gen/presentation/screens/admin/users_admin_screen.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -484,21 +486,6 @@ class _ChatScreenState extends State<ChatScreen> {
                     return const SizedBox();
                   },
                 ),
-                IconButton(
-                  icon: const Icon(Icons.person_outline),
-                  tooltip: 'Профиль',
-                  onPressed: () {
-                    final authBloc = context.read<AuthBloc>();
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => BlocProvider.value(
-                          value: authBloc,
-                          child: const ProfileScreen(),
-                        ),
-                      ),
-                    );
-                  },
-                ),
                 BlocBuilder<AuthBloc, AuthState>(
                   builder: (context, authState) {
                     final user = authState.user;
@@ -522,6 +509,27 @@ class _ChatScreenState extends State<ChatScreen> {
                                 ),
                               ],
                               child: const UsersAdminScreen(),
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+                BlocBuilder<AuthBloc, AuthState>(
+                  builder: (context, authState) {
+                    final isAdmin = authState.user?.isAdmin ?? false;
+                    if (!isAdmin) return const SizedBox.shrink();
+                    return IconButton(
+                      icon: const Icon(Icons.dns_outlined),
+                      tooltip: 'Раннеры (админ)',
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => BlocProvider(
+                              create: (_) => di.sl<RunnersAdminBloc>()
+                                ..add(const RunnersAdminLoadRequested()),
+                              child: const RunnersAdminScreen(),
                             ),
                           ),
                         );
@@ -570,6 +578,23 @@ class _ChatScreenState extends State<ChatScreen> {
 
                       return Column(
                         children: [
+                          if (state.hasActiveRunners == false)
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 10,
+                              ),
+                              color: Theme.of(context)
+                                  .colorScheme.errorContainer
+                                  .withValues(alpha: 0.5),
+                              child: Text(
+                                'Нет активных раннеров. Чат недоступен.',
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.onErrorContainer,
+                                ),
+                              ),
+                            ),
                           Container(
                             padding: EdgeInsets.symmetric(
                               horizontal: Breakpoints.isMobile(context) ? 12 : 20,
@@ -595,7 +620,11 @@ class _ChatScreenState extends State<ChatScreen> {
                                 : _buildMessageList(state),
                           ),
                           const Divider(height: 1),
-                          ChatInputBar(isEnabled: state.isConnected && !state.isLoading),
+                          ChatInputBar(
+                            isEnabled: state.isConnected &&
+                                !state.isLoading &&
+                                (state.hasActiveRunners ?? true),
+                          ),
                         ],
                       );
                     },

@@ -2,5 +2,5 @@ package gen
 
 import "embed"
 
-//go:embed migrations/postgres/*.sql
+//go:embed migrations/*.sql
 var Postgres embed.FS

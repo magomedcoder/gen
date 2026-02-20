@@ -13,6 +13,7 @@ class ChatState extends Equatable {
   final String? error;
   final List<String> models;
   final String? selectedModel;
+  final bool? hasActiveRunners;
 
   const ChatState({
     this.isConnected = false,
@@ -25,6 +26,7 @@ class ChatState extends Equatable {
     this.error,
     this.models = const [],
     this.selectedModel,
+    this.hasActiveRunners,
   });
 
   ChatState copyWith({
@@ -38,6 +40,7 @@ class ChatState extends Equatable {
     String? error,
     List<String>? models,
     String? selectedModel,
+    bool? hasActiveRunners,
   }) {
     return ChatState(
       isConnected: isConnected ?? this.isConnected,
@@ -50,6 +53,7 @@ class ChatState extends Equatable {
       error: error,
       models: models ?? this.models,
       selectedModel: selectedModel ?? this.selectedModel,
+      hasActiveRunners: hasActiveRunners ?? this.hasActiveRunners,
     );
   }
 
@@ -65,5 +69,6 @@ class ChatState extends Equatable {
     error,
     models,
     selectedModel,
+    hasActiveRunners,
   ];
 }

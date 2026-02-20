@@ -3,22 +3,26 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/magomedcoder/gen"
-	"github.com/magomedcoder/gen/api/pb"
-	"github.com/magomedcoder/gen/config"
-	"github.com/magomedcoder/gen/internal/bootstrap"
-	"github.com/magomedcoder/gen/internal/handler"
-	"github.com/magomedcoder/gen/internal/repository"
-	"github.com/magomedcoder/gen/internal/repository/postgres"
-	"github.com/magomedcoder/gen/internal/service"
-	"github.com/magomedcoder/gen/internal/usecase"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
 	"log"
 	"net"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/magomedcoder/gen"
+	"github.com/magomedcoder/gen/api/pb"
+	"github.com/magomedcoder/gen/api/pb/runnerpb"
+	"github.com/magomedcoder/gen/config"
+	"github.com/magomedcoder/gen/internal/bootstrap"
+	"github.com/magomedcoder/gen/internal/domain"
+	"github.com/magomedcoder/gen/internal/handler"
+	"github.com/magomedcoder/gen/internal/repository"
+	"github.com/magomedcoder/gen/internal/repository/postgres"
+	"github.com/magomedcoder/gen/internal/runner"
+	"github.com/magomedcoder/gen/internal/service"
+	"github.com/magomedcoder/gen/internal/usecase"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 )
 
 func main() {
@@ -54,13 +58,24 @@ func main() {
 		log.Fatalf("Ошибка создания первого пользователя: %v", err)
 	}
 
-	llmRepo, err := repository.NewLLMRunnerRepository(cfg.LLMRunner.Address, cfg.LLMRunner.Model)
-	if err != nil {
-		log.Fatalf("Ошибка подключения к llm-runner: %v", err)
-	}
-	defer llmRepo.Close()
-
 	authUseCase := usecase.NewAuthUseCase(userRepo, tokenRepo, jwtService)
+
+	var llmRepo domain.LLMRepository
+	var runnerReg *runner.Registry
+	if len(cfg.Runners.Addresses) > 0 {
+		runnerReg = runner.NewRegistry(cfg.Runners.Addresses)
+		pool := runner.NewPool(runnerReg, cfg.LLMRunner.Model)
+		defer pool.Close()
+		llmRepo = pool
+	} else {
+		single, err := repository.NewLLMRunnerRepository(cfg.LLMRunner.Address, cfg.LLMRunner.Model)
+		if err != nil {
+			log.Fatalf("Ошибка подключения к llm-runner: %v", err)
+		}
+		defer single.Close()
+		llmRepo = single
+	}
+
 	chatUseCase := usecase.NewChatUseCase(sessionRepo, messageRepo, llmRepo)
 	userUseCase := usecase.NewUserUseCase(userRepo, tokenRepo, jwtService)
 
@@ -69,6 +84,11 @@ func main() {
 	userHandler := handler.NewUserHandler(userUseCase, authUseCase)
 
 	grpcServer := grpc.NewServer()
+
+	if runnerReg != nil {
+		runnerHandler := handler.NewRunnerHandler(runnerReg, authUseCase)
+		runnerpb.RegisterRunnerAdminServiceServer(grpcServer, runnerHandler)
+	}
 
 	pb.RegisterAuthServiceServer(grpcServer, authHandler)
 	pb.RegisterChatServiceServer(grpcServer, chatHandler)
