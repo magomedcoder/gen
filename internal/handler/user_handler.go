@@ -25,7 +25,7 @@ func NewUserHandler(userUseCase *usecase.UserUseCase, authUseCase *usecase.AuthU
 }
 
 func (u *UserHandler) GetUsers(ctx context.Context, req *pb.GetUsersRequest) (*pb.GetUsersResponse, error) {
-	if err := requireAdmin(ctx, u.authUseCase); err != nil {
+	if err := RequireAdmin(ctx, u.authUseCase); err != nil {
 		return nil, err
 	}
 
@@ -45,7 +45,7 @@ func (u *UserHandler) GetUsers(ctx context.Context, req *pb.GetUsersRequest) (*p
 }
 
 func (u *UserHandler) CreateUser(ctx context.Context, req *pb.CreateUserRequest) (*pb.CreateUserResponse, error) {
-	if err := requireAdmin(ctx, u.authUseCase); err != nil {
+	if err := RequireAdmin(ctx, u.authUseCase); err != nil {
 		return nil, err
 	}
 
@@ -58,7 +58,7 @@ func (u *UserHandler) CreateUser(ctx context.Context, req *pb.CreateUserRequest)
 }
 
 func (u *UserHandler) EditUser(ctx context.Context, req *pb.EditUserRequest) (*pb.EditUserResponse, error) {
-	if err := requireAdmin(ctx, u.authUseCase); err != nil {
+	if err := RequireAdmin(ctx, u.authUseCase); err != nil {
 		return nil, err
 	}
 

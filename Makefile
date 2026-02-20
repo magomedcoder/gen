@@ -12,6 +12,10 @@ gen:
 			--go-grpc_out=paths=source_relative:./api/pb \
 			$$proto; \
 	done
+	protoc --proto_path=./api/proto \
+		--go_out=module=github.com/magomedcoder/gen:. \
+		--go-grpc_out=module=github.com/magomedcoder/gen:. \
+		./api/proto/runner.proto
 
 	protoc --proto_path=./api/proto \
 		--dart_out=grpc:./client-app/lib/generated/grpc_pb \

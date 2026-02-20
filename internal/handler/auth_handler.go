@@ -47,7 +47,7 @@ func (a *AuthHandler) RefreshToken(ctx context.Context, req *pb.RefreshTokenRequ
 }
 
 func (a *AuthHandler) Logout(ctx context.Context, req *pb.LogoutRequest) (*pb.LogoutResponse, error) {
-	user, err := getUserFromContext(ctx, a.authUseCase)
+	user, err := GetUserFromContext(ctx, a.authUseCase)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func (a *AuthHandler) Logout(ctx context.Context, req *pb.LogoutRequest) (*pb.Lo
 }
 
 func (a *AuthHandler) ChangePassword(ctx context.Context, req *pb.ChangePasswordRequest) (*pb.ChangePasswordResponse, error) {
-	user, err := getUserFromContext(ctx, a.authUseCase)
+	user, err := GetUserFromContext(ctx, a.authUseCase)
 	if err != nil {
 		return nil, err
 	}

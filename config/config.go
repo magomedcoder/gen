@@ -9,6 +9,11 @@ type Config struct {
 	Database  DatabaseConfig
 	JWT       JWTConfig
 	LLMRunner LLMRunnerConfig
+	Runners   RunnersConfig
+}
+
+type RunnersConfig struct {
+	Addresses []string
 }
 
 type ServerConfig struct {
@@ -50,6 +55,9 @@ func Load() (*Config, error) {
 		LLMRunner: LLMRunnerConfig{
 			Address: "localhost:50052",
 			Model:   "default",
+		},
+		Runners: RunnersConfig{
+			Addresses: []string{},
 		},
 	}
 
