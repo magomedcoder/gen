@@ -6,6 +6,7 @@ import (
 	"github.com/magomedcoder/gen/api/pb/runnerpb"
 	"github.com/magomedcoder/gen/internal/runner"
 	"github.com/magomedcoder/gen/internal/usecase"
+	"github.com/magomedcoder/gen/pkg/logger"
 )
 
 type RunnerHandler struct {
@@ -23,12 +24,15 @@ func NewRunnerHandler(registry *runner.Registry, authUseCase *usecase.AuthUseCas
 }
 
 func (h *RunnerHandler) GetRunners(ctx context.Context, _ *runnerpb.Empty) (*runnerpb.GetRunnersResponse, error) {
+	logger.D("GetRunners: запрос списка раннеров")
 	if err := RequireAdmin(ctx, h.authUseCase); err != nil {
 		return nil, err
 	}
 
+	runners := h.registry.GetRunners()
+	logger.V("GetRunners: возвращено раннеров: %d", len(runners))
 	return &runnerpb.GetRunnersResponse{
-		Runners: h.registry.GetRunners(),
+		Runners: runners,
 	}, nil
 }
 
@@ -38,6 +42,7 @@ func (h *RunnerHandler) SetRunnerEnabled(ctx context.Context, req *runnerpb.SetR
 	}
 	if req != nil {
 		h.registry.SetEnabled(req.Address, req.Enabled)
+		logger.I("SetRunnerEnabled: адрес=%s enabled=%v", req.Address, req.Enabled)
 	}
 
 	return &runnerpb.Empty{}, nil

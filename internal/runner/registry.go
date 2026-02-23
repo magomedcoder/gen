@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"github.com/magomedcoder/gen/api/pb/runnerpb"
+	"github.com/magomedcoder/gen/pkg/logger"
 )
 
 type RunnerState struct {
@@ -34,13 +35,17 @@ func (r *Registry) Register(addr string) {
 	defer r.mu.Unlock()
 	if _, ok := r.runners[addr]; !ok {
 		r.runners[addr] = true
+		logger.I("Registry: раннер зарегистрирован: %s", addr)
 	}
 }
 
 func (r *Registry) Unregister(addr string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	delete(r.runners, addr)
+	if _, ok := r.runners[addr]; ok {
+		delete(r.runners, addr)
+		logger.I("Registry: раннер отключён: %s", addr)
+	}
 }
 
 func (r *Registry) GetRunners() []*runnerpb.RunnerInfo {

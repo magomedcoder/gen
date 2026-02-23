@@ -7,6 +7,7 @@ import (
 	"github.com/magomedcoder/gen/internal/domain"
 	"github.com/magomedcoder/gen/internal/service"
 	"github.com/magomedcoder/gen/pkg"
+	"github.com/magomedcoder/gen/pkg/logger"
 )
 
 type AuthUseCase struct {
@@ -28,17 +29,21 @@ func NewAuthUseCase(
 }
 
 func (a *AuthUseCase) Login(ctx context.Context, username, password string) (*domain.User, string, string, error) {
+	logger.D("Login: username=%s", username)
 	user, err := a.userRepo.GetByUsername(ctx, username)
 	if err != nil {
+		logger.W("Login: пользователь не найден: %s", username)
 		return nil, "", "", errors.New("неверные учетные данные")
 	}
 
 	if !a.jwtService.CheckPassword(user.Password, password) {
+		logger.W("Login: неверный пароль: %s", username)
 		return nil, "", "", errors.New("неверные учетные данные")
 	}
 
 	accessToken, accessExpires, err := a.jwtService.GenerateAccessToken(user)
 	if err != nil {
+		logger.E("Login: генерация access token: %v", err)
 		return nil, "", "", err
 	}
 

@@ -11,6 +11,11 @@ type Config struct {
 	LLMRunner   LLMRunnerConfig
 	Runners     RunnersConfig
 	Attachments AttachmentsConfig
+	Log         LogConfig
+}
+
+type LogConfig struct {
+	Level string
 }
 
 type AttachmentsConfig struct {
@@ -66,6 +71,9 @@ func Load() (*Config, error) {
 		},
 		Attachments: AttachmentsConfig{
 			SaveDir: "./uploads",
+		},
+		Log: LogConfig{
+			Level: "info",
 		},
 	}
 

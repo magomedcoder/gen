@@ -6,6 +6,7 @@ import (
 
 	"github.com/magomedcoder/gen/internal/domain"
 	"github.com/magomedcoder/gen/internal/repository"
+	"github.com/magomedcoder/gen/pkg/logger"
 )
 
 type Pool struct {
@@ -39,8 +40,10 @@ func (p *Pool) getRepo(ctx context.Context, addr string) (domain.LLMRepository, 
 
 	repo, err := repository.NewLLMRunnerRepository(addr, p.defaultModel)
 	if err != nil {
+		logger.W("Pool: не удалось подключиться к раннеру %s: %v", addr, err)
 		return nil, err
 	}
+	logger.I("Pool: подключение к раннеру %s установлено", addr)
 	p.repos[addr] = repo
 
 	return repo, nil
@@ -49,6 +52,7 @@ func (p *Pool) getRepo(ctx context.Context, addr string) (domain.LLMRepository, 
 func (p *Pool) getOneEnabled(ctx context.Context) (domain.LLMRepository, error) {
 	addrs := p.registry.GetEnabledAddresses()
 	if len(addrs) == 0 {
+		logger.W("Pool: нет доступных раннеров")
 		return nil, domain.ErrNoRunners
 	}
 
