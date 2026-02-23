@@ -1,5 +1,6 @@
 import 'package:grpc/grpc.dart';
 import 'package:gen/core/auth_interceptor.dart';
+import 'package:gen/core/log/logs.dart';
 import 'package:gen/core/server_config.dart';
 import 'package:gen/generated/grpc_pb/auth.pbgrpc.dart' as grpc_auth;
 import 'package:gen/generated/grpc_pb/chat.pbgrpc.dart' as grpc_chat;
@@ -19,14 +20,17 @@ class GrpcChannelManager {
   GrpcChannelManager(this._config, this._authInterceptor);
 
   ClientChannel get channel {
-    _channel ??= ClientChannel(
-      _config.host,
-      port: _config.port,
-      options: const ChannelOptions(
-        credentials: ChannelCredentials.insecure(),
-        idleTimeout: Duration(seconds: 30),
-      ),
-    );
+    if (_channel == null) {
+      Logs().d('Создание gRPC канала ${_config.host}:${_config.port}');
+      _channel = ClientChannel(
+        _config.host,
+        port: _config.port,
+        options: const ChannelOptions(
+          credentials: ChannelCredentials.insecure(),
+          idleTimeout: Duration(seconds: 30),
+        ),
+      );
+    }
     return _channel!;
   }
 
@@ -63,6 +67,7 @@ class GrpcChannelManager {
   }
 
   Future<void> setServer(String host, int port) async {
+    Logs().i('Установка сервера: $host:$port');
     await _config.setServer(host, port);
     await _closeChannel();
   }
@@ -75,6 +80,7 @@ class GrpcChannelManager {
     _userClient = null;
     _runnerAdminClient = null;
     if (ch != null) {
+      Logs().d('Закрытие gRPC канала');
       await ch.shutdown();
     }
   }

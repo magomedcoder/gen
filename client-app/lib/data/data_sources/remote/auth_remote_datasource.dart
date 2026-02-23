@@ -2,6 +2,7 @@ import 'package:grpc/grpc.dart';
 import 'package:gen/core/failures.dart';
 import 'package:gen/core/grpc_channel_manager.dart';
 import 'package:gen/core/grpc_error_handler.dart';
+import 'package:gen/core/log/logs.dart';
 import 'package:gen/data/mappers/auth_mapper.dart';
 import 'package:gen/domain/entities/auth_result.dart';
 import 'package:gen/domain/entities/auth_tokens.dart';
@@ -26,6 +27,7 @@ class AuthRemoteDataSource implements IAuthRemoteDataSource {
 
   @override
   Future<AuthResult> login(String username, String password) async {
+    Logs().d('AuthRemote: login username=$username');
     try {
       final request = grpc.LoginRequest(
         username: username,
@@ -33,51 +35,58 @@ class AuthRemoteDataSource implements IAuthRemoteDataSource {
       );
 
       final response = await _client.login(request);
-
+      Logs().i('AuthRemote: login успешен');
       return AuthMapper.loginResponseFromProto(response);
     } on GrpcError catch (e) {
-      throwGrpcError(e, 'Ошибка gRPC при входе: ${e.message}',
+      throwGrpcError(e, 'Ошибка gRPC при входе',
         unauthenticatedMessage: 'Неверное имя пользователя или пароль',
       );
     } catch (e) {
-      throw ApiFailure('Ошибка входа: $e');
+      Logs().e('AuthRemote: login', exception: e);
+      throw ApiFailure('Ошибка входа');
     }
   }
 
   @override
   Future<AuthTokens> refreshToken(String refreshToken) async {
+    Logs().d('AuthRemote: refreshToken');
     try {
       final request = grpc.RefreshTokenRequest(
         refreshToken: refreshToken
       );
 
       final response = await _client.refreshToken(request);
-
+      Logs().i('AuthRemote: refreshToken успешен');
       return AuthMapper.refreshTokenResponseFromProto(response);
     } on GrpcError catch (e) {
-      throwGrpcError(e, 'Ошибка gRPC при обновлении токена: ${e.message}',
+      throwGrpcError(e, 'Ошибка gRPC при обновлении токена',
         unauthenticatedMessage: 'Недействительный refresh token',
       );
     } catch (e) {
-      throw ApiFailure('Ошибка обновления токена: $e');
+      Logs().e('AuthRemote: refreshToken', exception: e);
+      throw ApiFailure('Ошибка обновления токена');
     }
   }
 
   @override
   Future<void> logout() async {
+    Logs().d('AuthRemote: logout');
     try {
       final request = grpc.LogoutRequest();
 
       await _client.logout(request);
     } on GrpcError catch (e) {
-      throw NetworkFailure('Ошибка gRPC при выходе: ${e.message}');
+      Logs().w('AuthRemote: logout gRPC', exception: e);
+      throw NetworkFailure('Ошибка выхода');
     } catch (e) {
-      throw ApiFailure('Ошибка выхода: $e');
+      Logs().e('AuthRemote: logout', exception: e);
+      throw ApiFailure('Ошибка выхода');
     }
   }
 
   @override
   Future<void> changePassword(String oldPassword, String newPassword) async {
+    Logs().d('AuthRemote: changePassword');
     try {
       final request = grpc.ChangePasswordRequest(
         oldPassword: oldPassword,
@@ -85,14 +94,16 @@ class AuthRemoteDataSource implements IAuthRemoteDataSource {
       );
 
       await _client.changePassword(request);
+      Logs().i('AuthRemote: changePassword успешен');
     } on GrpcError catch (e) {
       if (e.code == StatusCode.invalidArgument) {
         throw NetworkFailure(e.message ?? 'Неверные данные');
       }
 
-      throwGrpcError(e, 'Ошибка gRPC при смене пароля: ${e.message}');
+      throwGrpcError(e, 'Ошибка gRPC при смене пароля');
     } catch (e) {
-      throw ApiFailure('Ошибка смены пароля: $e');
+      Logs().e('AuthRemote: changePassword', exception: e);
+      throw ApiFailure('Ошибка смены пароля');
     }
   }
 }

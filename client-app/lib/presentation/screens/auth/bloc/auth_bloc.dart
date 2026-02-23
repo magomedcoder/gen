@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gen/core/failures.dart';
 import 'package:gen/core/grpc_channel_manager.dart';
+import 'package:gen/core/log/logs.dart';
 import 'package:gen/data/data_sources/local/user_local_data_source.dart';
 import 'package:gen/domain/usecases/auth/login_usecase.dart';
 import 'package:gen/domain/usecases/auth/logout_usecase.dart';
@@ -33,6 +34,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     AuthCheckRequested event,
     Emitter<AuthState> emit,
   ) async {
+    Logs().d('AuthBloc: проверка сессии');
     emit(state.copyWith(isLoading: true, error: null));
 
     final refreshToken = tokenStorage.refreshToken;
@@ -73,6 +75,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           return;
         }
 
+        Logs().i('AuthBloc: сессия восстановлена');
         emit(
           state.copyWith(
             isLoading: false,
@@ -86,8 +89,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         lastError = e;
         wasUnauthorized = e is UnauthorizedFailure;
         if (wasUnauthorized) {
+          Logs().w('AuthBloc: refresh не авторизован');
           break;
         }
+        Logs().e('AuthBloc: ошибка проверки сессии', exception: e);
         if (attempt < maxAttempts) {
           await Future<void>.delayed(retryDelay);
         }
@@ -121,12 +126,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     AuthLoginRequested event,
     Emitter<AuthState> emit,
   ) async {
+    Logs().i('AuthBloc: вход username=${event.username}');
     emit(state.copyWith(isLoading: true, error: null));
 
     try {
       await channelManager.setServer(event.host, event.port);
       final result = await loginUseCase(event.username, event.password);
 
+      Logs().i('AuthBloc: вход выполнен успешно');
       tokenStorage.saveTokens(
         result.tokens.accessToken,
         result.tokens.refreshToken,
@@ -143,6 +150,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       );
     } catch (e) {
       if (e is UnauthorizedFailure) {
+        Logs().w('AuthBloc: неверные учётные данные');
         tokenStorage.clearTokens();
         emit(
           state.copyWith(
@@ -153,6 +161,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           ),
         );
       } else {
+        Logs().e('AuthBloc: ошибка входа', exception: e);
         emit(
           state.copyWith(
             isLoading: false,
@@ -194,12 +203,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     AuthLogoutRequested event,
     Emitter<AuthState> emit,
   ) async {
+    Logs().i('AuthBloc: выход');
     emit(state.copyWith(isLoading: true, error: null));
 
     try {
       await logoutUseCase();
-    } catch (_) {
-
+    } catch (e) {
+      Logs().w('AuthBloc: ошибка при выходе', exception: e);
     } finally {
       tokenStorage.clearTokens();
       emit(

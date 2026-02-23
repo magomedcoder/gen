@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/magomedcoder/gen/internal/domain"
+	"github.com/magomedcoder/gen/pkg/logger"
 )
 
 type ChatUseCase struct {
@@ -49,18 +50,22 @@ func (c *ChatUseCase) GetModels(ctx context.Context) ([]string, error) {
 }
 
 func (c *ChatUseCase) SendMessage(ctx context.Context, userId int, sessionId string, model string, userMessage string, attachmentName string, attachmentContent []byte) (chan string, string, error) {
+	logger.D("SendMessage: session=%s user=%d model=%s", sessionId, userId, model)
 	_, err := c.verifySessionOwnership(ctx, userId, sessionId)
 	if err != nil {
+		logger.W("SendMessage: сессия не принадлежит пользователю: %v", err)
 		return nil, "", err
 	}
 
 	messages, _, err := c.messageRepo.GetBySessionId(ctx, sessionId, 1, 100)
 	if err != nil {
+		logger.E("SendMessage: получение сообщений: %v", err)
 		return nil, "", err
 	}
 
 	userMsg := domain.NewMessageWithAttachment(sessionId, userMessage, domain.MessageRoleUser, attachmentName)
 	if err := c.messageRepo.Create(ctx, userMsg); err != nil {
+		logger.E("SendMessage: создание сообщения: %v", err)
 		return nil, "", err
 	}
 
@@ -81,8 +86,10 @@ func (c *ChatUseCase) SendMessage(ctx context.Context, userId int, sessionId str
 
 	responseChan, err := c.llmRepo.SendMessage(ctx, sessionId, model, messagesForLLM)
 	if err != nil {
+		logger.E("SendMessage: вызов LLM: %v", err)
 		return nil, "", err
 	}
+	logger.V("SendMessage: стрим от LLM запущен session=%s", sessionId)
 
 	assistantMsg := domain.NewMessage(sessionId, "", domain.MessageRoleAssistant)
 	messageId := assistantMsg.Id

@@ -21,6 +21,7 @@ import 'package:gen/presentation/screens/chat/bloc/chat_state.dart';
 import 'package:gen/presentation/utils/request_logout_on_unauthorized.dart';
 import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:gen/core/log/logs.dart';
 import 'package:uuid/uuid.dart';
 
 class ChatBloc extends Bloc<ChatEvent, ChatState> {
@@ -75,6 +76,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     ChatStarted event,
     Emitter<ChatState> emit,
 ) async {
+    Logs().d('ChatBloc: старт загрузки чата');
     emit(state.copyWith(isLoading: true));
 
     try {
@@ -138,6 +140,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
             }
           }
 
+          Logs().i('ChatBloc: чат загружен, сессий: ${sessions.length}');
           emit(
             state.copyWith(
               isConnected: isConnected,
@@ -152,6 +155,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
             ),
           );
         } catch (e) {
+          Logs().e('ChatBloc: ошибка загрузки сессий', exception: e);
           requestLogoutIfUnauthorized(e, authBloc);
           emit(
             state.copyWith(
@@ -163,6 +167,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
           );
         }
       } else {
+        Logs().w('ChatBloc: не удалось подключиться к серверу');
         emit(
           state.copyWith(
             isConnected: isConnected,
@@ -172,6 +177,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         );
       }
     } catch (e) {
+      Logs().e('ChatBloc: ошибка подключения', exception: e);
       requestLogoutIfUnauthorized(e, authBloc);
       emit(
         state.copyWith(
@@ -206,6 +212,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
       final updatedSessions = [session, ...state.sessions];
 
+      Logs().i('ChatBloc: сессия создана id=${session.id}');
       emit(
         state.copyWith(
           sessions: updatedSessions,
@@ -216,6 +223,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         ),
       );
     } catch (e) {
+      Logs().e('ChatBloc: ошибка создания сессии', exception: e);
       requestLogoutIfUnauthorized(e, authBloc);
       emit(
         state.copyWith(isLoading: false, error: 'Ошибка создания сессии'),
@@ -483,6 +491,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         );
       }
     } on Object catch (e) {
+      Logs().e('ChatBloc: ошибка отправки сообщения', exception: e);
       requestLogoutIfUnauthorized(e, authBloc);
       emit(
         state.copyWith(

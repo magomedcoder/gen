@@ -6,6 +6,7 @@ import (
 	"github.com/magomedcoder/gen/api/pb"
 	"github.com/magomedcoder/gen/internal/mappers"
 	"github.com/magomedcoder/gen/internal/usecase"
+	"github.com/magomedcoder/gen/pkg/logger"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -22,11 +23,13 @@ func NewAuthHandler(authUseCase *usecase.AuthUseCase) *AuthHandler {
 }
 
 func (a *AuthHandler) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginResponse, error) {
+	logger.D("Login: username=%s", req.GetUsername())
 	user, accessToken, refreshToken, err := a.authUseCase.Login(ctx, req.Username, req.Password)
 	if err != nil {
+		logger.W("Login: %v", err)
 		return nil, ToStatusError(codes.Unauthenticated, err)
 	}
-
+	logger.I("Login: успешный вход user=%d", user.Id)
 	return &pb.LoginResponse{
 		User:         mappers.UserToProto(user),
 		AccessToken:  accessToken,
@@ -35,11 +38,13 @@ func (a *AuthHandler) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Logi
 }
 
 func (a *AuthHandler) RefreshToken(ctx context.Context, req *pb.RefreshTokenRequest) (*pb.RefreshTokenResponse, error) {
+	logger.D("RefreshToken: запрос")
 	accessToken, refreshToken, err := a.authUseCase.RefreshToken(ctx, req.RefreshToken)
 	if err != nil {
+		logger.W("RefreshToken: %v", err)
 		return nil, ToStatusError(codes.Unauthenticated, err)
 	}
-
+	logger.I("RefreshToken: успешно")
 	return &pb.RefreshTokenResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
@@ -53,9 +58,10 @@ func (a *AuthHandler) Logout(ctx context.Context, req *pb.LogoutRequest) (*pb.Lo
 	}
 
 	if err := a.authUseCase.Logout(ctx, user.Id); err != nil {
+		logger.E("Logout: %v", err)
 		return nil, status.Error(codes.Internal, "не удалось выйти из системы")
 	}
-
+	logger.I("Logout: user=%d вышел", user.Id)
 	return &pb.LogoutResponse{
 		Success: true,
 	}, nil
@@ -68,8 +74,9 @@ func (a *AuthHandler) ChangePassword(ctx context.Context, req *pb.ChangePassword
 	}
 
 	if err := a.authUseCase.ChangePassword(ctx, user.Id, req.OldPassword, req.NewPassword); err != nil {
+		logger.W("ChangePassword: %v", err)
 		return nil, ToStatusError(codes.InvalidArgument, err)
 	}
-
+	logger.I("ChangePassword: пароль изменён user=%d", user.Id)
 	return &pb.ChangePasswordResponse{Success: true}, nil
 }

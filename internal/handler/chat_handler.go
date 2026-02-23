@@ -7,6 +7,7 @@ import (
 	"github.com/magomedcoder/gen/api/pb"
 	"github.com/magomedcoder/gen/internal/mappers"
 	"github.com/magomedcoder/gen/internal/usecase"
+	"github.com/magomedcoder/gen/pkg/logger"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -34,12 +35,14 @@ func (c *ChatHandler) getUserID(ctx context.Context) (int, error) {
 
 func (c *ChatHandler) SendMessage(req *pb.SendMessageRequest, stream pb.ChatService_SendMessageServer) error {
 	ctx := stream.Context()
+	logger.D("SendMessage: session=%s", req.GetSessionId())
 	userID, err := c.getUserID(ctx)
 	if err != nil {
 		return err
 	}
 
 	if len(req.Messages) == 0 {
+		logger.W("SendMessage: пустой список сообщений")
 		return status.Error(codes.InvalidArgument, "сообщения не предоставлены")
 	}
 
@@ -56,8 +59,10 @@ func (c *ChatHandler) SendMessage(req *pb.SendMessageRequest, stream pb.ChatServ
 
 	responseChan, messageId, err := c.chatUseCase.SendMessage(ctx, userID, req.SessionId, req.GetModel(), userMessage, attachmentName, attachmentContent)
 	if err != nil {
+		logger.E("SendMessage: %v", err)
 		return ToStatusError(codes.Internal, err)
 	}
+	logger.V("SendMessage: стрим ответа запущен messageId=%d", messageId)
 
 	createdAt := time.Now().Unix()
 
@@ -84,6 +89,7 @@ func (c *ChatHandler) SendMessage(req *pb.SendMessageRequest, stream pb.ChatServ
 }
 
 func (c *ChatHandler) CreateSession(ctx context.Context, req *pb.CreateSessionRequest) (*pb.ChatSession, error) {
+	logger.D("CreateSession: title=%s", req.GetTitle())
 	userID, err := c.getUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -91,9 +97,10 @@ func (c *ChatHandler) CreateSession(ctx context.Context, req *pb.CreateSessionRe
 
 	session, err := c.chatUseCase.CreateSession(ctx, userID, req.GetTitle(), req.GetModel())
 	if err != nil {
+		logger.E("CreateSession: %v", err)
 		return nil, ToStatusError(codes.Internal, err)
 	}
-
+	logger.I("CreateSession: создана сессия id=%d", session.Id)
 	return mappers.SessionToProto(session), nil
 }
 
@@ -105,6 +112,7 @@ func (c *ChatHandler) GetSession(ctx context.Context, req *pb.GetSessionRequest)
 
 	session, err := c.chatUseCase.GetSession(ctx, userID, req.SessionId)
 	if err != nil {
+		logger.W("GetSession: session=%d: %v", req.SessionId, err)
 		return nil, ToStatusError(codes.NotFound, err)
 	}
 
@@ -121,6 +129,7 @@ func (c *ChatHandler) GetSessions(ctx context.Context, req *pb.GetSessionsReques
 
 	sessions, total, err := c.chatUseCase.GetSessions(ctx, userID, page, pageSize)
 	if err != nil {
+		logger.E("GetSessions: %v", err)
 		return nil, ToStatusError(codes.Internal, err)
 	}
 
@@ -147,6 +156,7 @@ func (c *ChatHandler) GetSessionMessages(ctx context.Context, req *pb.GetSession
 
 	messages, total, err := c.chatUseCase.GetSessionMessages(ctx, userID, req.SessionId, page, pageSize)
 	if err != nil {
+		logger.E("GetSessionMessages: %v", err)
 		return nil, ToStatusError(codes.Internal, err)
 	}
 
@@ -170,9 +180,10 @@ func (c *ChatHandler) DeleteSession(ctx context.Context, req *pb.DeleteSessionRe
 	}
 
 	if err := c.chatUseCase.DeleteSession(ctx, userID, req.SessionId); err != nil {
+		logger.E("DeleteSession: %v", err)
 		return nil, ToStatusError(codes.Internal, err)
 	}
-
+	logger.I("DeleteSession: сессия удалена session=%d", req.SessionId)
 	return &pb.Empty{}, nil
 }
 
@@ -184,6 +195,7 @@ func (c *ChatHandler) UpdateSessionTitle(ctx context.Context, req *pb.UpdateSess
 
 	session, err := c.chatUseCase.UpdateSessionTitle(ctx, userID, req.SessionId, req.Title)
 	if err != nil {
+		logger.E("UpdateSessionTitle: %v", err)
 		return nil, ToStatusError(codes.Internal, err)
 	}
 
@@ -198,6 +210,7 @@ func (c *ChatHandler) UpdateSessionModel(ctx context.Context, req *pb.UpdateSess
 
 	session, err := c.chatUseCase.UpdateSessionModel(ctx, userID, req.SessionId, req.GetModel())
 	if err != nil {
+		logger.E("UpdateSessionModel: %v", err)
 		return nil, ToStatusError(codes.Internal, err)
 	}
 
@@ -211,6 +224,7 @@ func (c *ChatHandler) CheckConnection(ctx context.Context, req *pb.Empty) (*pb.C
 func (c *ChatHandler) GetModels(ctx context.Context, req *pb.Empty) (*pb.GetModelsResponse, error) {
 	models, err := c.chatUseCase.GetModels(ctx)
 	if err != nil {
+		logger.E("GetModels: %v", err)
 		return nil, ToStatusError(codes.Internal, err)
 	}
 

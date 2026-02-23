@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:gen/core/log/logs.dart';
 import 'package:gen/domain/usecases/users/create_user_usecase.dart';
 import 'package:gen/domain/usecases/users/edit_user_usecase.dart';
 import 'package:gen/domain/usecases/users/get_users_usecase.dart';
@@ -29,12 +30,14 @@ class UsersAdminBloc extends Bloc<UsersAdminEvent, UsersAdminState> {
     UsersAdminLoadRequested event,
     Emitter<UsersAdminState> emit,
   ) async {
+    Logs().d('UsersAdminBloc: загрузка пользователей page=${event.page}');
     emit(state.copyWith(isLoading: true, error: null));
     try {
       final users = await getUsersUseCase(
         page: event.page,
         pageSize: event.pageSize,
       );
+      Logs().i('UsersAdminBloc: загружено пользователей: ${users.length}');
       emit(state.copyWith(
         isLoading: false,
         users: users,
@@ -43,6 +46,7 @@ class UsersAdminBloc extends Bloc<UsersAdminEvent, UsersAdminState> {
         pageSize: event.pageSize,
       ));
     } catch (e) {
+      Logs().e('UsersAdminBloc: ошибка загрузки', exception: e);
       requestLogoutIfUnauthorized(e, authBloc);
       emit(
         state.copyWith(
@@ -57,6 +61,7 @@ class UsersAdminBloc extends Bloc<UsersAdminEvent, UsersAdminState> {
     UsersAdminCreateRequested event,
     Emitter<UsersAdminState> emit,
   ) async {
+    Logs().d('UsersAdminBloc: создание пользователя ${event.username}');
     emit(state.copyWith(isLoading: true, error: null));
     try {
       await createUserUseCase(
@@ -66,13 +71,14 @@ class UsersAdminBloc extends Bloc<UsersAdminEvent, UsersAdminState> {
         surname: event.surname,
         role: event.role,
       );
-
+      Logs().i('UsersAdminBloc: пользователь создан');
       add(UsersAdminLoadRequested(
         page: state.currentPage,
         pageSize:
         state.pageSize,
       ));
     } catch (e) {
+      Logs().e('UsersAdminBloc: ошибка создания', exception: e);
       requestLogoutIfUnauthorized(e, authBloc);
       emit(
         state.copyWith(
@@ -87,6 +93,7 @@ class UsersAdminBloc extends Bloc<UsersAdminEvent, UsersAdminState> {
     UsersAdminUpdateRequested event,
     Emitter<UsersAdminState> emit,
   ) async {
+    Logs().d('UsersAdminBloc: обновление пользователя id=${event.id}');
     emit(state.copyWith(isLoading: true, error: null));
     try {
       await editUserUseCase(
@@ -97,12 +104,13 @@ class UsersAdminBloc extends Bloc<UsersAdminEvent, UsersAdminState> {
         surname: event.surname,
         role: event.role,
       );
-
+      Logs().i('UsersAdminBloc: пользователь обновлён');
       add(UsersAdminLoadRequested(
         page: state.currentPage,
         pageSize: state.pageSize,
       ));
     } catch (e) {
+      Logs().e('UsersAdminBloc: ошибка обновления', exception: e);
       requestLogoutIfUnauthorized(e, authBloc);
       emit(
         state.copyWith(

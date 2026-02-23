@@ -1,4 +1,5 @@
 import 'package:gen/core/failures.dart';
+import 'package:gen/core/log/logs.dart';
 import 'package:gen/data/data_sources/remote/user_remote_datasource.dart';
 import 'package:gen/domain/entities/user.dart';
 import 'package:gen/domain/repositories/user_repository.dart';
@@ -13,7 +14,9 @@ class UserRepositoryImpl implements UserRepository {
     try {
       return await dataSource.getUsers(page: page, pageSize: pageSize);
     } catch (e) {
-      throw ApiFailure('Ошибка получения пользователей: $e');
+      if (e is Failure) rethrow;
+      Logs().e('UserRepository: ошибка получения пользователей', exception: e);
+      throw ApiFailure('Ошибка получения пользователей');
     }
   }
 
@@ -34,7 +37,9 @@ class UserRepositoryImpl implements UserRepository {
         role: role,
       );
     } catch (e) {
-      throw ApiFailure('Ошибка создания пользователя: $e');
+      if (e is Failure) rethrow;
+      Logs().e('UserRepository: ошибка создания пользователя', exception: e);
+      throw ApiFailure('Ошибка создания пользователя');
     }
   }
 
@@ -57,7 +62,9 @@ class UserRepositoryImpl implements UserRepository {
         role: role,
       );
     } catch (e) {
-      throw ApiFailure('Ошибка обновления пользователя: $e');
+      if (e is Failure) rethrow;
+      Logs().e('UserRepository: ошибка обновления пользователя', exception: e);
+      throw ApiFailure('Ошибка обновления пользователя');
     }
   }
 }

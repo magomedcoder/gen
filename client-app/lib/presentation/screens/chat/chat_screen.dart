@@ -34,19 +34,23 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isSidebarExpanded = true;
   double get _sidebarWidth => Breakpoints.sidebarDefaultWidth;
 
+  static const double _scrollThreshold = 80.0;
+
   @override
   void initState() {
     super.initState();
-    _scrollController.addListener(_scrollListener);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ChatBloc>().add(ChatStarted());
     });
   }
 
-  void _scrollListener() {
-    if (_scrollController.hasClients) {
+  void _scrollToBottom() {
+    if (!mounted) return;
+    if (!_scrollController.hasClients) return;
+    final pos = _scrollController.position;
+    if (pos.maxScrollExtent - pos.pixels <= _scrollThreshold) {
       _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
+        pos.maxScrollExtent,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOut,
       );
@@ -418,17 +422,14 @@ class _ChatScreenState extends State<ChatScreen> {
     return BlocListener<ChatBloc, ChatState>(
       listener: (context, state) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (_scrollController.hasClients && state.messages.isNotEmpty) {
-            _scrollController.animateTo(
-              _scrollController.position.maxScrollExtent,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOut,
-            );
+          if (state.messages.isNotEmpty) {
+            _scrollToBottom();
           }
         });
 
         if (state.error != null && !_isEditingTitle) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(state.error!),

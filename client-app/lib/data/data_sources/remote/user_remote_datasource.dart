@@ -2,6 +2,7 @@ import 'package:grpc/grpc.dart';
 import 'package:gen/core/failures.dart';
 import 'package:gen/core/grpc_channel_manager.dart';
 import 'package:gen/core/grpc_error_handler.dart';
+import 'package:gen/core/log/logs.dart';
 import 'package:gen/data/mappers/user_mapper.dart';
 import 'package:gen/domain/entities/user.dart';
 import 'package:gen/generated/grpc_pb/user.pbgrpc.dart' as grpc;
@@ -36,21 +37,24 @@ class UserRemoteDataSource implements IUserRemoteDataSource {
 
   @override
   Future<List<User>> getUsers({required int page, required int pageSize}) async {
+    Logs().d('UserRemote: getUsers page=$page pageSize=$pageSize');
     try {
       final req = grpc.GetUsersRequest(
         page: page,
         pageSize: pageSize,
       );
       final resp = await _client.getUsers(req);
+      Logs().i('UserRemote: getUsers получено ${resp.users.length}');
       return UserMapper.listFromProto(resp.users);
     } on GrpcError catch (e) {
       if (e.code == StatusCode.permissionDenied) {
         throw NetworkFailure('Доступ разрешён только администратору');
       }
 
-      throwGrpcError(e, 'Ошибка gRPC: ${e.message}');
+      throwGrpcError(e, 'Ошибка gRPC');
     } catch (e) {
-      throw ApiFailure('Ошибка получения пользователей: $e');
+      Logs().e('UserRemote: getUsers', exception: e);
+      throw ApiFailure('Ошибка получения пользователей');
     }
   }
 
@@ -62,6 +66,7 @@ class UserRemoteDataSource implements IUserRemoteDataSource {
     required String surname,
     required int role,
   }) async {
+    Logs().d('UserRemote: createUser username=$username');
     try {
       final req = grpc.CreateUserRequest(
         username: username,
@@ -71,6 +76,7 @@ class UserRemoteDataSource implements IUserRemoteDataSource {
         role: role,
       );
       final resp = await _client.createUser(req);
+      Logs().i('UserRemote: createUser успешен');
       return UserMapper.fromProto(resp.user);
     } on GrpcError catch (e) {
       if (e.code == StatusCode.invalidArgument) {
@@ -81,9 +87,10 @@ class UserRemoteDataSource implements IUserRemoteDataSource {
         throw NetworkFailure('Доступ разрешён только администратору');
       }
 
-      throwGrpcError(e, 'Ошибка gRPC: ${e.message}');
+      throwGrpcError(e, 'Ошибка gRPC');
     } catch (e) {
-      throw ApiFailure('Ошибка создания пользователя: $e');
+      Logs().e('UserRemote: createUser', exception: e);
+      throw ApiFailure('Ошибка создания пользователя');
     }
   }
 
@@ -96,6 +103,7 @@ class UserRemoteDataSource implements IUserRemoteDataSource {
     required String surname,
     required int role,
   }) async {
+    Logs().d('UserRemote: editUser id=$id');
     try {
       final req = grpc.EditUserRequest(
         id: id,
@@ -106,6 +114,7 @@ class UserRemoteDataSource implements IUserRemoteDataSource {
         role: role,
       );
       final resp = await _client.editUser(req);
+      Logs().i('UserRemote: editUser успешен');
       return UserMapper.fromProto(resp.user);
     } on GrpcError catch (e) {
       if (e.code == StatusCode.invalidArgument) {
@@ -116,9 +125,10 @@ class UserRemoteDataSource implements IUserRemoteDataSource {
         throw NetworkFailure('Доступ разрешён только администратору');
       }
 
-      throwGrpcError(e, 'Ошибка gRPC: ${e.message}');
+      throwGrpcError(e, 'Ошибка gRPC');
     } catch (e) {
-      throw ApiFailure('Ошибка обновления пользователя: $e');
+      Logs().e('UserRemote: editUser', exception: e);
+      throw ApiFailure('Ошибка обновления пользователя');
     }
   }
 }

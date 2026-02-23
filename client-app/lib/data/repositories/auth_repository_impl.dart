@@ -1,4 +1,5 @@
 import 'package:gen/core/failures.dart';
+import 'package:gen/core/log/logs.dart';
 import 'package:gen/data/data_sources/remote/auth_remote_datasource.dart';
 import 'package:gen/domain/entities/auth_result.dart';
 import 'package:gen/domain/entities/auth_tokens.dart';
@@ -15,7 +16,8 @@ class AuthRepositoryImpl implements AuthRepository {
       return await dataSource.login(username, password);
     } catch (e) {
       if (e is Failure) rethrow;
-      throw ApiFailure('Ошибка входа: $e');
+      Logs().e('AuthRepository: ошибка входа', exception: e);
+      throw ApiFailure('Ошибка входа');
     }
   }
 
@@ -25,7 +27,8 @@ class AuthRepositoryImpl implements AuthRepository {
       return await dataSource.refreshToken(refreshToken);
     } catch (e) {
       if (e is Failure) rethrow;
-      throw ApiFailure('Ошибка обновления токена: $e');
+      Logs().e('AuthRepository: ошибка обновления токена', exception: e);
+      throw ApiFailure('Ошибка обновления токена');
     }
   }
 
@@ -35,7 +38,8 @@ class AuthRepositoryImpl implements AuthRepository {
       await dataSource.logout();
     } catch (e) {
       if (e is Failure) rethrow;
-      throw ApiFailure('Ошибка выхода: $e');
+      Logs().e('AuthRepository: ошибка выхода', exception: e);
+      throw ApiFailure('Ошибка выхода');
     }
   }
 
@@ -45,7 +49,8 @@ class AuthRepositoryImpl implements AuthRepository {
       await dataSource.changePassword(oldPassword, newPassword);
     } catch (e) {
       if (e is Failure) rethrow;
-      throw ApiFailure('Ошибка смены пароля: $e');
+      Logs().e('AuthRepository: ошибка смены пароля', exception: e);
+      throw ApiFailure('Ошибка смены пароля');
     }
   }
 }
