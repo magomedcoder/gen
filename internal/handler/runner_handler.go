@@ -2,7 +2,7 @@ package handler
 
 import (
 	"context"
-
+	"github.com/magomedcoder/gen/api/pb/commonpb"
 	"github.com/magomedcoder/gen/api/pb/runnerpb"
 	"github.com/magomedcoder/gen/internal/runner"
 	"github.com/magomedcoder/gen/internal/usecase"
@@ -25,7 +25,7 @@ func NewRunnerHandler(registry *runner.Registry, pool *runner.Pool, authUseCase 
 	}
 }
 
-func (h *RunnerHandler) GetRunners(ctx context.Context, _ *runnerpb.Empty) (*runnerpb.GetRunnersResponse, error) {
+func (h *RunnerHandler) GetRunners(ctx context.Context, _ *commonpb.Empty) (*runnerpb.GetRunnersResponse, error) {
 	logger.D("GetRunners: запрос списка раннеров")
 	if err := RequireAdmin(ctx, h.authUseCase); err != nil {
 		return nil, err
@@ -54,7 +54,7 @@ func (h *RunnerHandler) GetRunners(ctx context.Context, _ *runnerpb.Empty) (*run
 	}, nil
 }
 
-func (h *RunnerHandler) SetRunnerEnabled(ctx context.Context, req *runnerpb.SetRunnerEnabledRequest) (*runnerpb.Empty, error) {
+func (h *RunnerHandler) SetRunnerEnabled(ctx context.Context, req *runnerpb.SetRunnerEnabledRequest) (*commonpb.Empty, error) {
 	if err := RequireAdmin(ctx, h.authUseCase); err != nil {
 		return nil, err
 	}
@@ -66,10 +66,10 @@ func (h *RunnerHandler) SetRunnerEnabled(ctx context.Context, req *runnerpb.SetR
 		logger.I("SetRunnerEnabled: адрес=%s enabled=%v", req.Address, req.Enabled)
 	}
 
-	return &runnerpb.Empty{}, nil
+	return &commonpb.Empty{}, nil
 }
 
-func (h *RunnerHandler) GetRunnersStatus(ctx context.Context, _ *runnerpb.Empty) (*runnerpb.GetRunnersStatusResponse, error) {
+func (h *RunnerHandler) GetRunnersStatus(ctx context.Context, _ *commonpb.Empty) (*runnerpb.GetRunnersStatusResponse, error) {
 	return &runnerpb.GetRunnersStatusResponse{
 		HasActiveRunners: h.registry.HasActiveRunners(),
 	}, nil

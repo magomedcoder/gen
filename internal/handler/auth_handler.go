@@ -3,7 +3,7 @@ package handler
 import (
 	"context"
 
-	"github.com/magomedcoder/gen/api/pb"
+	"github.com/magomedcoder/gen/api/pb/authpb"
 	"github.com/magomedcoder/gen/config"
 	"github.com/magomedcoder/gen/internal/mappers"
 	"github.com/magomedcoder/gen/internal/usecase"
@@ -13,7 +13,7 @@ import (
 )
 
 type AuthHandler struct {
-	pb.UnimplementedAuthServiceServer
+	authpb.UnimplementedAuthServiceServer
 	authUseCase *usecase.AuthUseCase
 	cfg         *config.Config
 }
@@ -25,7 +25,7 @@ func NewAuthHandler(cfg *config.Config, authUseCase *usecase.AuthUseCase) *AuthH
 	}
 }
 
-func (a *AuthHandler) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginResponse, error) {
+func (a *AuthHandler) Login(ctx context.Context, req *authpb.LoginRequest) (*authpb.LoginResponse, error) {
 	logger.D("Login: username=%s", req.GetUsername())
 	user, accessToken, refreshToken, err := a.authUseCase.Login(ctx, req.Username, req.Password)
 	if err != nil {
@@ -33,14 +33,15 @@ func (a *AuthHandler) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Logi
 		return nil, ToStatusError(codes.Unauthenticated, err)
 	}
 	logger.I("Login: успешный вход user=%d", user.Id)
-	return &pb.LoginResponse{
+
+	return &authpb.LoginResponse{
 		User:         mappers.UserToProto(user),
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 	}, nil
 }
 
-func (a *AuthHandler) RefreshToken(ctx context.Context, req *pb.RefreshTokenRequest) (*pb.RefreshTokenResponse, error) {
+func (a *AuthHandler) RefreshToken(ctx context.Context, req *authpb.RefreshTokenRequest) (*authpb.RefreshTokenResponse, error) {
 	logger.D("RefreshToken: запрос")
 	accessToken, refreshToken, err := a.authUseCase.RefreshToken(ctx, req.RefreshToken)
 	if err != nil {
@@ -48,13 +49,14 @@ func (a *AuthHandler) RefreshToken(ctx context.Context, req *pb.RefreshTokenRequ
 		return nil, ToStatusError(codes.Unauthenticated, err)
 	}
 	logger.I("RefreshToken: успешно")
-	return &pb.RefreshTokenResponse{
+
+	return &authpb.RefreshTokenResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 	}, nil
 }
 
-func (a *AuthHandler) Logout(ctx context.Context, req *pb.LogoutRequest) (*pb.LogoutResponse, error) {
+func (a *AuthHandler) Logout(ctx context.Context, req *authpb.LogoutRequest) (*authpb.LogoutResponse, error) {
 	user, err := GetUserFromContext(ctx, a.authUseCase)
 	if err != nil {
 		return nil, err
@@ -65,12 +67,13 @@ func (a *AuthHandler) Logout(ctx context.Context, req *pb.LogoutRequest) (*pb.Lo
 		return nil, status.Error(codes.Internal, "не удалось выйти из системы")
 	}
 	logger.I("Logout: user=%d вышел", user.Id)
-	return &pb.LogoutResponse{
+
+	return &authpb.LogoutResponse{
 		Success: true,
 	}, nil
 }
 
-func (a *AuthHandler) ChangePassword(ctx context.Context, req *pb.ChangePasswordRequest) (*pb.ChangePasswordResponse, error) {
+func (a *AuthHandler) ChangePassword(ctx context.Context, req *authpb.ChangePasswordRequest) (*authpb.ChangePasswordResponse, error) {
 	user, err := GetUserFromContext(ctx, a.authUseCase)
 	if err != nil {
 		return nil, err
@@ -81,10 +84,13 @@ func (a *AuthHandler) ChangePassword(ctx context.Context, req *pb.ChangePassword
 		return nil, ToStatusError(codes.InvalidArgument, err)
 	}
 	logger.I("ChangePassword: пароль изменён user=%d", user.Id)
-	return &pb.ChangePasswordResponse{Success: true}, nil
+
+	return &authpb.ChangePasswordResponse{
+		Success: true,
+	}, nil
 }
 
-func (a *AuthHandler) CheckVersion(ctx context.Context, req *pb.CheckVersionRequest) (*pb.CheckVersionResponse, error) {
+func (a *AuthHandler) CheckVersion(ctx context.Context, req *authpb.CheckVersionRequest) (*authpb.CheckVersionResponse, error) {
 	clientBuild := req.GetClientBuild()
 	compatible := clientBuild >= a.cfg.MinClientBuild
 
@@ -93,7 +99,7 @@ func (a *AuthHandler) CheckVersion(ctx context.Context, req *pb.CheckVersionRequ
 		msg = "Версия приложения несовместима с сервером"
 	}
 
-	return &pb.CheckVersionResponse{
+	return &authpb.CheckVersionResponse{
 		Compatible: compatible,
 		Message:    msg,
 	}, nil

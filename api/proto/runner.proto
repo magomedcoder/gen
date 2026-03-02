@@ -2,31 +2,30 @@ syntax = "proto3";
 
 package runner;
 
-option go_package = "github.com/magomedcoder/gen/api/pb/runnerpb;runnerpb";
-
+import "common.proto";
 import "chat.proto";
 
-service RunnerService {
-  rpc Ping(Empty) returns (PingResponse);
+option go_package = "github.com/magomedcoder/gen/api/pb/runnerpb;runnerpb";
 
-  rpc GetModels(Empty) returns (GetModelsResponse);
+service RunnerService {
+  rpc Ping(common.Empty) returns (PingResponse);
+
+  rpc GetModels(common.Empty) returns (GetModelsResponse);
 
   rpc Generate(GenerateRequest) returns (stream GenerateResponse);
 
-  rpc Register(RegisterRunnerRequest) returns (Empty);
+  rpc Register(RegisterRunnerRequest) returns (common.Empty);
 
-  rpc Unregister(UnregisterRunnerRequest) returns (Empty);
+  rpc Unregister(UnregisterRunnerRequest) returns (common.Empty);
 }
 
 service RunnerAdminService {
-  rpc GetRunners(Empty) returns (GetRunnersResponse);
+  rpc GetRunners(common.Empty) returns (GetRunnersResponse);
 
-  rpc SetRunnerEnabled(SetRunnerEnabledRequest) returns (Empty);
+  rpc SetRunnerEnabled(SetRunnerEnabledRequest) returns (common.Empty);
 
-  rpc GetRunnersStatus(Empty) returns (GetRunnersStatusResponse);
+  rpc GetRunnersStatus(common.Empty) returns (GetRunnersStatusResponse);
 }
-
-message Empty {}
 
 message PingResponse {
   bool ok = 1;

@@ -88,8 +88,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     children: [
                       Text(
                         'Gen',
-                        style: Theme.of(context).textTheme.headlineMedium?
-                            .copyWith(fontWeight: FontWeight.bold),
+                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 8),

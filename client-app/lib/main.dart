@@ -10,7 +10,7 @@ import 'package:gen/presentation/screens/auth/bloc/auth_state.dart';
 import 'package:gen/presentation/screens/auth/login_screen.dart';
 import 'package:gen/presentation/screens/auth/update_required_screen.dart';
 import 'package:gen/presentation/screens/chat/bloc/chat_bloc.dart';
-import 'package:gen/presentation/screens/chat/chat_screen.dart';
+import 'package:gen/presentation/screens/home/home_shell.dart';
 import 'package:gen/presentation/theme/theme_cubit.dart';
 
 Future<void> main() async {
@@ -64,7 +64,7 @@ class App extends StatelessWidget {
                   }
 
                   if (authState.isAuthenticated) {
-                    return const ChatScreen();
+                    return const HomeShell();
                   }
 
                   return const LoginScreen();

@@ -6,6 +6,7 @@ import 'package:gen/generated/grpc_pb/auth.pbgrpc.dart' as grpc_auth;
 import 'package:gen/generated/grpc_pb/chat.pbgrpc.dart' as grpc_chat;
 import 'package:gen/generated/grpc_pb/runner.pbgrpc.dart' as grpc_runner;
 import 'package:gen/generated/grpc_pb/user.pbgrpc.dart' as grpc_user;
+import 'package:gen/generated/grpc_pb/editor.pbgrpc.dart' as grpc_editor;
 
 class GrpcChannelManager {
   final ServerConfig _config;
@@ -16,6 +17,7 @@ class GrpcChannelManager {
   grpc_chat.ChatServiceClient? _chatClient;
   grpc_user.UserServiceClient? _userClient;
   grpc_runner.RunnerAdminServiceClient? _runnerAdminClient;
+  grpc_editor.EditorServiceClient? _editorClient;
 
   GrpcChannelManager(this._config, this._authInterceptor);
 
@@ -70,6 +72,14 @@ class GrpcChannelManager {
     return _runnerAdminClient!;
   }
 
+  grpc_editor.EditorServiceClient get editorClient {
+    _editorClient ??= grpc_editor.EditorServiceClient(
+      channel,
+      interceptors: [_authInterceptor],
+    );
+    return _editorClient!;
+  }
+
   Future<void> setServer(String host, int port) async {
     Logs().i('Установка сервера: $host:$port');
     await _config.setServer(host, port);
@@ -83,6 +93,7 @@ class GrpcChannelManager {
     _chatClient = null;
     _userClient = null;
     _runnerAdminClient = null;
+    _editorClient = null;
     if (ch != null) {
       Logs().d('Закрытие gRPC канала');
       await ch.shutdown();
