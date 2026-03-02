@@ -4,7 +4,7 @@ import (
 	"context"
 	"strconv"
 
-	"github.com/magomedcoder/gen/api/pb"
+	"github.com/magomedcoder/gen/api/pb/userpb"
 	"github.com/magomedcoder/gen/internal/mappers"
 	"github.com/magomedcoder/gen/internal/usecase"
 	"github.com/magomedcoder/gen/pkg/logger"
@@ -13,7 +13,7 @@ import (
 )
 
 type UserHandler struct {
-	pb.UnimplementedUserServiceServer
+	userpb.UnimplementedUserServiceServer
 	userUseCase *usecase.UserUseCase
 	authUseCase *usecase.AuthUseCase
 }
@@ -25,7 +25,7 @@ func NewUserHandler(userUseCase *usecase.UserUseCase, authUseCase *usecase.AuthU
 	}
 }
 
-func (u *UserHandler) GetUsers(ctx context.Context, req *pb.GetUsersRequest) (*pb.GetUsersResponse, error) {
+func (u *UserHandler) GetUsers(ctx context.Context, req *userpb.GetUsersRequest) (*userpb.GetUsersResponse, error) {
 	logger.D("GetUsers: запрос списка пользователей")
 	if err := RequireAdmin(ctx, u.authUseCase); err != nil {
 		return nil, err
@@ -38,7 +38,7 @@ func (u *UserHandler) GetUsers(ctx context.Context, req *pb.GetUsersRequest) (*p
 	}
 	logger.I("GetUsers: возвращено пользователей: %d, всего: %d", len(users), total)
 
-	resp := &pb.GetUsersResponse{
+	resp := &userpb.GetUsersResponse{
 		Total: total,
 	}
 	for _, user := range users {
@@ -48,7 +48,7 @@ func (u *UserHandler) GetUsers(ctx context.Context, req *pb.GetUsersRequest) (*p
 	return resp, nil
 }
 
-func (u *UserHandler) CreateUser(ctx context.Context, req *pb.CreateUserRequest) (*pb.CreateUserResponse, error) {
+func (u *UserHandler) CreateUser(ctx context.Context, req *userpb.CreateUserRequest) (*userpb.CreateUserResponse, error) {
 	logger.D("CreateUser: username=%s", req.GetUsername())
 	if err := RequireAdmin(ctx, u.authUseCase); err != nil {
 		return nil, err
@@ -60,10 +60,12 @@ func (u *UserHandler) CreateUser(ctx context.Context, req *pb.CreateUserRequest)
 		return nil, ToStatusError(codes.InvalidArgument, err)
 	}
 	logger.I("CreateUser: пользователь создан id=%d", user.Id)
-	return &pb.CreateUserResponse{User: mappers.UserToProto(user)}, nil
+	return &userpb.CreateUserResponse{
+		User: mappers.UserToProto(user),
+	}, nil
 }
 
-func (u *UserHandler) EditUser(ctx context.Context, req *pb.EditUserRequest) (*pb.EditUserResponse, error) {
+func (u *UserHandler) EditUser(ctx context.Context, req *userpb.EditUserRequest) (*userpb.EditUserResponse, error) {
 	logger.D("EditUser: id=%s", req.GetId())
 	if err := RequireAdmin(ctx, u.authUseCase); err != nil {
 		return nil, err
@@ -80,5 +82,7 @@ func (u *UserHandler) EditUser(ctx context.Context, req *pb.EditUserRequest) (*p
 		return nil, ToStatusError(codes.InvalidArgument, err)
 	}
 	logger.I("EditUser: пользователь обновлён id=%s", req.Id)
-	return &pb.EditUserResponse{User: mappers.UserToProto(user)}, nil
+	return &userpb.EditUserResponse{
+		User: mappers.UserToProto(user),
+	}, nil
 }

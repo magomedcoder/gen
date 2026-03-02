@@ -2,9 +2,10 @@ package handler
 
 import (
 	"context"
+	pb "github.com/magomedcoder/gen/api/pb/llmrunner"
 	"time"
 
-	"github.com/magomedcoder/gen/api/pb"
+	"github.com/magomedcoder/gen/api/pb/chatpb"
 	"github.com/magomedcoder/gen/internal/mappers"
 	"github.com/magomedcoder/gen/internal/usecase"
 	"github.com/magomedcoder/gen/pkg/logger"
@@ -13,7 +14,7 @@ import (
 )
 
 type ChatHandler struct {
-	pb.UnimplementedChatServiceServer
+	chatpb.UnimplementedChatServiceServer
 	chatUseCase *usecase.ChatUseCase
 	authUseCase *usecase.AuthUseCase
 }
@@ -33,7 +34,7 @@ func (c *ChatHandler) getUserID(ctx context.Context) (int, error) {
 	return user.Id, nil
 }
 
-func (c *ChatHandler) SendMessage(req *pb.SendMessageRequest, stream pb.ChatService_SendMessageServer) error {
+func (c *ChatHandler) SendMessage(req *pb.SendMessageRequest, stream chatpb.ChatService_SendMessageServer) error {
 	ctx := stream.Context()
 	logger.D("SendMessage: session=%s", req.GetSessionId())
 	userID, err := c.getUserID(ctx)
@@ -88,7 +89,7 @@ func (c *ChatHandler) SendMessage(req *pb.SendMessageRequest, stream pb.ChatServ
 	})
 }
 
-func (c *ChatHandler) CreateSession(ctx context.Context, req *pb.CreateSessionRequest) (*pb.ChatSession, error) {
+func (c *ChatHandler) CreateSession(ctx context.Context, req *chatpb.CreateSessionRequest) (*chatpb.ChatSession, error) {
 	logger.D("CreateSession: title=%s", req.GetTitle())
 	userID, err := c.getUserID(ctx)
 	if err != nil {
@@ -104,7 +105,7 @@ func (c *ChatHandler) CreateSession(ctx context.Context, req *pb.CreateSessionRe
 	return mappers.SessionToProto(session), nil
 }
 
-func (c *ChatHandler) GetSession(ctx context.Context, req *pb.GetSessionRequest) (*pb.ChatSession, error) {
+func (c *ChatHandler) GetSession(ctx context.Context, req *chatpb.GetSessionRequest) (*chatpb.ChatSession, error) {
 	userID, err := c.getUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -119,7 +120,7 @@ func (c *ChatHandler) GetSession(ctx context.Context, req *pb.GetSessionRequest)
 	return mappers.SessionToProto(session), nil
 }
 
-func (c *ChatHandler) GetSessions(ctx context.Context, req *pb.GetSessionsRequest) (*pb.GetSessionsResponse, error) {
+func (c *ChatHandler) GetSessions(ctx context.Context, req *chatpb.GetSessionsRequest) (*chatpb.GetSessionsResponse, error) {
 	userID, err := c.getUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -133,12 +134,12 @@ func (c *ChatHandler) GetSessions(ctx context.Context, req *pb.GetSessionsReques
 		return nil, ToStatusError(codes.Internal, err)
 	}
 
-	protoSessions := make([]*pb.ChatSession, len(sessions))
+	protoSessions := make([]*chatpb.ChatSession, len(sessions))
 	for i, session := range sessions {
 		protoSessions[i] = mappers.SessionToProto(session)
 	}
 
-	return &pb.GetSessionsResponse{
+	return &chatpb.GetSessionsResponse{
 		Sessions: protoSessions,
 		Total:    total,
 		Page:     page,
@@ -146,7 +147,7 @@ func (c *ChatHandler) GetSessions(ctx context.Context, req *pb.GetSessionsReques
 	}, nil
 }
 
-func (c *ChatHandler) GetSessionMessages(ctx context.Context, req *pb.GetSessionMessagesRequest) (*pb.GetSessionMessagesResponse, error) {
+func (c *ChatHandler) GetSessionMessages(ctx context.Context, req *chatpb.GetSessionMessagesRequest) (*chatpb.GetSessionMessagesResponse, error) {
 	userID, err := c.getUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -165,7 +166,7 @@ func (c *ChatHandler) GetSessionMessages(ctx context.Context, req *pb.GetSession
 		protoMessages[i] = mappers.MessageToProto(msg)
 	}
 
-	return &pb.GetSessionMessagesResponse{
+	return &chatpb.GetSessionMessagesResponse{
 		Messages: protoMessages,
 		Total:    total,
 		Page:     page,
@@ -173,7 +174,7 @@ func (c *ChatHandler) GetSessionMessages(ctx context.Context, req *pb.GetSession
 	}, nil
 }
 
-func (c *ChatHandler) DeleteSession(ctx context.Context, req *pb.DeleteSessionRequest) (*pb.Empty, error) {
+func (c *ChatHandler) DeleteSession(ctx context.Context, req *chatpb.DeleteSessionRequest) (*pb.Empty, error) {
 	userID, err := c.getUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -187,7 +188,7 @@ func (c *ChatHandler) DeleteSession(ctx context.Context, req *pb.DeleteSessionRe
 	return &pb.Empty{}, nil
 }
 
-func (c *ChatHandler) UpdateSessionTitle(ctx context.Context, req *pb.UpdateSessionTitleRequest) (*pb.ChatSession, error) {
+func (c *ChatHandler) UpdateSessionTitle(ctx context.Context, req *chatpb.UpdateSessionTitleRequest) (*chatpb.ChatSession, error) {
 	userID, err := c.getUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -202,7 +203,7 @@ func (c *ChatHandler) UpdateSessionTitle(ctx context.Context, req *pb.UpdateSess
 	return mappers.SessionToProto(session), nil
 }
 
-func (c *ChatHandler) UpdateSessionModel(ctx context.Context, req *pb.UpdateSessionModelRequest) (*pb.ChatSession, error) {
+func (c *ChatHandler) UpdateSessionModel(ctx context.Context, req *chatpb.UpdateSessionModelRequest) (*chatpb.ChatSession, error) {
 	userID, err := c.getUserID(ctx)
 	if err != nil {
 		return nil, err

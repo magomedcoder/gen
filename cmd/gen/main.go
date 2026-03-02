@@ -10,7 +10,6 @@ import (
 
 	"github.com/magomedcoder/gen"
 	"github.com/magomedcoder/gen/api/pb"
-	"github.com/magomedcoder/gen/api/pb/runnerpb"
 	"github.com/magomedcoder/gen/config"
 	"github.com/magomedcoder/gen/internal/bootstrap"
 	"github.com/magomedcoder/gen/internal/domain"
@@ -93,21 +92,24 @@ func main() {
 	}
 
 	chatUseCase := usecase.NewChatUseCase(sessionRepo, messageRepo, fileRepo, llmRepo, cfg.Attachments.SaveDir)
+	editorUseCase := usecase.NewEditorUseCase(llmRepo)
 	userUseCase := usecase.NewUserUseCase(userRepo, tokenRepo, jwtService)
 
 	authHandler := handler.NewAuthHandler(cfg, authUseCase)
 	chatHandler := handler.NewChatHandler(chatUseCase, authUseCase)
+	editorHandler := handler.NewEditorHandler(editorUseCase, authUseCase)
 	userHandler := handler.NewUserHandler(userUseCase, authUseCase)
 
 	grpcServer := grpc.NewServer()
 
 	if runnerReg != nil && runnerPool != nil {
 		runnerHandler := handler.NewRunnerHandler(runnerReg, runnerPool, authUseCase)
-		runnerpb.RegisterRunnerAdminServiceServer(grpcServer, runnerHandler)
+		pb.RegisterRunnerAdminServiceServer(grpcServer, runnerHandler)
 	}
 
 	pb.RegisterAuthServiceServer(grpcServer, authHandler)
 	pb.RegisterChatServiceServer(grpcServer, chatHandler)
+	pb.RegisterEditorServiceServer(grpcServer, editorHandler)
 	pb.RegisterUserServiceServer(grpcServer, userHandler)
 
 	reflection.Register(grpcServer)

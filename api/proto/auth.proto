@@ -2,9 +2,9 @@ syntax = "proto3";
 
 package auth;
 
-option go_package = "github.com/magomedcoder/gen/api/pb";
-
 import "common.proto";
+
+option go_package = "github.com/magomedcoder/gen/api/pb/authpb;authpb";
 
 service AuthService {
   rpc Login(LoginRequest) returns (LoginResponse);

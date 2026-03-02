@@ -2,9 +2,9 @@ package runner
 
 import (
 	"context"
+	"github.com/magomedcoder/gen/api/pb/runnerpb"
 	"sync"
 
-	"github.com/magomedcoder/gen/api/pb/runnerpb"
 	"github.com/magomedcoder/gen/internal/domain"
 	"github.com/magomedcoder/gen/internal/repository"
 	"github.com/magomedcoder/gen/pkg/logger"
