@@ -3,18 +3,17 @@ package main
 import (
 	"context"
 	"fmt"
-	"net"
-	"os"
-	"os/signal"
-	"syscall"
+	"strings"
 
 	"github.com/magomedcoder/gen"
-	"github.com/magomedcoder/gen/api/pb"
+	"github.com/magomedcoder/gen/api/pb/authpb"
+	"github.com/magomedcoder/gen/api/pb/chatpb"
+	"github.com/magomedcoder/gen/api/pb/editorpb"
+	"github.com/magomedcoder/gen/api/pb/runnerpb"
+	"github.com/magomedcoder/gen/api/pb/userpb"
 	"github.com/magomedcoder/gen/config"
 	"github.com/magomedcoder/gen/internal/bootstrap"
-	"github.com/magomedcoder/gen/internal/domain"
 	"github.com/magomedcoder/gen/internal/handler"
-	"github.com/magomedcoder/gen/internal/repository"
 	"github.com/magomedcoder/gen/internal/repository/postgres"
 	"github.com/magomedcoder/gen/internal/runner"
 	"github.com/magomedcoder/gen/internal/service"
@@ -22,6 +21,10 @@ import (
 	"github.com/magomedcoder/gen/pkg/logger"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
+	"net"
+	"os"
+	"os/signal"
+	"syscall"
 )
 
 func main() {
@@ -33,17 +36,22 @@ func main() {
 	}
 
 	logger.Default.SetLevel(logger.ParseLevel(cfg.Log.Level))
-	logger.I("Запуск приложения")
+	logger.I("Запуск приложения (%s)", config.LoadedFrom)
 
 	ctx := context.Background()
 
-	if err := bootstrap.CheckDatabase(ctx, cfg.Database.DSN); err != nil {
+	if err := bootstrap.CheckDatabase(ctx, cfg.Database); err != nil {
 		logger.E("Ошибка инициализации базы данных: %v", err)
 		os.Exit(1)
 	}
 	logger.D("База данных доступна")
 
-	db, err := postgres.NewDB(ctx, cfg.Database.DSN)
+	dsn, err := cfg.Database.PostgresDSN()
+	if err != nil {
+		logger.E("Ошибка конфигурации базы данных: %v", err)
+		os.Exit(1)
+	}
+	db, err := postgres.NewDB(ctx, dsn)
 	if err != nil {
 		logger.E("Ошибка подключения к базе данных: %v", err)
 		os.Exit(1)
@@ -73,23 +81,20 @@ func main() {
 
 	authUseCase := usecase.NewAuthUseCase(userRepo, tokenRepo, jwtService)
 
-	var llmRepo domain.LLMRepository
-	var runnerReg *runner.Registry
-	var runnerPool *runner.Pool
-	if len(cfg.Runners.Addresses) > 0 {
-		runnerReg = runner.NewRegistry(cfg.Runners.Addresses)
-		runnerPool = runner.NewPool(runnerReg, cfg.LLMRunner.Model)
-		defer runnerPool.Close()
-		llmRepo = runnerPool
-	} else {
-		single, err := repository.NewLLMRunnerRepository(cfg.LLMRunner.Address, cfg.LLMRunner.Model)
-		if err != nil {
-			logger.E("Ошибка подключения к llm-runner: %v", err)
-			os.Exit(1)
+	var staticAddrs []string
+	for _, e := range cfg.Runners.Entries {
+		if a := strings.TrimSpace(e.Address); a != "" {
+			staticAddrs = append(staticAddrs, a)
 		}
-		defer single.Close()
-		llmRepo = single
 	}
+	if len(staticAddrs) == 0 {
+		logger.I("Раннеры только по саморегистрации (токены из runners)")
+	}
+
+	runnerReg := runner.NewRegistry(staticAddrs)
+	runnerPool := runner.NewPool(runnerReg)
+	defer runnerPool.Close()
+	llmRepo := runnerPool
 
 	chatUseCase := usecase.NewChatUseCase(sessionRepo, messageRepo, fileRepo, llmRepo, cfg.Attachments.SaveDir)
 	editorUseCase := usecase.NewEditorUseCase(llmRepo)
@@ -102,15 +107,13 @@ func main() {
 
 	grpcServer := grpc.NewServer()
 
-	if runnerReg != nil && runnerPool != nil {
-		runnerHandler := handler.NewRunnerHandler(runnerReg, runnerPool, authUseCase)
-		pb.RegisterRunnerAdminServiceServer(grpcServer, runnerHandler)
-	}
+	runnerHandler := handler.NewRunnerHandler(runnerReg, runnerPool, authUseCase, cfg)
+	runnerpb.RegisterRunnerServiceServer(grpcServer, runnerHandler)
 
-	pb.RegisterAuthServiceServer(grpcServer, authHandler)
-	pb.RegisterChatServiceServer(grpcServer, chatHandler)
-	pb.RegisterEditorServiceServer(grpcServer, editorHandler)
-	pb.RegisterUserServiceServer(grpcServer, userHandler)
+	authpb.RegisterAuthServiceServer(grpcServer, authHandler)
+	chatpb.RegisterChatServiceServer(grpcServer, chatHandler)
+	editorpb.RegisterEditorServiceServer(grpcServer, editorHandler)
+	userpb.RegisterUserServiceServer(grpcServer, userHandler)
 
 	reflection.Register(grpcServer)
 

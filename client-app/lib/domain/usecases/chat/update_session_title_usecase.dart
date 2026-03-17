@@ -6,7 +6,7 @@ class UpdateSessionTitleUseCase {
 
   UpdateSessionTitleUseCase(this.repository);
 
-  Future<ChatSession> call(String sessionId, String title) {
+  Future<ChatSession> call(int sessionId, String title) {
     return repository.updateSessionTitle(sessionId, title);
   }
 }

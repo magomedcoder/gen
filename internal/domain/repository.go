@@ -31,25 +31,29 @@ type TokenRepository interface {
 type ChatSessionRepository interface {
 	Create(ctx context.Context, session *ChatSession) error
 
-	GetById(ctx context.Context, id string) (*ChatSession, error)
+	GetById(ctx context.Context, id int64) (*ChatSession, error)
 
 	GetByUserId(ctx context.Context, userID int, page, pageSize int32) ([]*ChatSession, int32, error)
 
 	Update(ctx context.Context, session *ChatSession) error
 
-	Delete(ctx context.Context, id string) error
+	Delete(ctx context.Context, id int64) error
 }
 
 type MessageRepository interface {
 	Create(ctx context.Context, message *Message) error
 
-	GetBySessionId(ctx context.Context, sessionID string, page, pageSize int32) ([]*Message, int32, error)
+	UpdateContent(ctx context.Context, id int64, content string) error
+
+	GetBySessionId(ctx context.Context, sessionID int64, page, pageSize int32) ([]*Message, int32, error)
 }
 
 type FileRepository interface {
 	Create(ctx context.Context, file *File) error
 
-	GetById(ctx context.Context, id string) (*File, error)
+	UpdateStoragePath(ctx context.Context, id int64, storagePath string) error
+
+	GetById(ctx context.Context, id int64) (*File, error)
 }
 
 type LLMRepository interface {
@@ -57,5 +61,5 @@ type LLMRepository interface {
 
 	GetModels(ctx context.Context) ([]string, error)
 
-	SendMessage(ctx context.Context, sessionID string, model string, messages []*Message) (chan string, error)
+	SendMessage(ctx context.Context, sessionID int64, model string, messages []*Message) (chan string, error)
 }

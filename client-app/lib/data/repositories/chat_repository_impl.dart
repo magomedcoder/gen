@@ -33,7 +33,7 @@ class ChatRepositoryImpl implements ChatRepository {
 
   @override
   Stream<String> sendMessage(
-    String sessionId,
+    int sessionId,
     List<Message> messages, {
     String? model,
   }) {
@@ -58,7 +58,7 @@ class ChatRepositoryImpl implements ChatRepository {
   }
 
   @override
-  Future<ChatSession> getSession(String sessionId) async {
+  Future<ChatSession> getSession(int sessionId) async {
     try {
       return await dataSource.getSession(sessionId);
     } catch (e) {
@@ -77,7 +77,7 @@ class ChatRepositoryImpl implements ChatRepository {
 
   @override
   Future<List<Message>> getSessionMessages(
-    String sessionId,
+    int sessionId,
     int page,
     int pageSize,
   ) async {
@@ -89,7 +89,7 @@ class ChatRepositoryImpl implements ChatRepository {
   }
 
   @override
-  Future<void> deleteSession(String sessionId) async {
+  Future<void> deleteSession(int sessionId) async {
     try {
       await dataSource.deleteSession(sessionId);
     } catch (e) {
@@ -98,7 +98,7 @@ class ChatRepositoryImpl implements ChatRepository {
   }
 
   @override
-  Future<ChatSession> updateSessionTitle(String sessionId, String title) async {
+  Future<ChatSession> updateSessionTitle(int sessionId, String title) async {
     try {
       return await dataSource.updateSessionTitle(sessionId, title);
     } catch (e) {
@@ -107,7 +107,7 @@ class ChatRepositoryImpl implements ChatRepository {
   }
 
   @override
-  Future<ChatSession> updateSessionModel(String sessionId, String model) async {
+  Future<ChatSession> updateSessionModel(int sessionId, String model) async {
     try {
       return await dataSource.updateSessionModel(sessionId, model);
     } catch (e) {
@@ -116,7 +116,7 @@ class ChatRepositoryImpl implements ChatRepository {
   }
 
   @override
-  Future<String?> getSessionModel(String sessionId) async {
+  Future<String?> getSessionModel(int sessionId) async {
     try {
       return await localDataSource.getSessionModel(sessionId);
     } catch (e) {
@@ -125,7 +125,7 @@ class ChatRepositoryImpl implements ChatRepository {
   }
 
   @override
-  Future<void> setSessionModel(String sessionId, String model) async {
+  Future<void> setSessionModel(int sessionId, String model) async {
     try {
       await localDataSource.setSessionModel(sessionId, model);
     } catch (e) {

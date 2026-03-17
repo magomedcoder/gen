@@ -6,7 +6,7 @@ class ChatState extends Equatable {
   final bool isConnected;
   final bool isLoading;
   final bool isStreaming;
-  final String? currentSessionId;
+  final int? currentSessionId;
   final List<ChatSession> sessions;
   final List<Message> messages;
   final String? currentStreamingText;
@@ -33,7 +33,7 @@ class ChatState extends Equatable {
     bool? isConnected,
     bool? isLoading,
     bool? isStreaming,
-    String? currentSessionId,
+    int? currentSessionId,
     List<ChatSession>? sessions,
     List<Message>? messages,
     String? currentStreamingText,

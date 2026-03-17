@@ -6,7 +6,7 @@ class UpdateSessionModelUseCase {
 
   UpdateSessionModelUseCase(this.repository);
 
-  Future<ChatSession> call(String sessionId, String model) {
+  Future<ChatSession> call(int sessionId, String model) {
     return repository.updateSessionModel(sessionId, model);
   }
 }

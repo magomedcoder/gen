@@ -7,7 +7,7 @@ class GetSessionMessagesUseCase {
   GetSessionMessagesUseCase(this.repository);
 
   Future<List<Message>> call(
-    String sessionId, {
+    int sessionId, {
     int page = 1,
     int pageSize = 50,
   }) {

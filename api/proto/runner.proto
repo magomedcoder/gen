@@ -3,47 +3,19 @@ syntax = "proto3";
 package runner;
 
 import "common.proto";
-import "chat.proto";
 
 option go_package = "github.com/magomedcoder/gen/api/pb/runnerpb;runnerpb";
 
 service RunnerService {
-  rpc Ping(common.Empty) returns (PingResponse);
-
-  rpc GetModels(common.Empty) returns (GetModelsResponse);
-
-  rpc Generate(GenerateRequest) returns (stream GenerateResponse);
-
-  rpc Register(RegisterRunnerRequest) returns (common.Empty);
-
-  rpc Unregister(UnregisterRunnerRequest) returns (common.Empty);
-}
-
-service RunnerAdminService {
   rpc GetRunners(common.Empty) returns (GetRunnersResponse);
 
   rpc SetRunnerEnabled(SetRunnerEnabledRequest) returns (common.Empty);
 
+  rpc RegisterRunner(RegisterRunnerRequest) returns (common.Empty);
+
+  rpc UnregisterRunner(UnregisterRunnerRequest) returns (common.Empty);
+
   rpc GetRunnersStatus(common.Empty) returns (GetRunnersStatusResponse);
-}
-
-message PingResponse {
-  bool ok = 1;
-}
-
-message GetModelsResponse {
-  repeated string models = 1;
-}
-
-message GenerateRequest {
-  string session_id = 1;
-  repeated chat.ChatMessage messages = 2;
-  string model = 3;
-}
-
-message GenerateResponse {
-  string content = 1;
-  bool done = 2;
 }
 
 message RegisterRunnerRequest {

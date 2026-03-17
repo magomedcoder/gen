@@ -23,11 +23,9 @@ CREATE TABLE IF NOT EXISTS tokens
     deleted_at TIMESTAMP   NULL
 );
 
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
 CREATE TABLE IF NOT EXISTS chat_sessions
 (
-    id         UUID PRIMARY KEY      DEFAULT uuid_generate_v4(),
+    id         BIGSERIAL PRIMARY KEY,
     user_id    INTEGER      NOT NULL REFERENCES users (id),
     title      VARCHAR(500) NOT NULL,
     model      VARCHAR(255) NOT NULL DEFAULT '',
@@ -38,7 +36,7 @@ CREATE TABLE IF NOT EXISTS chat_sessions
 
 CREATE TABLE IF NOT EXISTS files
 (
-    id           UUID PRIMARY KEY      DEFAULT uuid_generate_v4(),
+    id           BIGSERIAL PRIMARY KEY,
     filename     VARCHAR(255) NOT NULL,
     mime_type    VARCHAR(100) NULL,
     size         BIGINT       NOT NULL DEFAULT 0,
@@ -48,35 +46,23 @@ CREATE TABLE IF NOT EXISTS files
 
 CREATE TABLE IF NOT EXISTS messages
 (
-    id                 UUID PRIMARY KEY     DEFAULT uuid_generate_v4(),
-    session_id         UUID        NOT NULL REFERENCES chat_sessions (id),
+    id                 BIGSERIAL PRIMARY KEY,
+    session_id         BIGINT      NOT NULL REFERENCES chat_sessions (id) ON DELETE CASCADE,
     content            TEXT        NOT NULL,
     role               VARCHAR(20) NOT NULL,
-    attachment_file_id UUID       NULL REFERENCES files (id) ON DELETE SET NULL,
+    attachment_file_id BIGINT      NULL REFERENCES files (id) ON DELETE SET NULL,
     created_at         TIMESTAMP   NOT NULL DEFAULT NOW(),
     updated_at         TIMESTAMP   NOT NULL DEFAULT NOW(),
-    deleted_at         TIMESTAMP   NULL
+    deleted_at         TIMESTAMP    NULL
 );
-
-CREATE TABLE IF NOT EXISTS files
-(
-    id           UUID PRIMARY KEY      DEFAULT uuid_generate_v4(),
-    filename     VARCHAR(255) NOT NULL,
-    mime_type    VARCHAR(100) NULL,
-    size         BIGINT       NOT NULL DEFAULT 0,
-    storage_path TEXT         NOT NULL,
-    created_at   TIMESTAMP    NOT NULL DEFAULT NOW()
-);
-
-ALTER TABLE users ADD COLUMN IF NOT EXISTS last_visited_at TIMESTAMP NULL;
 
 CREATE INDEX idx_users_username ON users (username);
 CREATE INDEX IF NOT EXISTS idx_users_role ON users (role);
 CREATE INDEX IF NOT EXISTS idx_users_deleted_at ON users (deleted_at);
-CREATE INDEX IF NOT EXISTS idx_tokens_user_id ON tokens (user_id);
-CREATE INDEX IF NOT EXISTS idx_tokens_token ON tokens (token);
-CREATE INDEX IF NOT EXISTS idx_tokens_expires_at ON tokens (expires_at);
-CREATE INDEX IF NOT EXISTS idx_tokens_deleted_at ON tokens (deleted_at);
+CREATE INDEX idx_tokens_user_id ON tokens (user_id);
+CREATE INDEX idx_tokens_token ON tokens (token);
+CREATE INDEX idx_tokens_expires_at ON tokens (expires_at);
+CREATE INDEX idx_tokens_deleted_at ON tokens (deleted_at);
 CREATE INDEX idx_chat_sessions_user_id ON chat_sessions (user_id);
 CREATE INDEX idx_chat_sessions_created_at ON chat_sessions (created_at);
 CREATE INDEX IF NOT EXISTS idx_chat_sessions_deleted_at ON chat_sessions (deleted_at);
@@ -85,6 +71,4 @@ CREATE INDEX idx_messages_session_id ON messages (session_id);
 CREATE INDEX idx_messages_role ON messages (role);
 CREATE INDEX idx_messages_created_at ON messages (created_at);
 CREATE INDEX IF NOT EXISTS idx_messages_deleted_at ON messages (deleted_at);
-CREATE INDEX IF NOT EXISTS idx_messages_attachment_file_id ON messages (attachment_file_id);
-CREATE INDEX IF NOT EXISTS idx_files_created_at ON files (created_at);
 CREATE INDEX IF NOT EXISTS idx_messages_attachment_file_id ON messages (attachment_file_id);

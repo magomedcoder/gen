@@ -32,7 +32,7 @@ abstract class MessageMapper {
 
   static Message fromProto(grpc.ChatMessage proto) {
     return Message(
-      id: proto.id,
+      id: proto.id.toInt(),
       content: proto.content,
       role: _roleFromProto(proto.role),
       createdAt: _dateTimeFromUnixSeconds(proto.createdAt.toInt()),
@@ -43,7 +43,7 @@ abstract class MessageMapper {
 
   static grpc.ChatMessage toProto(Message entity) {
     final p = grpc.ChatMessage();
-    p.id = entity.id;
+    p.id = Int64(entity.id);
     p.content = entity.content;
     p.role = _roleToProto(entity.role);
     p.createdAt = Int64(_dateTimeToUnixSeconds(entity.createdAt));

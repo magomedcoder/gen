@@ -9,30 +9,30 @@ abstract interface class ChatRepository {
   Future<List<String>> getModels();
 
   Stream<String> sendMessage(
-    String sessionId,
+    int sessionId,
     List<Message> messages, {
     String? model,
   });
 
   Future<ChatSession> createSession(String title, {String? model});
 
-  Future<ChatSession> getSession(String sessionId);
+  Future<ChatSession> getSession(int sessionId);
 
   Future<List<ChatSession>> listSessions(int page, int pageSize);
 
   Future<List<Message>> getSessionMessages(
-    String sessionId,
+    int sessionId,
     int page,
     int pageSize,
   );
 
-  Future<void> deleteSession(String sessionId);
+  Future<void> deleteSession(int sessionId);
 
-  Future<ChatSession> updateSessionTitle(String sessionId, String title);
+  Future<ChatSession> updateSessionTitle(int sessionId, String title);
 
-  Future<ChatSession> updateSessionModel(String sessionId, String model);
+  Future<ChatSession> updateSessionModel(int sessionId, String model);
 
-  Future<String?> getSessionModel(String sessionId);
+  Future<String?> getSessionModel(int sessionId);
 
-  Future<void> setSessionModel(String sessionId, String model);
+  Future<void> setSessionModel(int sessionId, String model);
 }

@@ -5,7 +5,7 @@ class DeleteSessionUseCase {
 
   DeleteSessionUseCase(this.repository);
 
-  Future<void> call(String sessionId) {
+  Future<void> call(int sessionId) {
     return repository.deleteSession(sessionId);
   }
 }

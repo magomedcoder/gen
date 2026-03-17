@@ -4,6 +4,7 @@ import 'package:gen/core/log/logs.dart';
 import 'package:gen/domain/entities/gpu_info.dart' as gpu_ent;
 import 'package:gen/domain/entities/runner_info.dart' as domain;
 import 'package:gen/domain/entities/server_info.dart' as srv_ent;
+import 'package:gen/generated/grpc_pb/common.pb.dart' as common;
 import 'package:gen/generated/grpc_pb/runner.pb.dart' as pb;
 
 abstract class IRunnersRemoteDataSource {
@@ -25,7 +26,7 @@ class RunnersRemoteDataSource implements IRunnersRemoteDataSource {
     Logs().d('RunnersRemote: getRunners');
     try {
       final resp = await _authGuard.execute(
-        () => _channelManager.runnerAdminClient.getRunners(pb.Empty()),
+        () => _channelManager.runnerClient.getRunners(common.Empty()),
       );
       Logs().i('RunnersRemote: getRunners получено ${resp.runners.length}');
       return resp.runners.map((r) {
@@ -70,7 +71,7 @@ class RunnersRemoteDataSource implements IRunnersRemoteDataSource {
   Future<void> setRunnerEnabled(String address, bool enabled) async {
     Logs().d('RunnersRemote: setRunnerEnabled address=$address enabled=$enabled');
     try {
-      await _authGuard.execute(() => _channelManager.runnerAdminClient.setRunnerEnabled(
+      await _authGuard.execute(() => _channelManager.runnerClient.setRunnerEnabled(
         pb.SetRunnerEnabledRequest(address: address, enabled: enabled),
       ));
       Logs().i('RunnersRemote: setRunnerEnabled успешен');
@@ -85,7 +86,7 @@ class RunnersRemoteDataSource implements IRunnersRemoteDataSource {
     Logs().d('RunnersRemote: getRunnersStatus');
     try {
       final resp = await _authGuard.execute(
-        () => _channelManager.runnerAdminClient.getRunnersStatus(pb.Empty()),
+        () => _channelManager.runnerClient.getRunnersStatus(common.Empty()),
       );
       Logs().i('RunnersRemote: getRunnersStatus hasActive=${resp.hasActiveRunners}');
       return resp.hasActiveRunners;

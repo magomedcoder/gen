@@ -1,13 +1,9 @@
 package domain
 
-import (
-	"time"
-
-	"github.com/google/uuid"
-)
+import "time"
 
 type ChatSession struct {
-	Id        string
+	Id        int64
 	UserId    int
 	Title     string
 	Model     string
@@ -17,19 +13,19 @@ type ChatSession struct {
 }
 
 type Message struct {
-	Id             string
-	SessionId      string
-	Content        string
-	Role           MessageRole
-	AttachmentName string
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-	DeletedAt      *time.Time
+	Id               int64
+	SessionId        int64
+	Content          string
+	Role             MessageRole
+	AttachmentName   string
+	AttachmentFileID *int64
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	DeletedAt        *time.Time
 }
 
 func NewChatSession(userId int, title string, model string) *ChatSession {
 	return &ChatSession{
-		Id:        generateUUID(),
 		UserId:    userId,
 		Title:     title,
 		Model:     model,
@@ -38,22 +34,17 @@ func NewChatSession(userId int, title string, model string) *ChatSession {
 	}
 }
 
-func NewMessage(sessionId, content string, role MessageRole) *Message {
-	return NewMessageWithAttachment(sessionId, content, role, "")
+func NewMessage(sessionId int64, content string, role MessageRole) *Message {
+	return NewMessageWithAttachment(sessionId, content, role, nil)
 }
 
-func NewMessageWithAttachment(sessionId, content string, role MessageRole, attachmentName string) *Message {
+func NewMessageWithAttachment(sessionId int64, content string, role MessageRole, attachmentFileID *int64) *Message {
 	return &Message{
-		Id:             generateUUID(),
-		SessionId:      sessionId,
-		Content:        content,
-		Role:           role,
-		AttachmentName: attachmentName,
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
+		SessionId:        sessionId,
+		Content:          content,
+		Role:             role,
+		AttachmentFileID: attachmentFileID,
+		CreatedAt:        time.Now(),
+		UpdatedAt:        time.Now(),
 	}
-}
-
-func generateUUID() string {
-	return uuid.New().String()
 }

@@ -5,7 +5,7 @@ import 'package:equatable/equatable.dart';
 enum MessageRole { user, assistant }
 
 class Message extends Equatable {
-  final String id;
+  final int id;
   final String content;
   final MessageRole role;
   final DateTime createdAt;

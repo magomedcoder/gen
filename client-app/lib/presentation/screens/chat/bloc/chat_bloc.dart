@@ -22,7 +22,8 @@ import 'package:gen/presentation/screens/auth/bloc/auth_bloc.dart';
 import 'package:gen/presentation/screens/chat/bloc/chat_event.dart';
 import 'package:gen/presentation/screens/chat/bloc/chat_state.dart';
 import 'package:gen/presentation/utils/request_logout_on_unauthorized.dart';
-import 'package:uuid/uuid.dart';
+
+int _localTempMessageId() => -DateTime.now().microsecondsSinceEpoch;
 
 class ChatBloc extends Bloc<ChatEvent, ChatState> {
   final AuthBloc authBloc;
@@ -39,7 +40,6 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
   final UpdateSessionTitleUseCase updateSessionTitleUseCase;
   final GetRunnersStatusUseCase getRunnersStatusUseCase;
 
-  final _uuid = const Uuid();
   StreamSubscription<String>? _streamSubscription;
   Completer<bool>? _streamCompleter;
 
@@ -104,7 +104,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
             }
           } catch (_) {}
 
-          String? currentSessionId;
+          int? currentSessionId;
           List<Message> messages = const [];
 
           if (sessions.isNotEmpty) {
@@ -353,8 +353,8 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     _streamSubscription = null;
     _streamCompleter = null;
 
-    String sessionId = state.currentSessionId ?? '';
-    if (sessionId.isEmpty) {
+    var sessionId = state.currentSessionId;
+    if (sessionId == null) {
       try {
         final session = await createSessionUseCase(
           model: state.selectedModel ?? (state.models.isNotEmpty ? state.models.first : null),
@@ -385,7 +385,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     }
 
     final userMessage = Message(
-      id: _uuid.v4(),
+      id: _localTempMessageId(),
       content: text,
       role: MessageRole.user,
       createdAt: DateTime.now(),
@@ -443,7 +443,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
       if (streamingText.isNotEmpty) {
         final assistantMessage = Message(
-          id: _uuid.v4(),
+          id: _localTempMessageId(),
           content: streamingText,
           role: MessageRole.assistant,
           createdAt: DateTime.now(),
@@ -576,7 +576,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     Emitter<ChatState> emit,
   ) async {
     final sessionId = state.currentSessionId;
-    if (sessionId != null && sessionId.isNotEmpty) {
+    if (sessionId != null) {
       try {
         await updateSessionModelUseCase(sessionId, event.model);
       } catch (_) {}
@@ -617,7 +617,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     if (state.currentStreamingText != null &&
         state.currentStreamingText!.isNotEmpty) {
       final assistantMessage = Message(
-        id: _uuid.v4(),
+        id: _localTempMessageId(),
         content: state.currentStreamingText!,
         role: MessageRole.assistant,
         createdAt: DateTime.now(),

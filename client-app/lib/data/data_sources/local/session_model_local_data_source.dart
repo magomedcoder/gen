@@ -1,9 +1,9 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 abstract class SessionModelLocalDataSource {
-  Future<String?> getSessionModel(String sessionId);
-  Future<void> setSessionModel(String sessionId, String model);
-  Future<void> removeSessionModel(String sessionId);
+  Future<String?> getSessionModel(int sessionId);
+  Future<void> setSessionModel(int sessionId, String model);
+  Future<void> removeSessionModel(int sessionId);
 }
 
 class SessionModelLocalDataSourceImpl implements SessionModelLocalDataSource {
@@ -16,22 +16,22 @@ class SessionModelLocalDataSourceImpl implements SessionModelLocalDataSource {
     return _prefs!;
   }
 
-  String _key(String sessionId) => '$_keyPrefix$sessionId';
+  String _key(int sessionId) => '$_keyPrefix$sessionId';
 
   @override
-  Future<String?> getSessionModel(String sessionId) async {
+  Future<String?> getSessionModel(int sessionId) async {
     final prefs = await _preferences;
     return prefs.getString(_key(sessionId));
   }
 
   @override
-  Future<void> setSessionModel(String sessionId, String model) async {
+  Future<void> setSessionModel(int sessionId, String model) async {
     final prefs = await _preferences;
     await prefs.setString(_key(sessionId), model);
   }
 
   @override
-  Future<void> removeSessionModel(String sessionId) async {
+  Future<void> removeSessionModel(int sessionId) async {
     final prefs = await _preferences;
     await prefs.remove(_key(sessionId));
   }

@@ -31,7 +31,7 @@ class ChatLoadSessions extends ChatEvent {
 }
 
 class ChatSelectSession extends ChatEvent {
-  final String sessionId;
+  final int sessionId;
 
   const ChatSelectSession(this.sessionId);
 
@@ -40,7 +40,7 @@ class ChatSelectSession extends ChatEvent {
 }
 
 class ChatLoadSessionMessages extends ChatEvent {
-  final String sessionId;
+  final int sessionId;
   final int page;
   final int pageSize;
 
@@ -91,7 +91,7 @@ class ChatSelectModel extends ChatEvent {
 }
 
 class ChatDeleteSession extends ChatEvent {
-  final String sessionId;
+  final int sessionId;
 
   const ChatDeleteSession(this.sessionId);
 
@@ -100,7 +100,7 @@ class ChatDeleteSession extends ChatEvent {
 }
 
 class ChatUpdateSessionTitle extends ChatEvent {
-  final String sessionId;
+  final int sessionId;
   final String title;
 
   const ChatUpdateSessionTitle(this.sessionId, this.title);

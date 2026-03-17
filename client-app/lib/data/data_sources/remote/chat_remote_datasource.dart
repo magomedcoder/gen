@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:fixnum/fixnum.dart';
 import 'package:grpc/grpc.dart';
 import 'package:gen/core/auth_guard.dart';
 import 'package:gen/core/failures.dart';
@@ -10,6 +11,7 @@ import 'package:gen/data/mappers/message_mapper.dart';
 import 'package:gen/data/mappers/session_mapper.dart';
 import 'package:gen/domain/entities/message.dart';
 import 'package:gen/domain/entities/session.dart';
+import 'package:gen/generated/grpc_pb/common.pb.dart' as common;
 import 'package:gen/generated/grpc_pb/chat.pbgrpc.dart' as grpc;
 
 abstract class IChatRemoteDataSource {
@@ -18,28 +20,28 @@ abstract class IChatRemoteDataSource {
   Future<List<String>> getModels();
 
   Stream<String> sendChatMessage(
-    String sessionId,
+    int sessionId,
     List<Message> messages, {
     String? model,
   });
 
   Future<ChatSession> createSession(String title, {String? model});
 
-  Future<ChatSession> getSession(String sessionId);
+  Future<ChatSession> getSession(int sessionId);
 
   Future<List<ChatSession>> getSessions(int page, int pageSize);
 
   Future<List<Message>> getSessionMessages(
-    String sessionId,
+    int sessionId,
     int page,
     int pageSize,
   );
 
-  Future<void> deleteSession(String sessionId);
+  Future<void> deleteSession(int sessionId);
 
-  Future<ChatSession> updateSessionTitle(String sessionId, String title);
+  Future<ChatSession> updateSessionTitle(int sessionId, String title);
 
-  Future<ChatSession> updateSessionModel(String sessionId, String model);
+  Future<ChatSession> updateSessionModel(int sessionId, String model);
 }
 
 class ChatRemoteDataSource implements IChatRemoteDataSource {
@@ -54,7 +56,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
   Future<bool> checkConnection() async {
     Logs().d('ChatRemote: checkConnection');
     try {
-      final response = await _client.checkConnection(grpc.Empty());
+      final response = await _client.checkConnection(common.Empty());
       Logs().i('ChatRemote: checkConnection isConnected=${response.isConnected}');
       return response.isConnected;
     } on GrpcError catch (e) {
@@ -73,7 +75,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
   Future<List<String>> getModels() async {
     Logs().d('ChatRemote: getModels');
     try {
-      final response = await _client.getModels(grpc.Empty());
+      final response = await _client.getModels(common.Empty());
       Logs().i('ChatRemote: getModels получено ${response.models.length}');
       return response.models;
     } on GrpcError catch (e) {
@@ -90,7 +92,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
 
   @override
   Stream<String> sendChatMessage(
-    String sessionId,
+    int sessionId,
     List<Message> messages, {
     String? model,
   }) async* {
@@ -99,7 +101,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
       final chatMessages = MessageMapper.listToProto(messages);
 
       final request = grpc.SendMessageRequest()
-        ..sessionId = sessionId
+        ..sessionId = Int64(sessionId)
         ..messages.addAll(chatMessages);
       if (model != null && model.isNotEmpty) {
         request.model = model;
@@ -155,10 +157,10 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
   }
 
   @override
-  Future<ChatSession> getSession(String sessionId) async {
+  Future<ChatSession> getSession(int sessionId) async {
     try {
       final request = grpc.GetSessionRequest(
-        sessionId: sessionId
+        sessionId: Int64(sessionId),
       );
 
       final response = await _authGuard.execute(
@@ -201,13 +203,13 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
 
   @override
   Future<List<Message>> getSessionMessages(
-    String sessionId,
+    int sessionId,
     int page,
     int pageSize,
   ) async {
     try {
       final request = grpc.GetSessionMessagesRequest(
-        sessionId: sessionId,
+        sessionId: Int64(sessionId),
         page: page,
         pageSize: pageSize,
       );
@@ -225,10 +227,10 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
   }
 
   @override
-  Future<void> deleteSession(String sessionId) async {
+  Future<void> deleteSession(int sessionId) async {
     try {
       final request = grpc.DeleteSessionRequest(
-        sessionId: sessionId
+        sessionId: Int64(sessionId),
       );
 
       await _authGuard.execute(() => _client.deleteSession(request));
@@ -240,10 +242,10 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
   }
 
   @override
-  Future<ChatSession> updateSessionTitle(String sessionId, String title) async {
+  Future<ChatSession> updateSessionTitle(int sessionId, String title) async {
     try {
       final request = grpc.UpdateSessionTitleRequest(
-        sessionId: sessionId,
+        sessionId: Int64(sessionId),
         title: title
       );
 
@@ -260,10 +262,10 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
   }
 
   @override
-  Future<ChatSession> updateSessionModel(String sessionId, String model) async {
+  Future<ChatSession> updateSessionModel(int sessionId, String model) async {
     try {
       final request = grpc.UpdateSessionModelRequest(
-        sessionId: sessionId,
+        sessionId: Int64(sessionId),
         model: model,
       );
 

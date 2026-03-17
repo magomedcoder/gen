@@ -1,18 +1,17 @@
 package mappers
 
 import (
-	"strconv"
-
-	"github.com/magomedcoder/gen/api/pb"
+	"github.com/magomedcoder/gen/api/pb/commonpb"
 	"github.com/magomedcoder/gen/internal/domain"
+	"strconv"
 )
 
-func UserToProto(user *domain.User) *pb.User {
+func UserToProto(user *domain.User) *commonpb.User {
 	if user == nil {
 		return nil
 	}
 
-	return &pb.User{
+	return &commonpb.User{
 		Id:       strconv.Itoa(user.Id),
 		Username: user.Username,
 		Name:     user.Name,

@@ -5,7 +5,7 @@ class SetSessionModelUseCase {
 
   SetSessionModelUseCase(this.repository);
 
-  Future<void> call(String sessionId, String model) {
+  Future<void> call(int sessionId, String model) {
     return repository.setSessionModel(sessionId, model);
   }
 }

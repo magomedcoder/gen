@@ -7,7 +7,7 @@ class SendMessageUseCase {
   SendMessageUseCase(this.repository);
 
   Stream<String> call(
-    String sessionId,
+    int sessionId,
     List<Message> messages, {
     String? model,
   }) {

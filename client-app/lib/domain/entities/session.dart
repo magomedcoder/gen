@@ -1,7 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 class ChatSession extends Equatable {
-  final String id;
+  final int id;
   final String title;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -17,7 +17,7 @@ class ChatSession extends Equatable {
 
   factory ChatSession.fromJson(Map<String, dynamic> json) {
     return ChatSession(
-      id: json['id'] as String,
+      id: json['id'] as int,
       title: json['title'] as String,
       createdAt: DateTime.fromMillisecondsSinceEpoch(json['created_at'] as int),
       updatedAt: DateTime.fromMillisecondsSinceEpoch(json['updated_at'] as int),
@@ -26,12 +26,12 @@ class ChatSession extends Equatable {
   }
 
   Map<String, dynamic> toJson() => {
-    'id': id,
-    'title': title,
-    'created_at': createdAt.millisecondsSinceEpoch,
-    'updated_at': updatedAt.millisecondsSinceEpoch,
-    if (model != null) 'model': model,
-  };
+        'id': id,
+        'title': title,
+        'created_at': createdAt.millisecondsSinceEpoch,
+        'updated_at': updatedAt.millisecondsSinceEpoch,
+        if (model != null) 'model': model,
+      };
 
   @override
   List<Object?> get props => [id, title, createdAt, updatedAt, model];

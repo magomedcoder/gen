@@ -16,7 +16,7 @@ class GrpcChannelManager {
   grpc_auth.AuthServiceClient? _authClient;
   grpc_chat.ChatServiceClient? _chatClient;
   grpc_user.UserServiceClient? _userClient;
-  grpc_runner.RunnerAdminServiceClient? _runnerAdminClient;
+  grpc_runner.RunnerServiceClient? _runnerClient;
   grpc_editor.EditorServiceClient? _editorClient;
 
   GrpcChannelManager(this._config, this._authInterceptor);
@@ -64,12 +64,12 @@ class GrpcChannelManager {
     return _userClient!;
   }
 
-  grpc_runner.RunnerAdminServiceClient get runnerAdminClient {
-    _runnerAdminClient ??= grpc_runner.RunnerAdminServiceClient(
+  grpc_runner.RunnerServiceClient get runnerClient {
+    _runnerClient ??= grpc_runner.RunnerServiceClient(
       channel,
       interceptors: [_authInterceptor],
     );
-    return _runnerAdminClient!;
+    return _runnerClient!;
   }
 
   grpc_editor.EditorServiceClient get editorClient {
@@ -92,7 +92,7 @@ class GrpcChannelManager {
     _authClient = null;
     _chatClient = null;
     _userClient = null;
-    _runnerAdminClient = null;
+    _runnerClient = null;
     _editorClient = null;
     if (ch != null) {
       Logs().d('Закрытие gRPC канала');

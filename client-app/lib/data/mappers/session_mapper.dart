@@ -10,7 +10,7 @@ abstract class SessionMapper {
 
   static ChatSession fromProto(grpc.ChatSession proto) {
     return ChatSession(
-      id: proto.id,
+      id: proto.id.toInt(),
       title: proto.title,
       createdAt: _dateTimeFromUnixSeconds(proto.createdAt.toInt()),
       updatedAt: _dateTimeFromUnixSeconds(proto.updatedAt.toInt()),

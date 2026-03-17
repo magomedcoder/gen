@@ -5,7 +5,7 @@ class GetSessionModelUseCase {
 
   GetSessionModelUseCase(this.repository);
 
-  Future<String?> call(String sessionId) {
+  Future<String?> call(int sessionId) {
     return repository.getSessionModel(sessionId);
   }
 }
