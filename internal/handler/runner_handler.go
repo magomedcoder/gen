@@ -2,26 +2,33 @@ package handler
 
 import (
 	"context"
+	llmrunnerpb "github.com/magomedcoder/gen/api/pb/llmrunner"
+	"strings"
+
 	"github.com/magomedcoder/gen/api/pb/commonpb"
 	"github.com/magomedcoder/gen/api/pb/runnerpb"
+	"github.com/magomedcoder/gen/config"
 	"github.com/magomedcoder/gen/internal/runner"
 	"github.com/magomedcoder/gen/internal/usecase"
 	"github.com/magomedcoder/gen/pkg/logger"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type RunnerHandler struct {
 	runnerpb.UnimplementedRunnerServiceServer
-	runnerpb.UnimplementedRunnerAdminServiceServer
 	registry    *runner.Registry
 	pool        *runner.Pool
 	authUseCase *usecase.AuthUseCase
+	cfg         *config.Config
 }
 
-func NewRunnerHandler(registry *runner.Registry, pool *runner.Pool, authUseCase *usecase.AuthUseCase) *RunnerHandler {
+func NewRunnerHandler(registry *runner.Registry, pool *runner.Pool, authUseCase *usecase.AuthUseCase, cfg *config.Config) *RunnerHandler {
 	return &RunnerHandler{
 		registry:    registry,
 		pool:        pool,
 		authUseCase: authUseCase,
+		cfg:         cfg,
 	}
 }
 
@@ -73,4 +80,81 @@ func (h *RunnerHandler) GetRunnersStatus(ctx context.Context, _ *commonpb.Empty)
 	return &runnerpb.GetRunnersStatusResponse{
 		HasActiveRunners: h.registry.HasActiveRunners(),
 	}, nil
+}
+
+func (h *RunnerHandler) RegisterRunner(ctx context.Context, req *runnerpb.RegisterRunnerRequest) (*commonpb.Empty, error) {
+	if err := RequireAdmin(ctx, h.authUseCase); err != nil {
+		return nil, err
+	}
+	if req == nil || strings.TrimSpace(req.GetAddress()) == "" {
+		return nil, status.Error(codes.InvalidArgument, "address обязателен")
+	}
+	addr := strings.TrimSpace(req.GetAddress())
+	h.registry.Register(addr)
+	logger.I("RegisterRunner: %s", addr)
+	return &commonpb.Empty{}, nil
+}
+
+func (h *RunnerHandler) UnregisterRunner(ctx context.Context, req *runnerpb.UnregisterRunnerRequest) (*commonpb.Empty, error) {
+	if err := RequireAdmin(ctx, h.authUseCase); err != nil {
+		return nil, err
+	}
+	if req == nil || strings.TrimSpace(req.GetAddress()) == "" {
+		return nil, status.Error(codes.InvalidArgument, "address обязателен")
+	}
+	addr := strings.TrimSpace(req.GetAddress())
+	h.pool.CloseAddrForget(addr)
+	h.registry.Unregister(addr)
+	logger.I("UnregisterRunner: %s", addr)
+	return &commonpb.Empty{}, nil
+}
+
+func (h *RunnerHandler) validateRegistrationToken(provided string) error {
+	if h.cfg == nil || len(h.cfg.Runners.Entries) == 0 {
+		return status.Error(codes.FailedPrecondition, "саморегистрация отключена: нет записей runners в конфигурации")
+	}
+	given := strings.TrimSpace(provided)
+	if given == "" {
+		return status.Error(codes.PermissionDenied, "неверный registration_token")
+	}
+	if h.cfg.EntryMatchingRegistrationToken(given) == nil {
+		return status.Error(codes.PermissionDenied, "неверный registration_token")
+	}
+	return nil
+}
+
+func (h *RunnerHandler) RegisterRunnerWithToken(ctx context.Context, req *llmrunnerpb.RunnerRegisterRequest) (*commonpb.Empty, error) {
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "пустой запрос")
+	}
+	addr := strings.TrimSpace(req.GetListenAddress())
+	if addr == "" {
+		return nil, status.Error(codes.InvalidArgument, "listen_address обязателен")
+	}
+	if err := h.validateRegistrationToken(req.GetRegistrationToken()); err != nil {
+		return nil, err
+	}
+	if h.cfg.EntryMatchingRegistrationToken(req.GetRegistrationToken()) == nil {
+		return nil, status.Error(codes.PermissionDenied, "неверный registration_token")
+	}
+	h.registry.Register(addr)
+	logger.I("RegisterRunnerWithToken: %s", addr)
+	return &commonpb.Empty{}, nil
+}
+
+func (h *RunnerHandler) UnregisterRunnerWithToken(ctx context.Context, req *llmrunnerpb.RunnerUnregisterRequest) (*commonpb.Empty, error) {
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "пустой запрос")
+	}
+	addr := strings.TrimSpace(req.GetListenAddress())
+	if addr == "" {
+		return nil, status.Error(codes.InvalidArgument, "listen_address обязателен")
+	}
+	if err := h.validateRegistrationToken(req.GetRegistrationToken()); err != nil {
+		return nil, err
+	}
+	h.pool.CloseAddrForget(addr)
+	h.registry.Unregister(addr)
+	logger.I("UnregisterRunnerWithToken: %s", addr)
+	return &commonpb.Empty{}, nil
 }

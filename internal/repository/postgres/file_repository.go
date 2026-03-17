@@ -16,21 +16,27 @@ func NewFileRepository(db *pgxpool.Pool) domain.FileRepository {
 }
 
 func (r *fileRepository) Create(ctx context.Context, file *domain.File) error {
-	_, err := r.db.Exec(ctx, `
-		INSERT INTO files (id, filename, mime_type, size, storage_path, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
+	return r.db.QueryRow(ctx, `
+		INSERT INTO files (filename, mime_type, size, storage_path, created_at)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id
 	`,
-		file.Id,
 		file.Filename,
 		nullStringPtr(file.MimeType),
 		file.Size,
 		file.StoragePath,
 		file.CreatedAt,
-	)
+	).Scan(&file.Id)
+}
+
+func (r *fileRepository) UpdateStoragePath(ctx context.Context, id int64, storagePath string) error {
+	_, err := r.db.Exec(ctx, `
+		UPDATE files SET storage_path = $2 WHERE id = $1
+	`, id, storagePath)
 	return err
 }
 
-func (r *fileRepository) GetById(ctx context.Context, id string) (*domain.File, error) {
+func (r *fileRepository) GetById(ctx context.Context, id int64) (*domain.File, error) {
 	var f domain.File
 	var mimeType *string
 	err := r.db.QueryRow(ctx, `

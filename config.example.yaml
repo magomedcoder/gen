@@ -1,0 +1,31 @@
+server:
+  host: "0.0.0.0"
+  port: "50051"
+
+database:
+  host: "localhost"
+  port: "5432"
+  user: "postgres"
+  password: "postgres"
+  name: "gen_db"
+  ssl_mode: "disable"
+
+jwt:
+  access_secret: "gen"
+  refresh_secret: "gen"
+  access_ttl: "15m"
+  refresh_ttl: "168h"
+
+runners:
+  - name: runner-a
+    token: ""
+  - name: runner-b
+    token: ""
+
+attachments:
+  save_dir: "./uploads"
+
+log:
+  level: "info"
+
+min_client_build: 1

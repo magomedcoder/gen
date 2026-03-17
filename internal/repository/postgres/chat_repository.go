@@ -18,11 +18,10 @@ func NewChatSessionRepository(db *pgxpool.Pool) domain.ChatSessionRepository {
 
 func (r *chatSessionRepository) Create(ctx context.Context, session *domain.ChatSession) error {
 	err := r.db.QueryRow(ctx, `
-		INSERT INTO chat_sessions (id, user_id, title, model, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO chat_sessions (user_id, title, model, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id
 	`,
-		session.Id,
 		session.UserId,
 		session.Title,
 		session.Model,
@@ -33,7 +32,7 @@ func (r *chatSessionRepository) Create(ctx context.Context, session *domain.Chat
 	return err
 }
 
-func (r *chatSessionRepository) GetById(ctx context.Context, id string) (*domain.ChatSession, error) {
+func (r *chatSessionRepository) GetById(ctx context.Context, id int64) (*domain.ChatSession, error) {
 	var session domain.ChatSession
 	err := r.db.QueryRow(ctx, `
 		SELECT id, user_id, title, model, created_at, updated_at, deleted_at
@@ -121,7 +120,7 @@ func (r *chatSessionRepository) Update(ctx context.Context, session *domain.Chat
 	return err
 }
 
-func (r *chatSessionRepository) Delete(ctx context.Context, id string) error {
+func (r *chatSessionRepository) Delete(ctx context.Context, id int64) error {
 	_, err := r.db.Exec(ctx, `
 		UPDATE chat_sessions
 		SET deleted_at = NOW()

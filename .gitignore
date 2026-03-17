@@ -5,3 +5,4 @@ build
 /llm-runner
 .DS_Store
 uploads
+/config.yaml

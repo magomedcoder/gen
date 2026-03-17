@@ -3,16 +3,16 @@ package mappers
 import (
 	"time"
 
-	"github.com/magomedcoder/gen/api/pb"
+	"github.com/magomedcoder/gen/api/pb/chatpb"
 	"github.com/magomedcoder/gen/internal/domain"
 )
 
-func MessageToProto(msg *domain.Message) *pb.ChatMessage {
+func MessageToProto(msg *domain.Message) *chatpb.ChatMessage {
 	if msg == nil {
 		return nil
 	}
 
-	p := &pb.ChatMessage{
+	p := &chatpb.ChatMessage{
 		Id:        msg.Id,
 		Content:   msg.Content,
 		Role:      domain.ToProtoRole(msg.Role),
@@ -24,7 +24,7 @@ func MessageToProto(msg *domain.Message) *pb.ChatMessage {
 	return p
 }
 
-func MessagesFromProto(pbMsgs []*pb.ChatMessage, sessionID string) []*domain.Message {
+func MessagesFromProto(pbMsgs []*chatpb.ChatMessage, sessionID int64) []*domain.Message {
 	if len(pbMsgs) == 0 {
 		return nil
 	}

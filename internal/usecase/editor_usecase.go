@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
-	"github.com/google/uuid"
 	"github.com/magomedcoder/gen/internal/domain"
 )
 
@@ -24,7 +24,7 @@ func (e *EditorUseCase) Transform(ctx context.Context, model string, text string
 		return "", fmt.Errorf("пустой текст")
 	}
 
-	sessionID := uuid.New().String()
+	sessionID := time.Now().UnixNano()
 	system := "Ты - редактор текста. Задача: исправь орфографию, пунктуацию и грамматику.\n" +
 		"Правила:\n" +
 		"- Верни ТОЛЬКО итоговый отредактированный текст, без пояснений.\n" +

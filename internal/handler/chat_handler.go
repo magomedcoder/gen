@@ -2,10 +2,10 @@ package handler
 
 import (
 	"context"
-	pb "github.com/magomedcoder/gen/api/pb/llmrunner"
 	"time"
 
 	"github.com/magomedcoder/gen/api/pb/chatpb"
+	"github.com/magomedcoder/gen/api/pb/commonpb"
 	"github.com/magomedcoder/gen/internal/mappers"
 	"github.com/magomedcoder/gen/internal/usecase"
 	"github.com/magomedcoder/gen/pkg/logger"
@@ -34,9 +34,9 @@ func (c *ChatHandler) getUserID(ctx context.Context) (int, error) {
 	return user.Id, nil
 }
 
-func (c *ChatHandler) SendMessage(req *pb.SendMessageRequest, stream chatpb.ChatService_SendMessageServer) error {
+func (c *ChatHandler) SendMessage(req *chatpb.SendMessageRequest, stream chatpb.ChatService_SendMessageServer) error {
 	ctx := stream.Context()
-	logger.D("SendMessage: session=%s", req.GetSessionId())
+	logger.D("SendMessage: session=%d", req.GetSessionId())
 	userID, err := c.getUserID(ctx)
 	if err != nil {
 		return err
@@ -58,7 +58,7 @@ func (c *ChatHandler) SendMessage(req *pb.SendMessageRequest, stream chatpb.Chat
 		attachmentContent = lastMessage.AttachmentContent
 	}
 
-	responseChan, messageId, err := c.chatUseCase.SendMessage(ctx, userID, req.SessionId, req.GetModel(), userMessage, attachmentName, attachmentContent)
+	responseChan, messageId, err := c.chatUseCase.SendMessage(ctx, userID, req.GetSessionId(), req.GetModel(), userMessage, attachmentName, attachmentContent)
 	if err != nil {
 		logger.E("SendMessage: %v", err)
 		return ToStatusError(codes.Internal, err)
@@ -68,7 +68,7 @@ func (c *ChatHandler) SendMessage(req *pb.SendMessageRequest, stream chatpb.Chat
 	createdAt := time.Now().Unix()
 
 	for chunk := range responseChan {
-		err := stream.Send(&pb.ChatResponse{
+		err := stream.Send(&chatpb.ChatResponse{
 			Id:        messageId,
 			Content:   chunk,
 			Role:      "assistant",
@@ -80,7 +80,7 @@ func (c *ChatHandler) SendMessage(req *pb.SendMessageRequest, stream chatpb.Chat
 		}
 	}
 
-	return stream.Send(&pb.ChatResponse{
+	return stream.Send(&chatpb.ChatResponse{
 		Id:        messageId,
 		Content:   "",
 		Role:      "assistant",
@@ -161,7 +161,7 @@ func (c *ChatHandler) GetSessionMessages(ctx context.Context, req *chatpb.GetSes
 		return nil, ToStatusError(codes.Internal, err)
 	}
 
-	protoMessages := make([]*pb.ChatMessage, len(messages))
+	protoMessages := make([]*chatpb.ChatMessage, len(messages))
 	for i, msg := range messages {
 		protoMessages[i] = mappers.MessageToProto(msg)
 	}
@@ -174,7 +174,7 @@ func (c *ChatHandler) GetSessionMessages(ctx context.Context, req *chatpb.GetSes
 	}, nil
 }
 
-func (c *ChatHandler) DeleteSession(ctx context.Context, req *chatpb.DeleteSessionRequest) (*pb.Empty, error) {
+func (c *ChatHandler) DeleteSession(ctx context.Context, req *chatpb.DeleteSessionRequest) (*commonpb.Empty, error) {
 	userID, err := c.getUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -185,7 +185,7 @@ func (c *ChatHandler) DeleteSession(ctx context.Context, req *chatpb.DeleteSessi
 		return nil, ToStatusError(codes.Internal, err)
 	}
 	logger.I("DeleteSession: сессия удалена session=%d", req.SessionId)
-	return &pb.Empty{}, nil
+	return &commonpb.Empty{}, nil
 }
 
 func (c *ChatHandler) UpdateSessionTitle(ctx context.Context, req *chatpb.UpdateSessionTitleRequest) (*chatpb.ChatSession, error) {
@@ -218,16 +218,16 @@ func (c *ChatHandler) UpdateSessionModel(ctx context.Context, req *chatpb.Update
 	return mappers.SessionToProto(session), nil
 }
 
-func (c *ChatHandler) CheckConnection(ctx context.Context, req *pb.Empty) (*pb.ConnectionResponse, error) {
-	return &pb.ConnectionResponse{IsConnected: true}, nil
+func (c *ChatHandler) CheckConnection(ctx context.Context, req *commonpb.Empty) (*chatpb.ConnectionResponse, error) {
+	return &chatpb.ConnectionResponse{IsConnected: true}, nil
 }
 
-func (c *ChatHandler) GetModels(ctx context.Context, req *pb.Empty) (*pb.GetModelsResponse, error) {
+func (c *ChatHandler) GetModels(ctx context.Context, req *commonpb.Empty) (*chatpb.GetModelsResponse, error) {
 	models, err := c.chatUseCase.GetModels(ctx)
 	if err != nil {
 		logger.E("GetModels: %v", err)
 		return nil, ToStatusError(codes.Internal, err)
 	}
 
-	return &pb.GetModelsResponse{Models: models}, nil
+	return &chatpb.GetModelsResponse{Models: models}, nil
 }

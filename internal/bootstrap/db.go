@@ -4,20 +4,25 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"net/url"
-	"strings"
+
+	"github.com/magomedcoder/gen/config"
 )
 
-func CheckDatabase(ctx context.Context, dsn string) error {
-	targetDB, baseDSN, err := parseDSN(dsn)
+func CheckDatabase(ctx context.Context, dbCfg config.DatabaseConfig) error {
+	targetDB, err := dbCfg.TargetDBName()
 	if err != nil {
-		return fmt.Errorf("ошибка парсинга DSN: %w", err)
+		return fmt.Errorf("конфигурация базы данных: %w", err)
+	}
+	adminDSN, err := dbCfg.AdminPostgresDSN()
+	if err != nil {
+		return fmt.Errorf("конфигурация базы данных (admin): %w", err)
 	}
 
-	postgresDSN := baseDSN + "/postgres"
-	pool, err := pgxpool.New(ctx, postgresDSN)
+	pool, err := pgxpool.New(ctx, adminDSN)
 	if err != nil {
 		return fmt.Errorf("ошибка подключения к postgres: %w", err)
 	}
@@ -42,27 +47,6 @@ func CheckDatabase(ctx context.Context, dsn string) error {
 	}
 
 	return nil
-}
-
-func parseDSN(dsn string) (string, string, error) {
-	u, err := url.Parse(dsn)
-	if err != nil {
-		return "", "", err
-	}
-
-	dbName := strings.TrimPrefix(u.Path, "/")
-	if dbName == "" {
-		return "", "", fmt.Errorf("имя базы данных не указано в DSN")
-	}
-
-	u.Path = ""
-	baseDSN := u.String()
-	if !strings.HasSuffix(baseDSN, "//") {
-		baseDSN = strings.TrimSuffix(baseDSN, "/")
-	}
-	baseDSN += "/"
-
-	return dbName, baseDSN, nil
 }
 
 func quoteIdentifier(name string) string {

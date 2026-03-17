@@ -1,13 +1,9 @@
 package domain
 
-import (
-	"time"
-
-	"github.com/google/uuid"
-)
+import "time"
 
 type File struct {
-	Id          string
+	Id          int64
 	Filename    string
 	MimeType    string
 	Size        int64
@@ -17,7 +13,6 @@ type File struct {
 
 func NewFile(filename, mimeType string, size int64, storagePath string) *File {
 	return &File{
-		Id:          uuid.New().String(),
 		Filename:    filename,
 		MimeType:    mimeType,
 		Size:        size,
