@@ -1,7 +1,7 @@
 package domain
 
 import (
-	"github.com/magomedcoder/llm-runner/pb"
+	"github.com/magomedcoder/llm-runner/pb/llmrunnerpb"
 	"time"
 )
 
@@ -85,11 +85,11 @@ func AIToProtoRole(role AIChatMessageRole) string {
 	return string(role)
 }
 
-func AIMessageToProto(msg *AIChatMessage) *pb.ChatMessage {
+func AIMessageToProto(msg *AIChatMessage) *llmrunnerpb.ChatMessage {
 	if msg == nil {
 		return nil
 	}
-	p := &pb.ChatMessage{
+	p := &llmrunnerpb.ChatMessage{
 		Id:        msg.Id,
 		Content:   msg.Content,
 		Role:      AIToProtoRole(msg.Role),
@@ -102,7 +102,7 @@ func AIMessageToProto(msg *AIChatMessage) *pb.ChatMessage {
 	return p
 }
 
-func AIMessageFromProto(proto *pb.ChatMessage, sessionID int64) *AIChatMessage {
+func AIMessageFromProto(proto *llmrunnerpb.ChatMessage, sessionID int64) *AIChatMessage {
 	if proto == nil {
 		return nil
 	}
@@ -121,7 +121,7 @@ func AIMessageFromProto(proto *pb.ChatMessage, sessionID int64) *AIChatMessage {
 
 	return msg
 }
-func AIMessagesFromProto(protos []*pb.ChatMessage, sessionID int64) []*AIChatMessage {
+func AIMessagesFromProto(protos []*llmrunnerpb.ChatMessage, sessionID int64) []*AIChatMessage {
 	if len(protos) == 0 {
 		return nil
 	}

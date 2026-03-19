@@ -2,9 +2,13 @@ syntax = "proto3";
 
 package llmrunner;
 
-option go_package = "github.com/magomedcoder/llm-runner/pb;pb";
+option go_package = "github.com/magomedcoder/llm-runner/pb/llmrunnerpb;llmrunnerpb";
 
 service LLMRunnerService {
+  rpc RegisterRunnerWithToken(RunnerRegisterRequest) returns (Empty);
+
+  rpc UnregisterRunnerWithToken(RunnerUnregisterRequest) returns (Empty);
+
   rpc GetModels(Empty) returns (GetModelsResponse);
 
   rpc GetGpuInfo(Empty) returns (GetGpuInfoResponse);
@@ -17,6 +21,16 @@ service LLMRunnerService {
 }
 
 message Empty {}
+
+message RunnerRegisterRequest {
+  string listen_address = 1;
+  string registration_token = 2;
+}
+
+message RunnerUnregisterRequest {
+  string listen_address = 1;
+  string registration_token = 2;
+}
 
 message GetModelsResponse {
   repeated string models = 1;

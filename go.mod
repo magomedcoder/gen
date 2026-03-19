@@ -4,13 +4,10 @@ go 1.26
 
 require (
 	github.com/NVIDIA/go-nvml v0.13.0-1
-	github.com/magomedcoder/gen v0.0.0-00010101000000-000000000000
 	google.golang.org/grpc v1.79.3
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/yaml.v3 v3.0.1
 )
-
-replace github.com/magomedcoder/gen => ../
 
 require (
 	golang.org/x/net v0.52.0 // indirect

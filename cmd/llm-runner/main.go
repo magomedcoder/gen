@@ -3,21 +3,19 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/magomedcoder/llm-runner"
+	"github.com/magomedcoder/llm-runner/config"
+	"github.com/magomedcoder/llm-runner/gpu"
+	"github.com/magomedcoder/llm-runner/logger"
+	"github.com/magomedcoder/llm-runner/pb/llmrunnerpb"
+	"github.com/magomedcoder/llm-runner/provider"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"net"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
-
-	"github.com/magomedcoder/gen/api/pb/runnerpb"
-	runner "github.com/magomedcoder/llm-runner"
-	"github.com/magomedcoder/llm-runner/config"
-	"github.com/magomedcoder/llm-runner/gpu"
-	"github.com/magomedcoder/llm-runner/logger"
-	"github.com/magomedcoder/llm-runner/pb"
-	"github.com/magomedcoder/llm-runner/provider"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
@@ -51,7 +49,7 @@ func main() {
 	grpcServer := grpc.NewServer(
 		grpc.MaxConcurrentStreams(1024),
 	)
-	pb.RegisterLLMRunnerServiceServer(grpcServer, runnerServer)
+	llmrunnerpb.RegisterLLMRunnerServiceServer(grpcServer, runnerServer)
 
 	go func() {
 		logger.I("Раннер слушает на %s", cfg.ListenAddr)
@@ -88,8 +86,8 @@ func registerWithCore(coreAddr, registerAddress, registrationToken string) error
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	client := runnerpb.NewRunnerServiceClient(conn)
-	_, err = client.RegisterRunnerWithToken(ctx, &runnerpb.RunnerRegisterRequest{
+	client := llmrunnerpb.NewLLMRunnerServiceClient(conn)
+	_, err = client.RegisterRunnerWithToken(ctx, &llmrunnerpb.RunnerRegisterRequest{
 		ListenAddress:     registerAddress,
 		RegistrationToken: registrationToken,
 	})
@@ -108,8 +106,8 @@ func unregisterFromCore(coreAddr, registerAddress, registrationToken string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	client := runnerpb.NewRunnerServiceClient(conn)
-	_, _ = client.UnregisterRunnerWithToken(ctx, &runnerpb.RunnerUnregisterRequest{
+	client := llmrunnerpb.NewLLMRunnerServiceClient(conn)
+	_, _ = client.UnregisterRunnerWithToken(ctx, &llmrunnerpb.RunnerUnregisterRequest{
 		ListenAddress:     registerAddress,
 		RegistrationToken: registrationToken,
 	})

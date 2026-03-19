@@ -16,10 +16,10 @@ test:
 	go test ./...
 
 gen:
-	mkdir -p ./pb
+	mkdir -p ./pb/llmrunnerpb
 	protoc --proto_path=./ \
-		--go_out=paths=source_relative:./pb \
-		--go-grpc_out=paths=source_relative:./pb \
+		--go_out=paths=source_relative:./pb/llmrunnerpb \
+		--go-grpc_out=paths=source_relative:./pb/llmrunnerpb \
 		./llmrunner.proto
 
 build-llama:

@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"fmt"
+	"github.com/magomedcoder/llm-runner/pb/llmrunnerpb"
 	"maps"
 	"slices"
 	"sync"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/magomedcoder/llm-runner/domain"
 	"github.com/magomedcoder/llm-runner/logger"
-	"github.com/magomedcoder/llm-runner/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -86,11 +86,11 @@ func (p *Pool) closeConn(address string) {
 	}
 }
 
-func (p *Pool) getConn(ctx context.Context, address string) (pb.LLMRunnerServiceClient, error) {
+func (p *Pool) getConn(ctx context.Context, address string) (llmrunnerpb.LLMRunnerServiceClient, error) {
 	p.connMu.Lock()
 	if conn, ok := p.conns[address]; ok {
 		p.connMu.Unlock()
-		return pb.NewLLMRunnerServiceClient(conn), nil
+		return llmrunnerpb.NewLLMRunnerServiceClient(conn), nil
 	}
 	p.connMu.Unlock()
 
@@ -104,11 +104,11 @@ func (p *Pool) getConn(ctx context.Context, address string) (pb.LLMRunnerService
 	defer p.connMu.Unlock()
 	if existing, ok := p.conns[address]; ok {
 		_ = conn.Close()
-		return pb.NewLLMRunnerServiceClient(existing), nil
+		return llmrunnerpb.NewLLMRunnerServiceClient(existing), nil
 	}
 	logger.D("Pool: подключение к раннеру %s установлено", address)
 	p.conns[address] = conn
-	return pb.NewLLMRunnerServiceClient(conn), nil
+	return llmrunnerpb.NewLLMRunnerServiceClient(conn), nil
 }
 
 func (p *Pool) enabledAddresses() []string {
@@ -164,7 +164,7 @@ func (p *Pool) GetRunners(ctx context.Context) []RunnerInfo {
 			}
 
 			pingCtx, cancelPing := context.WithTimeout(ctx, probeTimeout)
-			resp, err := client.CheckConnection(pingCtx, &pb.Empty{})
+			resp, err := client.CheckConnection(pingCtx, &llmrunnerpb.Empty{})
 			cancelPing()
 			if err != nil || resp == nil || !resp.IsConnected {
 				p.closeConn(a)
@@ -230,7 +230,7 @@ func (p *Pool) CheckConnection(ctx context.Context) (bool, error) {
 			continue
 		}
 
-		resp, err := client.CheckConnection(ctx, &pb.Empty{})
+		resp, err := client.CheckConnection(ctx, &llmrunnerpb.Empty{})
 		if err == nil && resp != nil && resp.IsConnected {
 			return true, nil
 		}
@@ -251,7 +251,7 @@ func (p *Pool) GetModels(ctx context.Context) ([]string, error) {
 			continue
 		}
 
-		resp, err := client.GetModels(ctx, &pb.Empty{})
+		resp, err := client.GetModels(ctx, &llmrunnerpb.Empty{})
 		if err == nil && resp != nil {
 			return resp.Models, nil
 		}
@@ -260,13 +260,13 @@ func (p *Pool) GetModels(ctx context.Context) ([]string, error) {
 	return nil, fmt.Errorf("ни один раннер не вернул список моделей")
 }
 
-func (p *Pool) GetGpuInfo(ctx context.Context, address string) *pb.GetGpuInfoResponse {
+func (p *Pool) GetGpuInfo(ctx context.Context, address string) *llmrunnerpb.GetGpuInfoResponse {
 	client, err := p.getConn(ctx, address)
 	if err != nil {
 		return nil
 	}
 
-	resp, err := client.GetGpuInfo(ctx, &pb.Empty{})
+	resp, err := client.GetGpuInfo(ctx, &llmrunnerpb.Empty{})
 	if err != nil || resp == nil {
 		return nil
 	}
@@ -274,13 +274,13 @@ func (p *Pool) GetGpuInfo(ctx context.Context, address string) *pb.GetGpuInfoRes
 	return resp
 }
 
-func (p *Pool) GetServerInfo(ctx context.Context, address string) *pb.ServerInfo {
+func (p *Pool) GetServerInfo(ctx context.Context, address string) *llmrunnerpb.ServerInfo {
 	client, err := p.getConn(ctx, address)
 	if err != nil {
 		return nil
 	}
 
-	resp, err := client.GetServerInfo(ctx, &pb.Empty{})
+	resp, err := client.GetServerInfo(ctx, &llmrunnerpb.Empty{})
 	if err != nil || resp == nil {
 		return nil
 	}
@@ -294,11 +294,11 @@ func (p *Pool) trySendMessage(ctx context.Context, addr string, sessionID int64,
 		return nil, err
 	}
 
-	protoMessages := make([]*pb.ChatMessage, len(messages))
+	protoMessages := make([]*llmrunnerpb.ChatMessage, len(messages))
 	for i, m := range messages {
 		protoMessages[i] = domain.AIMessageToProto(m)
 	}
-	req := &pb.SendMessageRequest{
+	req := &llmrunnerpb.SendMessageRequest{
 		SessionId:     sessionID,
 		Messages:      protoMessages,
 		Model:         model,

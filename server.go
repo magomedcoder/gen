@@ -2,19 +2,18 @@ package runner
 
 import (
 	"context"
-	"strings"
-	"time"
-
 	"github.com/magomedcoder/llm-runner/domain"
 	"github.com/magomedcoder/llm-runner/gpu"
-	"github.com/magomedcoder/llm-runner/pb"
+	"github.com/magomedcoder/llm-runner/pb/llmrunnerpb"
 	"github.com/magomedcoder/llm-runner/provider"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"strings"
+	"time"
 )
 
 type Server struct {
-	pb.UnimplementedLLMRunnerServiceServer
+	llmrunnerpb.UnimplementedLLMRunnerServiceServer
 	textProvider     provider.TextProvider
 	gpuCollector     gpu.Collector
 	inferenceMetrics *InferenceMetrics
@@ -39,37 +38,37 @@ func NewServer(textProvider provider.TextProvider, gpuCollector gpu.Collector, m
 	}
 }
 
-func (s *Server) CheckConnection(ctx context.Context, _ *pb.Empty) (*pb.ConnectionResponse, error) {
+func (s *Server) CheckConnection(ctx context.Context, _ *llmrunnerpb.Empty) (*llmrunnerpb.ConnectionResponse, error) {
 	if s.textProvider == nil {
-		return &pb.ConnectionResponse{IsConnected: false}, nil
+		return &llmrunnerpb.ConnectionResponse{IsConnected: false}, nil
 	}
 
 	ok, _ := s.textProvider.CheckConnection(ctx)
-	return &pb.ConnectionResponse{IsConnected: ok}, nil
+	return &llmrunnerpb.ConnectionResponse{IsConnected: ok}, nil
 }
 
-func (s *Server) GetModels(ctx context.Context, _ *pb.Empty) (*pb.GetModelsResponse, error) {
+func (s *Server) GetModels(ctx context.Context, _ *llmrunnerpb.Empty) (*llmrunnerpb.GetModelsResponse, error) {
 	if s.textProvider == nil {
-		return &pb.GetModelsResponse{}, nil
+		return &llmrunnerpb.GetModelsResponse{}, nil
 	}
 
 	models, err := s.textProvider.GetModels(ctx)
 	if err != nil {
-		return &pb.GetModelsResponse{}, nil
+		return &llmrunnerpb.GetModelsResponse{}, nil
 	}
 
-	return &pb.GetModelsResponse{
+	return &llmrunnerpb.GetModelsResponse{
 		Models: models,
 	}, nil
 }
 
-func (s *Server) SendMessage(req *pb.SendMessageRequest, stream pb.LLMRunnerService_SendMessageServer) error {
+func (s *Server) SendMessage(req *llmrunnerpb.SendMessageRequest, stream llmrunnerpb.LLMRunnerService_SendMessageServer) error {
 	if s.textProvider == nil {
 		return status.Error(codes.Unavailable, "текстовый провайдер не подключён")
 	}
 
 	if req == nil || len(req.Messages) == 0 {
-		return stream.Send(&pb.ChatResponse{Done: true})
+		return stream.Send(&llmrunnerpb.ChatResponse{Done: true})
 	}
 
 	ctx := stream.Context()
@@ -102,14 +101,14 @@ func (s *Server) SendMessage(req *pb.SendMessageRequest, stream pb.LLMRunnerServ
 
 	ch, err := s.textProvider.SendMessage(ctx, sessionID, model, messages, stopSequences, nil)
 	if err != nil {
-		_ = stream.Send(&pb.ChatResponse{Done: true})
+		_ = stream.Send(&llmrunnerpb.ChatResponse{Done: true})
 		return err
 	}
 
 	for chunk := range ch {
 		if chunk != "" {
 			tokens++
-			if err := stream.Send(&pb.ChatResponse{
+			if err := stream.Send(&llmrunnerpb.ChatResponse{
 				Content: chunk,
 				Done:    false,
 			}); err != nil {
@@ -122,14 +121,14 @@ func (s *Server) SendMessage(req *pb.SendMessageRequest, stream pb.LLMRunnerServ
 		s.inferenceMetrics.Record(tokens, time.Since(start))
 	}
 
-	return stream.Send(&pb.ChatResponse{Done: true})
+	return stream.Send(&llmrunnerpb.ChatResponse{Done: true})
 }
 
-func (s *Server) GetGpuInfo(ctx context.Context, _ *pb.Empty) (*pb.GetGpuInfoResponse, error) {
+func (s *Server) GetGpuInfo(ctx context.Context, _ *llmrunnerpb.Empty) (*llmrunnerpb.GetGpuInfoResponse, error) {
 	list := s.gpuCollector.Collect()
-	gpus := make([]*pb.GpuInfo, len(list))
+	gpus := make([]*llmrunnerpb.GpuInfo, len(list))
 	for i := range list {
-		gpus[i] = &pb.GpuInfo{
+		gpus[i] = &llmrunnerpb.GpuInfo{
 			Name:               list[i].Name,
 			TemperatureC:       list[i].TemperatureC,
 			MemoryTotalMb:      list[i].MemoryTotalMB,
@@ -138,12 +137,12 @@ func (s *Server) GetGpuInfo(ctx context.Context, _ *pb.Empty) (*pb.GetGpuInfoRes
 		}
 	}
 
-	return &pb.GetGpuInfoResponse{Gpus: gpus}, nil
+	return &llmrunnerpb.GetGpuInfoResponse{Gpus: gpus}, nil
 }
 
-func (s *Server) GetServerInfo(ctx context.Context, _ *pb.Empty) (*pb.ServerInfo, error) {
+func (s *Server) GetServerInfo(ctx context.Context, _ *llmrunnerpb.Empty) (*llmrunnerpb.ServerInfo, error) {
 	si := CollectSysInfo()
-	out := &pb.ServerInfo{
+	out := &llmrunnerpb.ServerInfo{
 		Hostname:      si.Hostname,
 		Os:            si.OS,
 		Arch:          si.Arch,
