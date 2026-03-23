@@ -40,8 +40,14 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _scrollToBottom() {
-    if (!mounted) return;
-    if (!_scrollController.hasClients) return;
+    if (!mounted) {
+      return;
+    }
+
+    if (!_scrollController.hasClients) {
+      return;
+    }
+
     final pos = _scrollController.position;
     if (pos.maxScrollExtent - pos.pixels <= _scrollThreshold) {
       _scrollController.animateTo(
@@ -60,7 +66,10 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _createNewSession() async {
     final result = await showNewSessionDialog(context, _sessionTitleController);
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
+
     if (result != null) {
       context.read<ChatBloc>().add(ChatCreateSession(title: result));
       _sessionTitleController.clear();
@@ -89,16 +98,20 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _onFilesDropped(DropDoneDetails details) async {
     setState(() => _isDraggingFile = false);
-    if (details.files.isEmpty) return;
+    if (details.files.isEmpty) {
+      return;
+    }
 
     final item = details.files.first;
-    if (item is! DropItemFile) return;
+    if (item is! DropItemFile) {
+      return;
+    }
 
     try {
       final bytes = await item.readAsBytes();
       final name = item.name.isNotEmpty
-          ? item.name
-          : item.path.split(RegExp(r'[/\\]')).last;
+        ? item.name
+        : item.path.split(RegExp(r'[/\\]')).last;
       if (!mounted) return;
       _inputBarKey.currentState?.setDroppedFile(
         PlatformFile(
@@ -155,25 +168,25 @@ class _ChatScreenState extends State<ChatScreen> {
           return Scaffold(
             key: _scaffoldKey,
             drawer: useDrawer
-                ? Drawer(
-                    child: SafeArea(
-                      child: SessionsSidebar(
-                        isInDrawer: true,
-                        onCreateNewSession: _createNewSession,
-                        onSelectSession: _selectSessionAndCloseDrawer,
-                        onDeleteSession: _deleteSession,
-                      ),
-                    ),
-                  )
-                : null,
+              ? Drawer(
+                child: SafeArea(
+                  child: SessionsSidebar(
+                    isInDrawer: true,
+                    onCreateNewSession: _createNewSession,
+                    onSelectSession: _selectSessionAndCloseDrawer,
+                    onDeleteSession: _deleteSession,
+                  ),
+                ),
+              )
+              : null,
             appBar: AppBar(
               leading: useDrawer
-                  ? IconButton(
-                      icon: const Icon(Icons.menu),
-                      onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-                      tooltip: 'Меню сессий',
-                    )
-                  : null,
+                ? IconButton(
+                  icon: const Icon(Icons.menu),
+                  onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+                  tooltip: 'Меню сессий',
+                )
+                : null,
               title: BlocBuilder<ChatBloc, ChatState>(
                 builder: (context, state) => ChatAppBarTitle(
                   state: state,
@@ -216,36 +229,32 @@ class _ChatScreenState extends State<ChatScreen> {
                         border: Border(
                           right: BorderSide(
                             color: Theme.of(context)
-                                .dividerColor
-                                .withValues(alpha: 0.1),
+                              .dividerColor
+                              .withValues(alpha: 0.1),
                             width: 1,
                           ),
                         ),
                       ),
                       child: _isSidebarExpanded
-                          ? SessionsSidebar(
-                              onCreateNewSession: _createNewSession,
-                              onSelectSession: _selectSession,
-                              onDeleteSession: _deleteSession,
-                            )
-                          : const SizedBox.shrink(),
+                        ? SessionsSidebar(
+                          onCreateNewSession: _createNewSession,
+                          onSelectSession: _selectSession,
+                          onDeleteSession: _deleteSession,
+                        )
+                        : const SizedBox.shrink(),
                     ),
                   Expanded(
                     child: BlocBuilder<ChatBloc, ChatState>(
                       builder: (context, state) {
-                        final canDropFile = state.isConnected &&
-                            !state.isLoading &&
-                            (state.hasActiveRunners != false);
+                        final canDropFile = state.isConnected && !state.isLoading && (state.hasActiveRunners != false);
                         return ChatMessagesPanel(
                           state: state,
                           scrollController: _scrollController,
                           inputBarKey: _inputBarKey,
                           isDraggingFile: _isDraggingFile,
                           canDropFile: canDropFile,
-                          onDragEntered: (_) =>
-                              setState(() => _isDraggingFile = true),
-                          onDragExited: (_) =>
-                              setState(() => _isDraggingFile = false),
+                          onDragEntered: (_) => setState(() => _isDraggingFile = true),
+                          onDragExited: (_) => setState(() => _isDraggingFile = false),
                           onDragDone: _onFilesDropped,
                         );
                       },

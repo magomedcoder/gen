@@ -29,14 +29,11 @@ class SessionListTile extends StatelessWidget {
             : Colors.transparent,
         borderRadius: BorderRadius.circular(12),
         border: isSelected
-            ? Border.all(
-                color: Theme.of(context)
-                    .colorScheme
-                    .primary
-                    .withValues(alpha: 0.3),
-                width: 1,
-              )
-            : null,
+          ? Border.all(
+            color: Theme.of(context,).colorScheme.primary.withValues(alpha: 0.3),
+            width: 1,
+          )
+          : null,
       ),
       child: Material(
         color: Colors.transparent,
@@ -61,12 +58,11 @@ class SessionListTile extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 14,
-                            fontWeight:
-                                isSelected ? FontWeight.w600 : FontWeight.normal,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.normal,
                             color: isSelected
-                                ? Theme.of(context)
-                                    .colorScheme
-                                    .onPrimaryContainer
+                                ? Theme.of(context).colorScheme.onPrimaryContainer
                                 : Theme.of(context).colorScheme.onSurface,
                           ),
                         ),

@@ -20,7 +20,10 @@ class ServerConfig {
   }
 
   Future<void> setServer(String host, int port) async {
-    if (_host == host && _port == port) return;
+    if (_host == host && _port == port) {
+      return;
+    }
+
     _host = host;
     _port = port;
     await _prefs?.setString(_keyHost, host);

@@ -40,8 +40,13 @@ class SessionContextMenu {
         ),
       ],
     ).then((value) {
-      if (value == 'edit') onEdit();
-      if (value == 'delete') onDelete();
+      if (value == 'edit') {
+        onEdit();
+      }
+
+      if (value == 'delete') {
+        onDelete();
+      }
     });
   }
 

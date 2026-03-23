@@ -2,9 +2,12 @@ server:
   host: "0.0.0.0"
   port: "50051"
 
+log:
+  level: "info"
+
 database:
-  host: "localhost"
-  port: "5432"
+  host: "postgres"
+  port: 5432
   user: "postgres"
   password: "postgres"
   name: "gen_db"
@@ -16,16 +19,11 @@ jwt:
   access_ttl: "15m"
   refresh_ttl: "168h"
 
-runners:
-  - name: runner-a
-    token: ""
-  - name: runner-b
-    token: ""
-
 attachments:
   save_dir: "./uploads"
 
-log:
-  level: "info"
-
-min_client_build: 1
+runners:
+  - name: "runner-a"
+    token: ""
+  - name: "runner-b"
+    token: ""

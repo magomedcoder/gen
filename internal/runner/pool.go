@@ -3,16 +3,15 @@ package runner
 import (
 	"context"
 	"fmt"
-	llmrunner "github.com/magomedcoder/gen/api/pb/llmrunner"
-	"slices"
-	"sync"
-	"sync/atomic"
-	"time"
-
+	"github.com/magomedcoder/gen/api/pb/llmrunnerpb"
 	"github.com/magomedcoder/gen/api/pb/runnerpb"
 	"github.com/magomedcoder/gen/internal/domain"
 	"github.com/magomedcoder/gen/internal/service"
 	"github.com/magomedcoder/gen/pkg/logger"
+	"slices"
+	"sync"
+	"sync/atomic"
+	"time"
 )
 
 type Pool struct {
@@ -92,7 +91,7 @@ func modelAllowed(requested string, serverModels []string) bool {
 	return slices.Contains(serverModels, requested)
 }
 
-func maxGPUUtil(gpus []*llmrunner.GpuInfo) uint32 {
+func maxGPUUtil(gpus []*llmrunnerpb.GpuInfo) uint32 {
 	var max uint32
 	for _, g := range gpus {
 		if g == nil {
@@ -106,7 +105,7 @@ func maxGPUUtil(gpus []*llmrunner.GpuInfo) uint32 {
 	return max
 }
 
-func llmGpusToRunnerPB(in []*llmrunner.GpuInfo) []*runnerpb.GpuInfo {
+func llmGpusToRunnerPB(in []*llmrunnerpb.GpuInfo) []*runnerpb.GpuInfo {
 	out := make([]*runnerpb.GpuInfo, 0, len(in))
 	for _, g := range in {
 		if g == nil {
@@ -123,7 +122,7 @@ func llmGpusToRunnerPB(in []*llmrunner.GpuInfo) []*runnerpb.GpuInfo {
 	return out
 }
 
-func llmServerToRunnerPB(si *llmrunner.ServerInfo) *runnerpb.ServerInfo {
+func llmServerToRunnerPB(si *llmrunnerpb.ServerInfo) *runnerpb.ServerInfo {
 	if si == nil {
 		return nil
 	}

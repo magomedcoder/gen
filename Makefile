@@ -16,12 +16,13 @@ gen-go-proto:
 			$$proto; \
 	done
 
-	protoc --proto_path=./llm-runner \
-		--go_opt=Mllmrunner.proto=github.com/magomedcoder/gen/api/pb/llmrunner \
-		--go-grpc_opt=Mllmrunner.proto=github.com/magomedcoder/gen/api/pb/llmrunner \
+	mkdir -p ./api/pb/llmrunnerpb
+	protoc --proto_path=../llm-runner \
+		--go_opt=Mllmrunner.proto=github.com/magomedcoder/gen/api/pb/llmrunnerpb \
+		--go-grpc_opt=Mllmrunner.proto=github.com/magomedcoder/gen/api/pb/llmrunnerpb \
 		--go_out=module=github.com/magomedcoder/gen:. \
 		--go-grpc_out=module=github.com/magomedcoder/gen:. \
-		./llm-runner/llmrunner.proto
+		../llm-runner/llmrunner.proto
 
 gen-dart-proto:
 	mkdir -p ./client-app/lib/generated/grpc_pb

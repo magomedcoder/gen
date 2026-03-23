@@ -14,10 +14,9 @@ class SessionsSidebarEmptyState extends StatelessWidget {
             Icon(
               Icons.history,
               size: 54,
-              color: Theme.of(context)
-                  .colorScheme
-                  .onSurfaceVariant
-                  .withValues(alpha: 0.5),
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
             ),
             const SizedBox(height: 16),
             Text(
@@ -71,14 +70,11 @@ class SessionsSidebarErrorState extends StatelessWidget {
             Text(
               'Ошибка загрузки',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.error,
-                  ),
+                color: Theme.of(context).colorScheme.error,
+              ),
             ),
             const SizedBox(height: 8),
-            ElevatedButton(
-              onPressed: onRetry,
-              child: const Text('Повторить'),
-            ),
+            ElevatedButton(onPressed: onRetry, child: const Text('Повторить')),
           ],
         ),
       ),

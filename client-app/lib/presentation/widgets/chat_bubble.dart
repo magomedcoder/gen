@@ -104,35 +104,30 @@ class _ChatBubbleState extends State<ChatBubble> {
                       listIndent: 24,
                       blockquote: TextStyle(
                         color: isUser
-                            ? theme.colorScheme.onPrimary
-                                .withValues(alpha: 0.9)
-                            : theme.colorScheme.onSurfaceVariant
-                                .withValues(alpha: 0.9),
+                          ? theme.colorScheme.onPrimary.withValues(alpha: 0.9)
+                          : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.9),
                       ),
                       blockquoteDecoration: BoxDecoration(
                         border: Border(
                           left: BorderSide(
                             color: isUser
-                                ? theme.colorScheme.onPrimary
-                                    .withValues(alpha: 0.5)
-                                : theme.colorScheme.onSurfaceVariant
-                                    .withValues(alpha: 0.5),
+                              ? theme.colorScheme.onPrimary.withValues(alpha: 0.5)
+                              : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
                             width: 4,
                           ),
                         ),
                       ),
                       code: TextStyle(
                         color: isUser
-                            ? theme.colorScheme.onPrimary
-                            : theme.colorScheme.onSurfaceVariant,
+                          ? theme.colorScheme.onPrimary
+                          : theme.colorScheme.onSurfaceVariant,
                         fontFamily: 'monospace',
                         fontSize: 13,
                       ),
                       codeblockDecoration: BoxDecoration(
                         color: (isUser
-                                ? theme.colorScheme.onPrimary
-                                : theme.colorScheme.onSurfaceVariant)
-                            .withValues(alpha: 0.08),
+                          ? theme.colorScheme.onPrimary
+                          : theme.colorScheme.onSurfaceVariant).withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),

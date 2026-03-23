@@ -2,10 +2,8 @@ package handler
 
 import (
 	"context"
-	llmrunnerpb "github.com/magomedcoder/gen/api/pb/llmrunner"
-	"strings"
-
 	"github.com/magomedcoder/gen/api/pb/commonpb"
+	"github.com/magomedcoder/gen/api/pb/llmrunnerpb"
 	"github.com/magomedcoder/gen/api/pb/runnerpb"
 	"github.com/magomedcoder/gen/config"
 	"github.com/magomedcoder/gen/internal/runner"
@@ -13,10 +11,12 @@ import (
 	"github.com/magomedcoder/gen/pkg/logger"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"strings"
 )
 
 type RunnerHandler struct {
 	runnerpb.UnimplementedRunnerServiceServer
+	llmrunnerpb.UnimplementedLLMRunnerServiceServer
 	registry    *runner.Registry
 	pool        *runner.Pool
 	authUseCase *usecase.AuthUseCase
@@ -123,7 +123,7 @@ func (h *RunnerHandler) validateRegistrationToken(provided string) error {
 	return nil
 }
 
-func (h *RunnerHandler) RegisterRunnerWithToken(ctx context.Context, req *llmrunnerpb.RunnerRegisterRequest) (*commonpb.Empty, error) {
+func (h *RunnerHandler) RegisterRunnerWithToken(ctx context.Context, req *llmrunnerpb.RunnerRegisterRequest) (*llmrunnerpb.Empty, error) {
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "пустой запрос")
 	}
@@ -139,10 +139,10 @@ func (h *RunnerHandler) RegisterRunnerWithToken(ctx context.Context, req *llmrun
 	}
 	h.registry.Register(addr)
 	logger.I("RegisterRunnerWithToken: %s", addr)
-	return &commonpb.Empty{}, nil
+	return &llmrunnerpb.Empty{}, nil
 }
 
-func (h *RunnerHandler) UnregisterRunnerWithToken(ctx context.Context, req *llmrunnerpb.RunnerUnregisterRequest) (*commonpb.Empty, error) {
+func (h *RunnerHandler) UnregisterRunnerWithToken(ctx context.Context, req *llmrunnerpb.RunnerUnregisterRequest) (*llmrunnerpb.Empty, error) {
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "пустой запрос")
 	}
@@ -156,5 +156,5 @@ func (h *RunnerHandler) UnregisterRunnerWithToken(ctx context.Context, req *llmr
 	h.pool.CloseAddrForget(addr)
 	h.registry.Unregister(addr)
 	logger.I("UnregisterRunnerWithToken: %s", addr)
-	return &commonpb.Empty{}, nil
+	return &llmrunnerpb.Empty{}, nil
 }

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gen/core/log/logs.dart';
+import 'package:gen/core/request_logout_on_unauthorized.dart';
 import 'package:gen/domain/entities/message.dart';
 import 'package:gen/domain/entities/session.dart';
 import 'package:gen/domain/usecases/chat/connect_usecase.dart';
@@ -21,7 +22,6 @@ import 'package:gen/domain/usecases/runners/get_runners_status_usecase.dart';
 import 'package:gen/presentation/screens/auth/bloc/auth_bloc.dart';
 import 'package:gen/presentation/screens/chat/bloc/chat_event.dart';
 import 'package:gen/presentation/screens/chat/bloc/chat_state.dart';
-import 'package:gen/presentation/utils/request_logout_on_unauthorized.dart';
 
 int _localTempMessageId() => -DateTime.now().microsecondsSinceEpoch;
 
@@ -283,14 +283,11 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
             final savedModel = await getSessionModelUseCase(event.sessionId);
             if (savedModel != null && state.models.contains(savedModel)) {
               modelForSession = savedModel;
-            } else if (modelForSession == null ||
-                !state.models.contains(modelForSession)) {
+            } else if (modelForSession == null || !state.models.contains(modelForSession)) {
               modelForSession = state.models.first;
             }
           } catch (_) {
-            if (modelForSession == null) {
-              modelForSession = state.models.first;
-            }
+            modelForSession ??= state.models.first;
           }
         }
       }
@@ -325,14 +322,17 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
       final allMessages = [...state.messages, ...messages];
 
-      emit(
-        state.copyWith(messages: allMessages, isLoading: false, error: null),
-      );
+      emit(state.copyWith(
+          messages: allMessages,
+          isLoading: false,
+          error: null,
+      ));
     } catch (e) {
       requestLogoutIfUnauthorized(e, authBloc);
-      emit(
-        state.copyWith(isLoading: false, error: 'Ошибка загрузки сообщений'),
-      );
+      emit(state.copyWith(
+          isLoading: false,
+          error: 'Ошибка загрузки сообщений'
+      ));
     }
   }
 
@@ -398,15 +398,13 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     final updatedMessages = [...state.messages, userMessage];
     String streamingText = '';
 
-    emit(
-      state.copyWith(
-        messages: updatedMessages,
-        isLoading: true,
-        isStreaming: true,
-        currentStreamingText: '',
-        error: null,
-      ),
-    );
+    emit(state.copyWith(
+      messages: updatedMessages,
+      isLoading: true,
+      isStreaming: true,
+      currentStreamingText: '',
+      error: null,
+    ));
 
     _streamCompleter = Completer<bool>();
 

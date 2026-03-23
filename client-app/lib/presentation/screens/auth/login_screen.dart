@@ -3,7 +3,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gen/core/injector.dart';
 import 'package:gen/core/layout/responsive.dart';
 import 'package:gen/core/server_config.dart';
+import 'package:gen/core/util.dart';
 import 'package:gen/presentation/screens/auth/bloc/auth_bloc.dart';
+import 'package:gen/presentation/screens/auth/login_form_decoration.dart';
 import 'package:gen/presentation/screens/auth/bloc/auth_event.dart';
 import 'package:gen/presentation/screens/auth/bloc/auth_state.dart';
 
@@ -16,8 +18,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _hostController = TextEditingController();
-  final _portController = TextEditingController();
+  final _serverAddressController = TextEditingController();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
@@ -26,14 +27,12 @@ class _LoginScreenState extends State<LoginScreen> {
   void initState() {
     super.initState();
     final config = sl<ServerConfig>();
-    _hostController.text = config.host;
-    _portController.text = config.port.toString();
+    _serverAddressController.text = formatServerAddressForField(config);
   }
 
   @override
   void dispose() {
-    _hostController.dispose();
-    _portController.dispose();
+    _serverAddressController.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -41,12 +40,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _handleLogin() {
     if (_formKey.currentState!.validate()) {
-      final port = int.tryParse(_portController.text.trim());
+      final parsed = parseServerAddress(_serverAddressController.text)!;
       context.read<AuthBloc>().add(AuthLoginRequested(
         username: _usernameController.text.trim(),
         password: _passwordController.text,
-        host: _hostController.text.trim(),
-        port: port ?? ServerConfig.defaultPort,
+        host: parsed.host,
+        port: parsed.port,
       ));
     }
   }
@@ -93,62 +92,25 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 8),
                       TextFormField(
-                        controller: _hostController,
+                        controller: _serverAddressController,
                         keyboardType: TextInputType.url,
                         textInputAction: TextInputAction.next,
-                        decoration: InputDecoration(
-                          labelText: 'Хост сервера',
-                          hintText: 'Введите хост сервера',
+                        decoration: LoginFormDecoration.field(
+                          labelText: 'Хост',
+                          hintText: serverAddressInputHint,
                           prefixIcon: const Icon(Icons.dns_outlined),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
                         ),
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Введите хост сервера';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _portController,
-                        keyboardType: TextInputType.number,
-                        textInputAction: TextInputAction.next,
-                        decoration: InputDecoration(
-                          labelText: 'Порт сервера',
-                          hintText: 'Например: ${ServerConfig.defaultPort}',
-                          prefixIcon: const Icon(Icons.settings_ethernet_outlined),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Введите порт';
-                          }
-
-                          final port = int.tryParse(value.trim());
-                          if (port == null || port < 1 || port > 65535) {
-                            return 'Введите порт от 1 до 65535';
-                          }
-
-                          return null;
-                        },
+                        validator: validateServerAddressInput,
                       ),
                       const SizedBox(height: 16),
                       TextFormField(
                         controller: _usernameController,
                         keyboardType: TextInputType.text,
                         textInputAction: TextInputAction.next,
-                        decoration: InputDecoration(
+                        decoration: LoginFormDecoration.field(
                           labelText: 'Имя пользователя',
                           hintText: 'Введите имя пользователя',
                           prefixIcon: const Icon(Icons.person_outlined),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
                         ),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
@@ -168,7 +130,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         obscureText: _obscurePassword,
                         textInputAction: TextInputAction.done,
                         onFieldSubmitted: (_) => _handleLogin(),
-                        decoration: InputDecoration(
+                        decoration: LoginFormDecoration.field(
                           labelText: 'Пароль',
                           hintText: 'Введите пароль',
                           prefixIcon: const Icon(Icons.lock_outlined),
@@ -183,9 +145,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                 _obscurePassword = !_obscurePassword;
                               });
                             },
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
                           ),
                         ),
                         validator: (value) {

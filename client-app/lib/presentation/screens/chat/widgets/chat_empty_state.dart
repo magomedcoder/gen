@@ -22,10 +22,9 @@ class ChatEmptyState extends StatelessWidget {
               child: Icon(
                 Icons.chat_bubble_outline,
                 size: 54,
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurfaceVariant
-                    .withValues(alpha: 0.5),
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
               ),
             ),
             const SizedBox(height: 24),
@@ -35,8 +34,8 @@ class ChatEmptyState extends StatelessWidget {
                   : 'Выберите сессию из списка слева\nили создайте новую',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),

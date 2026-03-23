@@ -22,24 +22,25 @@ class CodeBlockBuilder extends MarkdownElementBuilder {
     TextStyle? preferredStyle,
     TextStyle? parentStyle,
   ) {
-    if (element.tag != 'pre') return null;
+    if (element.tag != 'pre') {
+      return null;
+    }
 
     final code = element.textContent;
 
-    if (code.isEmpty) return null;
+    if (code.isEmpty) {
+      return null;
+    }
 
     final rawLang = _languageFromPreElement(element);
-    final language = (rawLang != null && rawLang.isNotEmpty)
-        ? rawLang
-        : 'plaintext';
+    final language = (rawLang != null && rawLang.isNotEmpty) ? rawLang : 'plaintext';
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final theme = isDark ? atomOneDarkTheme : githubTheme;
-    final baseStyle = textStyle ??
-        const TextStyle(
-          fontSize: 13,
-          fontFamily: 'monospace',
-        );
+    final baseStyle = textStyle ?? const TextStyle(
+      fontSize: 13,
+      fontFamily: 'monospace',
+    );
 
     return Padding(
       padding: const EdgeInsets.only(top: 8, bottom: 8),
@@ -54,20 +55,28 @@ class CodeBlockBuilder extends MarkdownElementBuilder {
 }
 
 String? _languageFromPreElement(md.Element pre) {
-  if (pre.children == null || pre.children!.isEmpty) return null;
+  if (pre.children == null || pre.children!.isEmpty) {
+    return null;
+  }
 
   for (final node in pre.children!) {
-    if (node is! md.Element || node.tag != 'code') continue;
+    if (node is! md.Element || node.tag != 'code') {
+      continue;
+    }
 
     final cls = node.attributes['class'] ?? node.attributes['className'];
-    if (cls == null) continue;
+    if (cls == null) {
+      continue;
+    }
 
     for (final token in cls.split(' ')) {
       final t = token.trim();
       if (t.startsWith('language-') && t.length > 9) {
         final lang = t.substring(9).trim();
 
-        if (lang.isNotEmpty) return lang;
+        if (lang.isNotEmpty) {
+          return lang;
+        }
 
         break;
       }
@@ -90,6 +99,7 @@ Result _detectLanguageFromSubset(String code) {
       }
     } catch (_) {}
   }
+
   return best;
 }
 
@@ -105,11 +115,11 @@ List<TextSpan> _nodesToTextSpans(
   void traverse(Node node, List<TextSpan> currentSpans) {
     if (node.value != null) {
       currentSpans.add(node.className == null
-          ? TextSpan(text: node.value)
-          : TextSpan(
-              text: node.value,
-              style: theme[node.className!],
-            ));
+        ? TextSpan(text: node.value)
+        : TextSpan(
+          text: node.value,
+          style: theme[node.className!],
+        ));
     } else if (node.children != null) {
       final tmp = <TextSpan>[];
       currentSpans.add(TextSpan(
@@ -158,7 +168,9 @@ class _SelectableCodeBlockState extends State<_SelectableCodeBlock> {
   Future<void> _copyCode() async {
     await Clipboard.setData(ClipboardData(text: widget.code));
 
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
 
     setState(() => _copied = true);
 
@@ -171,11 +183,10 @@ class _SelectableCodeBlockState extends State<_SelectableCodeBlock> {
 
   @override
   Widget build(BuildContext context) {
-    final useAutoDetect =
-        widget.language == 'plaintext' || widget.language.isEmpty;
+    final useAutoDetect = widget.language == 'plaintext' || widget.language.isEmpty;
     final result = useAutoDetect
-        ? _detectLanguageFromSubset(widget.code)
-        : highlight.parse(widget.code, language: widget.language);
+      ? _detectLanguageFromSubset(widget.code)
+      : highlight.parse(widget.code, language: widget.language);
     final nodes = result.nodes ?? [];
     final displayLanguage = result.language ?? widget.language;
     final spans = _nodesToTextSpans(nodes, widget.theme);
@@ -186,14 +197,12 @@ class _SelectableCodeBlockState extends State<_SelectableCodeBlock> {
       ),
     );
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final iconColor =
-        isDark ? const Color(0xffabb2bf) : const Color(0xff333333);
+    final iconColor = isDark ? const Color(0xffabb2bf) : const Color(0xff333333);
     final copiedColor = Theme.of(context).colorScheme.primary;
 
     return Container(
       decoration: BoxDecoration(
-        color: widget.theme[_rootKey]?.backgroundColor ??
-            const Color(0xfff8f8f8),
+        color: widget.theme[_rootKey]?.backgroundColor ?? const Color(0xfff8f8f8),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: Theme.of(context).dividerColor.withValues(alpha: 0.2),
@@ -206,9 +215,7 @@ class _SelectableCodeBlockState extends State<_SelectableCodeBlock> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Material(
-            color: widget.theme[_rootKey]?.backgroundColor
-                    ?.withValues(alpha: 0.6) ??
-                const Color(0xfff0f0f0),
+            color: widget.theme[_rootKey]?.backgroundColor?.withValues(alpha: 0.6) ?? const Color(0xfff0f0f0),
             child: InkWell(
               onTap: _copyCode,
               child: Padding(

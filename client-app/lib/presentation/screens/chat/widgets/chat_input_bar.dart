@@ -147,9 +147,13 @@ class ChatInputBarState extends State<ChatInputBar> {
   }
 
   void setDroppedFile(PlatformFile file) {
-    if (!widget.isEnabled) return;
+    if (!widget.isEnabled) {
+      return;
+    }
 
-    if (file.bytes == null || file.bytes!.isEmpty) return;
+    if (file.bytes == null || file.bytes!.isEmpty) {
+      return;
+    }
 
     if (file.bytes!.length > AttachmentSettings.maxFileSizeBytes) {
       if (mounted) {

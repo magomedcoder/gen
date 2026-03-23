@@ -33,19 +33,19 @@ class EditorState extends Equatable {
       outputText: outputText ?? this.outputText,
       models: models ?? this.models,
       selectedModel: clearSelectedModel
-          ? null
-          : (selectedModel ?? this.selectedModel),
+        ? null
+        : (selectedModel ?? this.selectedModel),
       error: clearError ? null : (error ?? this.error),
     );
   }
 
   @override
   List<Object?> get props => [
-        isLoading,
-        inputText,
-        outputText,
-        models,
-        selectedModel,
-        error,
-      ];
+    isLoading,
+    inputText,
+    outputText,
+    models,
+    selectedModel,
+    error,
+  ];
 }

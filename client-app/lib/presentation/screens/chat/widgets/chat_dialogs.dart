@@ -49,9 +49,7 @@ Future<void> showDeleteSessionDialog(
     context: context,
     builder: (dialogContext) => AlertDialog(
       title: const Text('Удалить сессию?'),
-      content: Text(
-        'Вы уверены, что хотите удалить сессию "$sessionTitle"?',
-      ),
+      content: Text('Вы уверены, что хотите удалить сессию "$sessionTitle"?'),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(dialogContext).pop(),
@@ -72,8 +70,7 @@ Future<void> showDeleteSessionDialog(
 void showSupportedFormatsDialog(BuildContext context) {
   final theme = Theme.of(context);
   final isMobile = Breakpoints.isMobile(context);
-  final maxWidth =
-      isMobile ? MediaQuery.sizeOf(context).width - 32 : 400.0;
+  final maxWidth = isMobile ? MediaQuery.sizeOf(context).width - 32 : 400.0;
 
   showDialog<void>(
     context: context,

@@ -6,7 +6,7 @@ import 'package:gen/domain/usecases/users/get_users_usecase.dart';
 import 'package:gen/presentation/screens/admin/bloc/users_admin_event.dart';
 import 'package:gen/presentation/screens/admin/bloc/users_admin_state.dart';
 import 'package:gen/presentation/screens/auth/bloc/auth_bloc.dart';
-import 'package:gen/presentation/utils/request_logout_on_unauthorized.dart';
+import 'package:gen/core/request_logout_on_unauthorized.dart';
 
 class UsersAdminBloc extends Bloc<UsersAdminEvent, UsersAdminState> {
   final AuthBloc authBloc;

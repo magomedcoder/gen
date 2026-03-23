@@ -146,7 +146,7 @@ type yamlRoot struct {
 	Runners        *runnersBlockYAML `yaml:"runners"`
 	Attachments    AttachmentsConfig `yaml:"attachments"`
 	Log            LogConfig         `yaml:"log"`
-	MinClientBuild int32             `yaml:"min_client_build"`
+	MinClientBuild int32
 }
 
 type jwtYAML struct {

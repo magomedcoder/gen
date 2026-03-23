@@ -50,44 +50,32 @@ class _EditorScreenState extends State<EditorScreen> {
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               isExpanded: true,
-              value: (state.selectedModel != null &&
-                      state.models.contains(state.selectedModel))
-                  ? state.selectedModel
-                  : (state.models.isNotEmpty ? state.models.first : null),
-              items: state.models
-                  .map(
-                    (m) => DropdownMenuItem(
-                      value: m,
-                      child: Text(m, overflow: TextOverflow.ellipsis),
-                    ),
-                  )
-                  .toList(),
-              onChanged: state.isLoading
-                  ? null
-                  : (v) =>
-                      context.read<EditorBloc>().add(EditorModelChanged(v)),
+              value: (state.selectedModel != null && state.models.contains(state.selectedModel))
+                ? state.selectedModel
+                : (state.models.isNotEmpty ? state.models.first : null),
+              items: state.models.map((m) => DropdownMenuItem(
+                value: m,
+                child: Text(m, overflow: TextOverflow.ellipsis),
+              )).toList(),
+              onChanged: state.isLoading ? null : (v) => context.read<EditorBloc>().add(EditorModelChanged(v)),
             ),
           ),
         );
 
         final applyButton = FilledButton.icon(
           onPressed: state.isLoading
-              ? null
-              : () {
-                  context
-                      .read<EditorBloc>()
-                      .add(EditorInputChanged(_inputController.text));
-                  context
-                      .read<EditorBloc>()
-                      .add(const EditorTransformPressed());
-                },
+            ? null
+            : () {
+              context.read<EditorBloc>().add(EditorInputChanged(_inputController.text));
+              context.read<EditorBloc>().add(const EditorTransformPressed());
+            },
           icon: state.isLoading
-              ? const SizedBox(
-                  height: 18,
-                  width: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.auto_fix_high),
+            ? const SizedBox(
+              height: 18,
+              width: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+            : const Icon(Icons.auto_fix_high),
           label: Text(state.isLoading ? 'Обработка…' : 'Применить'),
         );
 
@@ -145,33 +133,33 @@ class _EditorScreenState extends State<EditorScreen> {
                   const SizedBox(height: 12),
                   Expanded(
                     child: isMobile
-                        ? DefaultTabController(
-                            length: 2,
-                            child: Column(
-                              children: [
-                                const TabBar(
-                                  tabs: [
-                                    Tab(text: 'Текст'),
-                                    Tab(text: 'Результат'),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                Expanded(
-                                  child: TabBarView(
-                                    children: [inputField, outputField],
-                                  ),
-                                ),
+                      ? DefaultTabController(
+                        length: 2,
+                        child: Column(
+                          children: [
+                            const TabBar(
+                              tabs: [
+                                Tab(text: 'Текст'),
+                                Tab(text: 'Результат'),
                               ],
                             ),
-                          )
-                        : Row(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Expanded(child: inputField),
-                              const SizedBox(width: 12),
-                              Expanded(child: outputField),
-                            ],
-                          ),
+                            const SizedBox(height: 12),
+                            Expanded(
+                              child: TabBarView(
+                                children: [inputField, outputField],
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                      : Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(child: inputField),
+                          const SizedBox(width: 12),
+                          Expanded(child: outputField),
+                        ],
+                      ),
                   ),
                 ],
               ),

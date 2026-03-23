@@ -5,7 +5,7 @@ import 'package:gen/domain/usecases/editor/transform_text_usecase.dart';
 import 'package:gen/presentation/screens/auth/bloc/auth_bloc.dart';
 import 'package:gen/presentation/screens/editor/bloc/editor_event.dart';
 import 'package:gen/presentation/screens/editor/bloc/editor_state.dart';
-import 'package:gen/presentation/utils/request_logout_on_unauthorized.dart';
+import 'package:gen/core/request_logout_on_unauthorized.dart';
 
 class EditorBloc extends Bloc<EditorEvent, EditorState> {
   final AuthBloc authBloc;
