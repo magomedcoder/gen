@@ -9,6 +9,7 @@ import (
 	"github.com/magomedcoder/gen/api/pb/authpb"
 	"github.com/magomedcoder/gen/api/pb/chatpb"
 	"github.com/magomedcoder/gen/api/pb/editorpb"
+	"github.com/magomedcoder/gen/api/pb/llmrunnerpb"
 	"github.com/magomedcoder/gen/api/pb/runnerpb"
 	"github.com/magomedcoder/gen/api/pb/userpb"
 	"github.com/magomedcoder/gen/config"
@@ -109,6 +110,7 @@ func main() {
 
 	runnerHandler := handler.NewRunnerHandler(runnerReg, runnerPool, authUseCase, cfg)
 	runnerpb.RegisterRunnerServiceServer(grpcServer, runnerHandler)
+	llmrunnerpb.RegisterLLMRunnerServiceServer(grpcServer, runnerHandler)
 
 	authpb.RegisterAuthServiceServer(grpcServer, authHandler)
 	chatpb.RegisterChatServiceServer(grpcServer, chatHandler)

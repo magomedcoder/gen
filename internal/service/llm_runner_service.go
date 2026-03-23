@@ -3,12 +3,11 @@ package service
 import (
 	"context"
 	"fmt"
-	"github.com/magomedcoder/gen/api/pb/llmrunner"
-	"strings"
-
+	"github.com/magomedcoder/gen/api/pb/llmrunnerpb"
 	"github.com/magomedcoder/gen/internal/domain"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"strings"
 )
 
 type LLMRunnerService struct {
