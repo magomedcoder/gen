@@ -12,6 +12,63 @@ import (
 	"time"
 )
 
+func mapGenerationParamsFromProto(in *llmrunnerpb.GenerationParams) *domain.GenerationParams {
+	if in == nil {
+		return nil
+	}
+
+	out := &domain.GenerationParams{}
+	if in.Temperature != nil {
+		v := in.GetTemperature()
+		out.Temperature = &v
+	}
+
+	if in.MaxTokens != nil {
+		v := in.GetMaxTokens()
+		out.MaxTokens = &v
+	}
+
+	if in.TopK != nil {
+		v := in.GetTopK()
+		out.TopK = &v
+	}
+
+	if in.TopP != nil {
+		v := in.GetTopP()
+		out.TopP = &v
+	}
+
+	if rf := in.GetResponseFormat(); rf != nil {
+		var schema *string
+		if rf.Schema != nil {
+			v := rf.GetSchema()
+			schema = &v
+		}
+
+		out.ResponseFormat = &domain.ResponseFormat{
+			Type:   rf.GetType(),
+			Schema: schema,
+		}
+	}
+
+	if len(in.GetTools()) > 0 {
+		out.Tools = make([]domain.Tool, 0, len(in.GetTools()))
+		for _, t := range in.GetTools() {
+			if t == nil {
+				continue
+			}
+
+			out.Tools = append(out.Tools, domain.Tool{
+				Name:           t.GetName(),
+				Description:    t.GetDescription(),
+				ParametersJSON: t.GetParametersJson(),
+			})
+		}
+	}
+
+	return out
+}
+
 type Server struct {
 	llmrunnerpb.UnimplementedLLMRunnerServiceServer
 	textProvider     provider.TextProvider
@@ -89,6 +146,7 @@ func (s *Server) SendMessage(req *llmrunnerpb.SendMessageRequest, stream llmrunn
 	}
 	messages := domain.AIMessagesFromProto(req.Messages, sessionID)
 	stopSequences := req.GetStopSequences()
+	genParams := mapGenerationParamsFromProto(req.GetGenerationParams())
 
 	if ts := req.GetTimeoutSeconds(); ts > 0 {
 		var cancel context.CancelFunc
@@ -99,7 +157,7 @@ func (s *Server) SendMessage(req *llmrunnerpb.SendMessageRequest, stream llmrunn
 	start := time.Now()
 	var tokens int64
 
-	ch, err := s.textProvider.SendMessage(ctx, sessionID, model, messages, stopSequences, nil)
+	ch, err := s.textProvider.SendMessage(ctx, sessionID, model, messages, stopSequences, genParams)
 	if err != nil {
 		_ = stream.Send(&llmrunnerpb.ChatResponse{Done: true})
 		return err

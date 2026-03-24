@@ -729,17 +729,75 @@ int get_model_chat_template(void *state_ptr, const char *name, char *buf, int bu
 
 int apply_chat_template(
         void *state_ptr,
-        const char *tmpl,
-        const char *messages_json,
+        const char *tmpl_override,
+        const char **roles,
+        const char **contents,
+        size_t n_msg,
         bool add_generation_prompt,
         char *result,
         int result_size
 ) {
-    (void) state_ptr;
-    (void) tmpl;
-    (void) messages_json;
-    (void) add_generation_prompt;
-    (void) result;
-    (void) result_size;
-    return -1;
+    llama_binding_state *state = (llama_binding_state *) state_ptr;
+    if (!state || !state->model) {
+        return -1;
+    }
+
+    if (n_msg == 0 || roles == nullptr || contents == nullptr) {
+        return -1;
+    }
+
+    for (size_t i = 0; i < n_msg; i++) {
+        if (roles[i] == nullptr || contents[i] == nullptr) {
+            return -1;
+        }
+    }
+
+    std::vector<llama_chat_message> msgs(n_msg);
+    for (size_t i = 0; i < n_msg; i++) {
+        msgs[i].role = roles[i];
+        msgs[i].content = contents[i];
+    }
+
+    const char *tmpl = tmpl_override;
+    if (tmpl == nullptr || tmpl[0] == '\0') {
+        tmpl = llama_model_chat_template(state->model, nullptr);
+    }
+
+    if (tmpl == nullptr) {
+        tmpl = "chatml";
+    }
+
+    int32_t need = llama_chat_apply_template(
+        tmpl,
+        msgs.data(),
+        n_msg,
+        add_generation_prompt,
+        nullptr,
+        0
+    );
+    if (need < 0) {
+        return (int) need;
+    }
+
+    if (result == nullptr || result_size <= 0) {
+        return (int) need;
+    }
+
+    if (result_size < need + 1) {
+        return -1;
+    }
+
+    int32_t wrote = llama_chat_apply_template(
+        tmpl,
+        msgs.data(),
+        n_msg,
+        add_generation_prompt,
+        result,
+        (int32_t) result_size
+    );
+    if (wrote < 0) {
+        return (int) wrote;
+    }
+
+    return (int) wrote;
 }

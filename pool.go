@@ -16,6 +16,61 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+func mapResponseFormatToProto(in *domain.ResponseFormat) *llmrunnerpb.ResponseFormat {
+	if in == nil {
+		return nil
+	}
+
+	out := &llmrunnerpb.ResponseFormat{
+		Type: in.Type,
+	}
+
+	if in.Schema != nil {
+		out.Schema = in.Schema
+	}
+
+	return out
+}
+
+func mapGenerationParamsToProto(in *domain.GenerationParams) *llmrunnerpb.GenerationParams {
+	if in == nil {
+		return nil
+	}
+
+	out := &llmrunnerpb.GenerationParams{
+		ResponseFormat: mapResponseFormatToProto(in.ResponseFormat),
+	}
+
+	if in.Temperature != nil {
+		out.Temperature = in.Temperature
+	}
+
+	if in.MaxTokens != nil {
+		out.MaxTokens = in.MaxTokens
+	}
+
+	if in.TopK != nil {
+		out.TopK = in.TopK
+	}
+
+	if in.TopP != nil {
+		out.TopP = in.TopP
+	}
+
+	if len(in.Tools) > 0 {
+		out.Tools = make([]*llmrunnerpb.Tool, 0, len(in.Tools))
+		for _, t := range in.Tools {
+			out.Tools = append(out.Tools, &llmrunnerpb.Tool{
+				Name:           t.Name,
+				Description:    t.Description,
+				ParametersJson: t.ParametersJSON,
+			})
+		}
+	}
+
+	return out
+}
+
 const (
 	maxRetriesPerRunner   = 2
 	retryBackoff          = 100 * time.Millisecond
@@ -299,19 +354,18 @@ func (p *Pool) trySendMessage(ctx context.Context, addr string, sessionID int64,
 		protoMessages[i] = domain.AIMessageToProto(m)
 	}
 	req := &llmrunnerpb.SendMessageRequest{
-		SessionId:     sessionID,
-		Messages:      protoMessages,
-		Model:         model,
-		StopSequences: stopSequences,
+		SessionId:        sessionID,
+		Messages:         protoMessages,
+		Model:            model,
+		StopSequences:    stopSequences,
+		GenerationParams: mapGenerationParamsToProto(genParams),
 	}
 	if timeoutSeconds > 0 {
 		req.TimeoutSeconds = &timeoutSeconds
 	}
-	_ = genParams
-
 	stream, err := client.SendMessage(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf("llm-runner %s: %w", addr, err)
+		return nil, fmt.Errorf("раннер %s: %w", addr, err)
 	}
 
 	out := make(chan string, 100)
@@ -390,5 +444,5 @@ func (p *Pool) SendMessage(ctx context.Context, sessionID int64, model string, m
 		p.closeConn(addr)
 	}
 
-	return nil, fmt.Errorf("все раннеры недоступны после retry и failover: %w", lastErr)
+	return nil, fmt.Errorf("все раннеры недоступны после повторов и переключения на резервный: %w", lastErr)
 }

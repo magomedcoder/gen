@@ -1,8 +1,10 @@
 package domain
 
 import (
-	"github.com/magomedcoder/llm-runner/pb/llmrunnerpb"
+	"strings"
 	"time"
+
+	"github.com/magomedcoder/llm-runner/pb/llmrunnerpb"
 )
 
 type AIChatMessageRole string
@@ -61,15 +63,8 @@ func NewAIChatMessageWithAttachment(sessionId int64, content string, role AIChat
 	}
 }
 
-func (ai *AIChatMessage) AIToMap() map[string]any {
-	return map[string]any{
-		"role":    string(ai.Role),
-		"content": ai.Content,
-	}
-}
-
 func AIFromProtoRole(role string) AIChatMessageRole {
-	switch role {
+	switch strings.ToLower(strings.TrimSpace(role)) {
 	case "system":
 		return AIChatMessageRoleSystem
 	case "user":

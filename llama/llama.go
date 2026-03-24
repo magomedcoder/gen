@@ -110,6 +110,64 @@ func (l *LLama) GetChatTemplate(name string) string {
 	return string(buf[:ret])
 }
 
+func (l *LLama) ApplyChatTemplate(tmplOverride string, roles []string, contents []string, addGenerationPrompt bool) (string, error) {
+	n := len(roles)
+	if n == 0 || n != len(contents) {
+		return "", fmt.Errorf("шаблон чата: нужны пары роль/содержимое одинаковой длины")
+	}
+
+	rolePtrs := make([]*C.char, n)
+	contentPtrs := make([]*C.char, n)
+	defer func() {
+		for i := 0; i < n; i++ {
+			C.free(unsafe.Pointer(rolePtrs[i]))
+			C.free(unsafe.Pointer(contentPtrs[i]))
+		}
+	}()
+
+	for i := 0; i < n; i++ {
+		rolePtrs[i] = C.CString(roles[i])
+		contentPtrs[i] = C.CString(contents[i])
+	}
+
+	var tmplC *C.char
+	if tmplOverride != "" {
+		tmplC = C.CString(tmplOverride)
+		defer C.free(unsafe.Pointer(tmplC))
+	}
+
+	need := int(C.apply_chat_template(
+		l.state,
+		tmplC,
+		(**C.char)(unsafe.Pointer(&rolePtrs[0])),
+		(**C.char)(unsafe.Pointer(&contentPtrs[0])),
+		C.size_t(n),
+		C.bool(addGenerationPrompt),
+		(*C.char)(nil),
+		C.int(0),
+	))
+	if need < 0 {
+		return "", fmt.Errorf("шаблон чата: модель не распознала шаблон или ошибка (%d)", need)
+	}
+
+	buf := make([]byte, need+1)
+	got := int(C.apply_chat_template(
+		l.state,
+		tmplC,
+		(**C.char)(unsafe.Pointer(&rolePtrs[0])),
+		(**C.char)(unsafe.Pointer(&contentPtrs[0])),
+		C.size_t(n),
+		C.bool(addGenerationPrompt),
+		(*C.char)(unsafe.Pointer(&buf[0])),
+		C.int(len(buf)),
+	))
+	if got < 0 {
+		return "", fmt.Errorf("шаблон чата: ошибка при повторном применении (%d)", got)
+	}
+
+	return string(buf[:cStrLen(buf)]), nil
+}
+
 func cStrLen(b []byte) int {
 	for i, v := range b {
 		if v == 0 {
@@ -375,7 +433,12 @@ func (l *LLama) Predict(text string, opts ...PredictOption) (string, error) {
 	res = strings.TrimPrefix(res, "\n")
 
 	for _, s := range po.StopPrompts {
-		res = strings.TrimRight(res, s)
+		if s == "" {
+			continue
+		}
+		for strings.HasSuffix(res, s) {
+			res = strings.TrimSuffix(res, s)
+		}
 	}
 
 	C.llama_free_params(params)
@@ -448,7 +511,7 @@ func (l *LLama) TokenizeString(text string, opts ...PredictOption) (int32, []int
 	tokRet := C.llama_tokenize_string(params, l.state, (*C.int)(unsafe.Pointer(&out[0])))
 
 	if tokRet < 0 {
-		return int32(tokRet), []int32{}, fmt.Errorf("llama_tokenize_string вернул отрицательное количество %d", tokRet)
+		return int32(tokRet), []int32{}, fmt.Errorf("токенизация (llama_tokenize_string) вернула отрицательное число %d", tokRet)
 	}
 
 	gTokRet := int32(tokRet)

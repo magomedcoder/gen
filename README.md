@@ -15,11 +15,17 @@ make build-llama
 # Сборка libllama.a с поддержкой NVIDIA (CUDA)
 make build-llama-cublas
 
-# Запуск
-make run
+# Запуск (CPU, без CUDA)
+make run-cpu
+
+# Запуск (GPU, NVIDIA CUDA)
+make run-gpu
+
+# Сборка бинарника (CPU)
+make build-cpu
 
 # Сборка бинарника (CUDA)
-make build-nvidia
+make build-gpu
 ```
 
 ### Скачивание моделей с Hugging Face

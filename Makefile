@@ -1,14 +1,21 @@
-.PHONY: deps run build-nvidia test gen build-llama build-llama-cublas
+.PHONY: deps run-cpu run-gpu build-cpu build-gpu test gen build-llama build-llama-cublas
 
 deps:
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest \
 	&& go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 	$(MAKE) -C llama -f Makefile deps
 
-run:
+run-cpu:
+	go run -tags="llama" ./cmd/llm-runner
+
+run-gpu:
 	go run -tags="llama,nvidia" ./cmd/llm-runner
 
-build-nvidia:
+build-cpu:
+	@mkdir -p build
+	go build -tags="llama" -o build/llm-runner ./cmd/llm-runner
+
+build-gpu:
 	@mkdir -p build
 	go build -tags="llama,nvidia" -o build/llm-runner ./cmd/llm-runner
 

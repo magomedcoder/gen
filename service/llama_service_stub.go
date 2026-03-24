@@ -21,6 +21,10 @@ func WithMaxContextTokens(n int) LlamaOption {
 	return func(s *LlamaService) {}
 }
 
+func WithLlamaNCtx(n int) LlamaOption {
+	return func(s *LlamaService) {}
+}
+
 func WithEmbeddings(enable bool) LlamaOption {
 	return func(s *LlamaService) {}
 }

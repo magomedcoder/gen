@@ -5,6 +5,7 @@ extern "C" {
 #endif
 
 #include <stdbool.h>
+#include <stddef.h>
 
 extern unsigned char tokenCallback(void *, char *);
 
@@ -113,8 +114,10 @@ int get_model_chat_template(void *state_ptr, const char *name, char *buf, int bu
 
 int apply_chat_template(
     void *state_ptr,
-    const char *tmpl,
-    const char *messages_json,
+    const char *tmpl_override,
+    const char **roles,
+    const char **contents,
+    size_t n_msg,
     bool add_generation_prompt,
     char *result,
     int result_size

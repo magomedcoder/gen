@@ -4,7 +4,7 @@
 package llama
 
 var DefaultModelOptions ModelOptions = ModelOptions{
-	ContextSize:   512,
+	ContextSize:   4096,
 	Seed:          0,
 	F16Memory:     false,
 	MLock:         false,

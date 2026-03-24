@@ -7,12 +7,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"sync"
 
 	"github.com/magomedcoder/llm-runner/domain"
 	llama "github.com/magomedcoder/llm-runner/llama"
+	"github.com/magomedcoder/llm-runner/template"
 )
 
 const defaultChunkSize = 128
@@ -25,6 +25,7 @@ type LlamaService struct {
 	mu               sync.RWMutex
 	model            *llama.LLama
 	maxContextTokens int
+	llamaNCtx        int
 	enableEmbeddings bool
 }
 
@@ -52,6 +53,14 @@ func WithMaxContextTokens(n int) LlamaOption {
 	}
 }
 
+func WithLlamaNCtx(n int) LlamaOption {
+	return func(s *LlamaService) {
+		if n > 0 {
+			s.llamaNCtx = n
+		}
+	}
+}
+
 func WithEmbeddings(enable bool) LlamaOption {
 	return func(s *LlamaService) {
 		s.enableEmbeddings = enable
@@ -69,6 +78,7 @@ func NewLlamaService(modelPath string, opts ...LlamaOption) *LlamaService {
 	s := &LlamaService{
 		modelsDir: modelsDir,
 		chunkSize: defaultChunkSize,
+		llamaNCtx: 4096,
 	}
 
 	for _, opt := range opts {
@@ -82,6 +92,49 @@ func NewLlamaService(modelPath string, opts ...LlamaOption) *LlamaService {
 	return s
 }
 
+func (s *LlamaService) applyModelChatTemplate(norm []*domain.AIChatMessage, addGen bool) (string, error) {
+	if s.model == nil {
+		return "", fmt.Errorf("llama: модель не загружена")
+	}
+
+	roles := make([]string, len(norm))
+	contents := make([]string, len(norm))
+	for i, m := range norm {
+		roles[i] = ChatRoleString(m.Role)
+		contents[i] = m.Content
+	}
+
+	return s.model.ApplyChatTemplate("", roles, contents, addGen)
+}
+
+func (s *LlamaService) resolveChatPrompt(norm []*domain.AIChatMessage, genParams *domain.GenerationParams) (prompt string, presetStops []string, err error) {
+	jinja := strings.TrimSpace(s.model.GetChatTemplate(""))
+	var matched *template.MatchedPreset
+	if jinja != "" {
+		if p, e := template.Named(jinja); e == nil {
+			matched = p
+			presetStops = template.PresetStopSequences(p)
+		}
+	}
+
+	if p, e := s.applyModelChatTemplate(norm, true); e == nil && p != "" {
+		return p, presetStops, nil
+	}
+
+	if matched != nil {
+		text, e := RenderMatchedPreset(matched, norm, genParams)
+		if e != nil {
+			return "", presetStops, fmt.Errorf("llama: пресет %q: %w", matched.Name, e)
+		}
+
+		if strings.TrimSpace(text) != "" {
+			return text, presetStops, nil
+		}
+	}
+
+	return fallbackPlainChatPrompt(norm, genParams), presetStops, nil
+}
+
 func (s *LlamaService) ensureModel(modelName string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -90,12 +143,17 @@ func (s *LlamaService) ensureModel(modelName string) error {
 		return fmt.Errorf("llama: путь к папке с моделями не задан")
 	}
 
-	if modelName == "" {
-		return fmt.Errorf("llama: укажите модель (доступные: %s)", strings.Join(s.modelNamesLocked(), ", "))
+	if strings.TrimSpace(modelName) == "" {
+		return fmt.Errorf("llama: укажите модель (доступные: %s)", strings.Join(s.modelDisplayNamesLocked(), ", "))
 	}
 
-	fullPath := filepath.Join(s.modelsDir, modelName)
-	if s.model != nil && s.currentModelName == modelName {
+	resolved, err := ResolveGGUFFile(s.modelsDir, modelName)
+	if err != nil {
+		return fmt.Errorf("llama: %w (доступные: %s)", err, strings.Join(s.modelDisplayNamesLocked(), ", "))
+	}
+
+	fullPath := filepath.Join(s.modelsDir, resolved)
+	if s.model != nil && s.currentModelName == resolved {
 		return nil
 	}
 
@@ -109,39 +167,31 @@ func (s *LlamaService) ensureModel(modelName string) error {
 	if s.enableEmbeddings {
 		modelOpts = append(modelOpts, llama.EnableEmbeddings)
 	}
+	nCtx := s.llamaNCtx
+	if nCtx <= 0 {
+		nCtx = 4096
+	}
+	modelOpts = append(modelOpts, llama.SetContext(nCtx))
 
 	m, err := llama.New(fullPath, modelOpts...)
 	if err != nil {
-		return fmt.Errorf("llama: не удалось загрузить модель %q: %w", modelName, err)
+		return fmt.Errorf("llama: не удалось загрузить модель %q: %w", DisplayModelName(resolved), err)
 	}
 
 	s.model = m
-	s.currentModelName = modelName
+	s.currentModelName = resolved
 	return nil
 }
 
-func (s *LlamaService) modelNamesLocked() []string {
+func (s *LlamaService) modelDisplayNamesLocked() []string {
 	if s.modelsDir == "" {
 		return nil
 	}
 
-	entries, err := os.ReadDir(s.modelsDir)
+	names, err := SortedDisplayModelNames(s.modelsDir)
 	if err != nil {
 		return nil
 	}
-
-	var names []string
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
-		ext := strings.ToLower(filepath.Ext(e.Name()))
-		if ext == ".gguf" {
-			names = append(names, e.Name())
-		}
-	}
-
-	sort.Strings(names)
 
 	return names
 }
@@ -149,8 +199,8 @@ func (s *LlamaService) modelNamesLocked() []string {
 func (s *LlamaService) CheckConnection(ctx context.Context) (bool, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	names := s.modelNamesLocked()
-	if len(names) == 0 {
+	files, err := ListGGUFBasenames(s.modelsDir)
+	if err != nil || len(files) == 0 {
 		return false, fmt.Errorf("llama: нет моделей в папке %q", s.modelsDir)
 	}
 	return true, nil
@@ -159,20 +209,36 @@ func (s *LlamaService) CheckConnection(ctx context.Context) (bool, error) {
 func (s *LlamaService) GetModels(ctx context.Context) ([]string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.modelNamesLocked(), nil
+	out := s.modelDisplayNamesLocked()
+	if out == nil {
+		return []string{}, nil
+	}
+
+	return out, nil
 }
 
 func (s *LlamaService) SendMessage(ctx context.Context, model string, messages []*domain.AIChatMessage, stopSequences []string, genParams *domain.GenerationParams) (chan string, error) {
-	prompt := buildPrompt(messages, genParams)
+	norm := NormalizeChatMessages(messages)
+	if len(norm) == 0 {
+		return nil, fmt.Errorf("llama: пустой список сообщений (нет текста content)")
+	}
+
+	if err := s.ensureModel(model); err != nil {
+		return nil, err
+	}
+
+	prompt, presetStops, err := s.resolveChatPrompt(norm, genParams)
+	if err != nil {
+		return nil, err
+	}
+	stopForPredict := MergeStopSequences(stopSequences, presetStops)
+	stopForPredict = MergeStopSequences(stopForPredict, inferStopSequencesFromPrompt(prompt))
+
 	if s.maxContextTokens > 0 {
 		approxTokens := len(prompt)/4 + 1
 		if approxTokens > s.maxContextTokens {
 			return nil, fmt.Errorf("llama: контекст слишком велик (≈%d токенов, лимит %d)", approxTokens, s.maxContextTokens)
 		}
-	}
-
-	if err := s.ensureModel(model); err != nil {
-		return nil, err
 	}
 
 	out := make(chan string, 32)
@@ -209,28 +275,38 @@ func (s *LlamaService) SendMessage(ctx context.Context, model string, messages [
 			}
 		}
 
-		if len(stopSequences) > 0 {
-			opts = append(opts, llama.SetStopWords(stopSequences...))
+		if len(stopForPredict) > 0 {
+			opts = append(opts, llama.SetStopWords(stopForPredict...))
 		}
+
+		emitToken := func(token string) {
+			if token == "" {
+				return
+			}
+			select {
+			case <-ctx.Done():
+			case out <- token:
+			}
+		}
+
+		streamFilter := newStopStreamFilter(stopForPredict, emitToken)
 
 		opts = append(opts, llama.SetTokenCallback(func(token string) bool {
 			select {
 			case <-ctx.Done():
 				return false
 			default:
-				if token != "" {
-					select {
-					case <-ctx.Done():
-						return false
-					case out <- token:
-					}
+				if token == "" {
+					return true
 				}
+				streamFilter.push(token)
 				return true
 			}
 		}))
 		s.mu.Lock()
 		_, err := s.model.Predict(prompt, opts...)
 		s.mu.Unlock()
+		streamFilter.flush()
 		if err != nil {
 			return
 		}
@@ -250,64 +326,4 @@ func (s *LlamaService) Embed(ctx context.Context, model string, text string) ([]
 	}
 
 	return s.model.Embeddings(text, s.predictOpts...)
-}
-
-func buildPrompt(messages []*domain.AIChatMessage, genParams *domain.GenerationParams) string {
-	n := len("Assistant: ")
-	for _, m := range messages {
-		if m != nil {
-			n += len(m.Content) + 24
-		}
-	}
-	if genParams != nil && len(genParams.Tools) > 0 {
-		for _, t := range genParams.Tools {
-			n += len(t.Name) + len(t.Description) + len(t.ParametersJSON) + 48
-		}
-		n += 96
-	}
-	var b strings.Builder
-	b.Grow(n)
-	for _, m := range messages {
-		var role string
-		switch m.Role {
-		case domain.AIChatMessageRoleSystem:
-			role = "System"
-		case domain.AIChatMessageRoleAssistant:
-			role = "Assistant"
-		default:
-			role = "User"
-		}
-		b.WriteString(role)
-		b.WriteString(": ")
-		b.WriteString(m.Content)
-		b.WriteString("\n")
-	}
-	if genParams != nil && len(genParams.Tools) > 0 {
-		b.WriteString(buildToolsPrompt(genParams.Tools))
-	}
-	b.WriteString("Assistant: ")
-
-	return b.String()
-}
-
-func buildToolsPrompt(tools []domain.Tool) string {
-	var b strings.Builder
-	b.WriteString("\nTools:\n")
-	for _, t := range tools {
-		b.WriteString("- ")
-		b.WriteString(t.Name)
-		if t.Description != "" {
-			b.WriteString(": ")
-			b.WriteString(t.Description)
-		}
-		if t.ParametersJSON != "" {
-			b.WriteString(" (params: ")
-			b.WriteString(t.ParametersJSON)
-			b.WriteString(")")
-		}
-		b.WriteString("\n")
-	}
-	b.WriteString("\nReply with JSON: {\"name\": \"tool_name\", \"arguments\": {...}}\n\n")
-
-	return b.String()
 }

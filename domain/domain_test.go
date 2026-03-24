@@ -10,6 +10,7 @@ func TestFromProtoRole_ToProtoRole(t *testing.T) {
 		{"system", AIChatMessageRoleSystem},
 		{"user", AIChatMessageRoleUser},
 		{"assistant", AIChatMessageRoleAssistant},
+		{"  User  ", AIChatMessageRoleUser},
 		{"unknown", AIChatMessageRoleUser},
 		{"", AIChatMessageRoleUser},
 	}
@@ -27,14 +28,13 @@ func TestFromProtoRole_ToProtoRole(t *testing.T) {
 	}
 }
 
-func TestMessage_ToMap(t *testing.T) {
+func TestMessage_roleAndContent(t *testing.T) {
 	m := &AIChatMessage{
 		Content: "hi",
 		Role:    AIChatMessageRoleUser,
 	}
-	out := m.AIToMap()
-	if out["role"] != "user" || out["content"] != "hi" {
-		t.Errorf("ToMap() вернул %v", out)
+	if m.Role != AIChatMessageRoleUser || m.Content != "hi" {
+		t.Errorf("message fields: %+v", m)
 	}
 }
 

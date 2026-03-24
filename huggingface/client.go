@@ -58,7 +58,7 @@ func (c *Client) ModelInfo(repoID string) (*ModelInfo, error) {
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
-		return nil, fmt.Errorf("API вернул %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("ответ api со статусом %d: %s", resp.StatusCode, string(body))
 	}
 
 	var info ModelInfo

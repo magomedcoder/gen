@@ -1,0 +1,9 @@
+{
+  "fingerprints": [
+    "chat:{{.Input }}\n\u003c|im_start|\u003eassistant\nchat_message:\u003c|{{ .RoleName }}|\u003e\n{{ if .FunctionCall -}}\nFunction call:\n{{ else if eq .RoleName \"tool\" -}}\nFunction response:\n{{ end -}}\n{{ if .Content -}}\n{{.Content }}\n{{ end -}}\n{{ if .FunctionCall -}}\n{{toJson .FunctionCall}}\n{{ end -}}\n{{ if eq .RoleName \"assistant\" }}\u003c|endoftext|\u003e{{ end }}\ncompletion:{{.Input}}\nfunction:\u003c|system|\u003e\nYou are a function calling AI model. You are provided with functions to execute. You may call one or more functions to assist with the user query. Don't make assumptions about what values to plug into functions. Here are the available tools:\n{{range .Functions}}\n{'type': 'function', 'function': {'name': '{{.Name}}', 'description': '{{.Description}}', 'parameters': {{toJson .Parameters}} }}\n{{end}}\nFor each function call return a json object with function name and arguments\n{{.Input }}\n\u003c|im_start|\u003eassistant\n"
+  ],
+  "stop": [
+    "User:",
+    "Assistant:"
+  ]
+}

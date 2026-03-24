@@ -1,0 +1,14 @@
+{
+  "fingerprints": [
+    "chat:{{.Input}}\n\u003c|assistant|\u003e\nchat_message:\u003c|{{ .RoleName }}|\u003e\n{{.Content}}\u003c|end|\u003e\ncompletion:{{.Input}}\n",
+    "chat:{{.Input}}\n\u003c|assistant|\u003e\nchat_message:\u003c|{{ .RoleName }}|\u003e\n{{.Content}}\u003c|end|\u003e\ncompletion:{{.Input}}\nimage:\u003c|image_{{ add1 .ID }}|\u003e\n{{.Text}}\nmultimodal:{{ range .Images }}\u003c|image_{{ add1 .ID}}|\u003e{{end}}\n{{.Text}}\nuse_tokenizer_template:false\n",
+    "chat:{{.Input}}\n\u003c|im_start|\u003eassistant\u003c|im_sep|\u003e\nchat_message:\u003c|im_start|\u003e{{ .RoleName }}\u003c|im_sep|\u003e\n{{.Content}}\u003c|im_end|\u003e\ncompletion:{{.Input}}\n",
+    "chat:{{.Input}}\n\u003c|im_start|\u003eassistant\u003c|im_sep|\u003e\nchat_message:\u003c|im_start|\u003e{{ .RoleName }}\u003c|im_sep|\u003e\n{{.Content}}\u003c|im_end|\u003e\ncompletion:{{.Input}}\nfunction:\u003c|im_start|\u003esystem\u003c|im_sep|\u003e\nYou are an AI assistant that executes function calls, and these are the tools at your disposal:\n{{range .Functions}}\n{'type': 'function', 'function': {'name': '{{.Name}}', 'description': '{{.Description}}', 'parameters': {{toJson .Parameters}} }}\n{{end}}\n{{.Input}}\u003c|im_end|\u003e\n"
+  ],
+  "stop": [
+    "\u003c|end|\u003e",
+    "\u003c|system|\u003e",
+    "\u003c|user|\u003e",
+    "\u003c|assistant|\u003e"
+  ]
+}

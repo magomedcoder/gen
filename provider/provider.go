@@ -31,10 +31,16 @@ type TextProvider interface {
 
 func NewTextProvider(cfg *config.Config) (TextProvider, error) {
 	if cfg.ModelPath == "" {
-		return nil, fmt.Errorf("задайте model_path")
+		return nil, fmt.Errorf("укажите model_path")
 	}
 
 	var opts []service.LlamaOption
+	nCtx := cfg.MaxContextTokens
+	if nCtx <= 0 {
+		nCtx = 4096
+	}
+
+	opts = append(opts, service.WithLlamaNCtx(nCtx))
 	if cfg.MaxContextTokens > 0 {
 		opts = append(opts, service.WithMaxContextTokens(cfg.MaxContextTokens))
 	}

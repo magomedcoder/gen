@@ -1,0 +1,9 @@
+{
+  "fingerprints": [
+    "chat:{{.Input }}\n\u003cstart_of_turn\u003emodel\nchat_message:\u003cstart_of_turn\u003e{{if eq .RoleName \"assistant\" }}model{{else}}{{ .RoleName }}{{end}}\n{{ if .FunctionCall -}}\n{{ else if eq .RoleName \"tool\" -}}\n{{ end -}}\n{{ if .Content -}}\n{{.Content -}}\n{{ end -}}\n{{ if .FunctionCall -}}\n{{toJson .FunctionCall}}\n{{ end -}}\u003cend_of_turn\u003e\ncompletion:{{.Input}}\nfunction:\u003cstart_of_turn\u003esystem\nYou have access to functions. If you decide to invoke any of the function(s),\nyou MUST put it in the format of\n{\"name\": function name, \"parameters\": dictionary of argument name and its value}\n\nYou SHOULD NOT include any other text in the response if you call a function\n{{range .Functions}}\n{'type': 'function', 'function': {'name': '{{.Name}}', 'description': '{{.Description}}', 'parameters': {{toJson .Parameters}} }}\n{{end}}\n\u003cend_of_turn\u003e\n{{.Input -}}\n\u003cstart_of_turn\u003emodel\n"
+  ],
+  "stop": [
+    "\u003cstart_of_turn\u003e",
+    "\u003cend_of_turn\u003e"
+  ]
+}

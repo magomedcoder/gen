@@ -1,0 +1,9 @@
+{
+  "fingerprints": [
+    "chat:Below is an instruction that describes a task. Write a response that appropriately completes the request.\n\n### Instruction:\n{{.Input}}\n\n### Response:\ncompletion:{{.Input}}\n"
+  ],
+  "stop": [
+    "### Instruction:",
+    "### Response"
+  ]
+}
