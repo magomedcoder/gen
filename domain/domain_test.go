@@ -10,6 +10,7 @@ func TestFromProtoRole_ToProtoRole(t *testing.T) {
 		{"system", AIChatMessageRoleSystem},
 		{"user", AIChatMessageRoleUser},
 		{"assistant", AIChatMessageRoleAssistant},
+		{"tool", AIChatMessageRoleTool},
 		{"  User  ", AIChatMessageRoleUser},
 		{"unknown", AIChatMessageRoleUser},
 		{"", AIChatMessageRoleUser},

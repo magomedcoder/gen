@@ -1,9 +1,58 @@
 package service
 
 import (
-	"github.com/magomedcoder/llm-runner/domain"
+	"fmt"
 	"strings"
+
+	"github.com/magomedcoder/llm-runner/domain"
 )
+
+func messageHasPayload(m *domain.AIChatMessage) bool {
+	if m == nil {
+		return false
+	}
+	if strings.TrimSpace(m.Content) != "" {
+		return true
+	}
+	if m.Role == domain.AIChatMessageRoleAssistant && strings.TrimSpace(m.ToolCallsJSON) != "" {
+		return true
+	}
+	if m.Role == domain.AIChatMessageRoleTool && strings.TrimSpace(m.ToolCallID) != "" {
+		return true
+	}
+	return false
+}
+
+func FormatContentForBuiltinChatTemplate(m *domain.AIChatMessage) string {
+	if m == nil {
+		return ""
+	}
+
+	c := m.Content
+	if m.Role == domain.AIChatMessageRoleTool {
+		var b strings.Builder
+		if m.ToolCallID != "" {
+			fmt.Fprintf(&b, "[call_id=%s] ", m.ToolCallID)
+		}
+
+		if m.ToolName != "" {
+			fmt.Fprintf(&b, "[%s] ", m.ToolName)
+		}
+
+		b.WriteString(c)
+		return b.String()
+	}
+
+	if m.Role == domain.AIChatMessageRoleAssistant && strings.TrimSpace(m.ToolCallsJSON) != "" {
+		if strings.TrimSpace(c) != "" {
+			return c + "\n[tool_calls]: " + m.ToolCallsJSON
+		}
+
+		return "[tool_calls]: " + m.ToolCallsJSON
+	}
+
+	return c
+}
 
 func NormalizeChatMessages(messages []*domain.AIChatMessage) []*domain.AIChatMessage {
 	if len(messages) == 0 {
@@ -18,7 +67,7 @@ func NormalizeChatMessages(messages []*domain.AIChatMessage) []*domain.AIChatMes
 			continue
 		}
 
-		if strings.TrimSpace(m.Content) == "" {
+		if !messageHasPayload(m) {
 			continue
 		}
 
@@ -87,13 +136,31 @@ func fallbackPlainChatPrompt(messages []*domain.AIChatMessage, genParams *domain
 			role = "System"
 		case domain.AIChatMessageRoleAssistant:
 			role = "Assistant"
+		case domain.AIChatMessageRoleTool:
+			role = "Tool"
 		default:
 			role = "User"
 		}
 
 		b.WriteString(role)
 		b.WriteString(": ")
+		if m.Role == domain.AIChatMessageRoleTool {
+			if m.ToolCallID != "" {
+				b.WriteString("(call_id=")
+				b.WriteString(m.ToolCallID)
+				b.WriteString(") ")
+			}
+			if m.ToolName != "" {
+				b.WriteString("[")
+				b.WriteString(m.ToolName)
+				b.WriteString("] ")
+			}
+		}
 		b.WriteString(m.Content)
+		if m.Role == domain.AIChatMessageRoleAssistant && strings.TrimSpace(m.ToolCallsJSON) != "" {
+			b.WriteString(" [tool_calls]: ")
+			b.WriteString(m.ToolCallsJSON)
+		}
 		b.WriteString("\n")
 	}
 

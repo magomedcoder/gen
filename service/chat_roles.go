@@ -8,6 +8,8 @@ func ChatRoleString(role domain.AIChatMessageRole) string {
 		return "system"
 	case domain.AIChatMessageRoleAssistant:
 		return "assistant"
+	case domain.AIChatMessageRoleTool:
+		return "tool"
 	default:
 		return "user"
 	}

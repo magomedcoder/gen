@@ -101,7 +101,7 @@ func (s *LlamaService) applyModelChatTemplate(norm []*domain.AIChatMessage, addG
 	contents := make([]string, len(norm))
 	for i, m := range norm {
 		roles[i] = ChatRoleString(m.Role)
-		contents[i] = m.Content
+		contents[i] = FormatContentForBuiltinChatTemplate(m)
 	}
 
 	return s.model.ApplyChatTemplate("", roles, contents, addGen)

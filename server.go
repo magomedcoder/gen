@@ -159,12 +159,13 @@ func (s *Server) SendMessage(req *llmrunnerpb.SendMessageRequest, stream llmrunn
 
 	ch, err := s.textProvider.SendMessage(ctx, sessionID, model, messages, stopSequences, genParams)
 	if err != nil {
-		_ = stream.Send(&llmrunnerpb.ChatResponse{Done: true})
-		return err
+		return status.Errorf(codes.Internal, "ошибка генерации: %v", err)
 	}
 
+	hasContent := false
 	for chunk := range ch {
 		if chunk != "" {
+			hasContent = true
 			tokens++
 			if err := stream.Send(&llmrunnerpb.ChatResponse{
 				Content: chunk,
@@ -179,7 +180,102 @@ func (s *Server) SendMessage(req *llmrunnerpb.SendMessageRequest, stream llmrunn
 		s.inferenceMetrics.Record(tokens, time.Since(start))
 	}
 
+	if !hasContent {
+		return status.Error(codes.Internal, "модель не вернула ответ")
+	}
+
 	return stream.Send(&llmrunnerpb.ChatResponse{Done: true})
+}
+
+func (s *Server) Embed(ctx context.Context, req *llmrunnerpb.EmbedRequest) (*llmrunnerpb.EmbedResponse, error) {
+	if s.textProvider == nil {
+		return nil, status.Error(codes.Unavailable, "текстовый провайдер не подключён")
+	}
+
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "пустой запрос")
+	}
+
+	text := strings.TrimSpace(req.GetText())
+	if text == "" {
+		return nil, status.Error(codes.InvalidArgument, "text не может быть пустым")
+	}
+
+	model := strings.TrimSpace(req.GetModel())
+	if model == "" {
+		model = s.defaultModel
+	}
+
+	if s.sem != nil {
+		select {
+		case s.sem <- struct{}{}:
+			defer func() { <-s.sem }()
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+
+	vec, err := s.textProvider.Embed(ctx, model, text)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "эмбеддинг: %v", err)
+	}
+
+	return &llmrunnerpb.EmbedResponse{Values: vec}, nil
+}
+
+func (s *Server) EmbedBatch(ctx context.Context, req *llmrunnerpb.EmbedBatchRequest) (*llmrunnerpb.EmbedBatchResponse, error) {
+	if s.textProvider == nil {
+		return nil, status.Error(codes.Unavailable, "текстовый провайдер не подключён")
+	}
+
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "пустой запрос")
+	}
+
+	texts := req.GetTexts()
+	if len(texts) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "texts не может быть пустым")
+	}
+
+	for i, t := range texts {
+		if strings.TrimSpace(t) == "" {
+			return nil, status.Errorf(codes.InvalidArgument, "texts[%d]: пустая строка", i)
+		}
+	}
+
+	model := strings.TrimSpace(req.GetModel())
+	if model == "" {
+		model = s.defaultModel
+	}
+
+	out := &llmrunnerpb.EmbedBatchResponse{
+		Embeddings: make([]*llmrunnerpb.Embedding, 0, len(texts)),
+	}
+
+	for _, t := range texts {
+		t = strings.TrimSpace(t)
+
+		if s.sem != nil {
+			select {
+			case s.sem <- struct{}{}:
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		}
+
+		vec, err := s.textProvider.Embed(ctx, model, t)
+		if s.sem != nil {
+			<-s.sem
+		}
+
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "эмбеддинг: %v", err)
+		}
+
+		out.Embeddings = append(out.Embeddings, &llmrunnerpb.Embedding{Values: vec})
+	}
+
+	return out, nil
 }
 
 func (s *Server) GetGpuInfo(ctx context.Context, _ *llmrunnerpb.Empty) (*llmrunnerpb.GetGpuInfoResponse, error) {

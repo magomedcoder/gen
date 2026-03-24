@@ -13,6 +13,7 @@ const (
 	AIChatMessageRoleSystem    AIChatMessageRole = "system"
 	AIChatMessageRoleUser      AIChatMessageRole = "user"
 	AIChatMessageRoleAssistant AIChatMessageRole = "assistant"
+	AIChatMessageRoleTool      AIChatMessageRole = "tool"
 )
 
 type AIChatSession struct {
@@ -32,6 +33,9 @@ type AIChatMessage struct {
 	Role             AIChatMessageRole
 	AttachmentName   string
 	AttachmentFileId int64
+	ToolCallID       string
+	ToolName         string
+	ToolCallsJSON    string
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	DeletedAt        *time.Time
@@ -71,6 +75,8 @@ func AIFromProtoRole(role string) AIChatMessageRole {
 		return AIChatMessageRoleUser
 	case "assistant":
 		return AIChatMessageRoleAssistant
+	case "tool":
+		return AIChatMessageRoleTool
 	default:
 		return AIChatMessageRoleUser
 	}
@@ -84,6 +90,7 @@ func AIMessageToProto(msg *AIChatMessage) *llmrunnerpb.ChatMessage {
 	if msg == nil {
 		return nil
 	}
+
 	p := &llmrunnerpb.ChatMessage{
 		Id:        msg.Id,
 		Content:   msg.Content,
@@ -92,6 +99,18 @@ func AIMessageToProto(msg *AIChatMessage) *llmrunnerpb.ChatMessage {
 	}
 	if msg.AttachmentName != "" {
 		p.AttachmentName = &msg.AttachmentName
+	}
+
+	if msg.ToolCallID != "" {
+		p.ToolCallId = &msg.ToolCallID
+	}
+
+	if msg.ToolName != "" {
+		p.ToolName = &msg.ToolName
+	}
+
+	if msg.ToolCallsJSON != "" {
+		p.ToolCallsJson = &msg.ToolCallsJSON
 	}
 
 	return p
@@ -112,6 +131,18 @@ func AIMessageFromProto(proto *llmrunnerpb.ChatMessage, sessionID int64) *AIChat
 	}
 	if proto.AttachmentName != nil {
 		msg.AttachmentName = *proto.AttachmentName
+	}
+
+	if proto.ToolCallId != nil {
+		msg.ToolCallID = strings.TrimSpace(*proto.ToolCallId)
+	}
+
+	if proto.ToolName != nil {
+		msg.ToolName = strings.TrimSpace(*proto.ToolName)
+	}
+
+	if proto.ToolCallsJson != nil {
+		msg.ToolCallsJSON = strings.TrimSpace(*proto.ToolCallsJson)
 	}
 
 	return msg

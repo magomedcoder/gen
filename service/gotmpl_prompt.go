@@ -58,12 +58,24 @@ func RenderMatchedPreset(preset *template.MatchedPreset, norm []*domain.AIChatMe
 		return "", fmt.Errorf("пресет %q: разбор шаблона: %w", preset.Name, err)
 	}
 
-	msgs := make([]template.Message, len(norm))
-	for i, m := range norm {
-		msgs[i] = template.Message{
-			Role:    ChatRoleString(m.Role),
-			Content: m.Content,
+	msgs := make([]template.Message, 0, len(norm))
+	for _, m := range norm {
+		tm := template.Message{
+			Role:       ChatRoleString(m.Role),
+			Content:    m.Content,
+			ToolCallID: m.ToolCallID,
+			ToolName:   m.ToolName,
 		}
+
+		if strings.TrimSpace(m.ToolCallsJSON) != "" {
+			calls, err := parseToolCallsJSON(m.ToolCallsJSON)
+			if err != nil {
+				return "", fmt.Errorf("разбор tool_calls_json: %w", err)
+			}
+			tm.ToolCalls = calls
+		}
+
+		msgs = append(msgs, tm)
 	}
 
 	var tools template.Tools
