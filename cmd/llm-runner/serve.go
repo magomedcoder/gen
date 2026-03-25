@@ -40,6 +40,7 @@ func runServe(ctx context.Context, _ *cli.Command) error {
 
 	logger.Default.SetLevel(logger.ParseLevel(cfg.LogLevel))
 	logger.I("Запуск раннера")
+	logger.I("Конфиг: gpu_layers=%d (0 - только CPU; -1 - все слои на GPU; нужны make build-gpu и CUDA-сборка libllama)", cfg.GpuLayers)
 
 	textProvider, err := provider.NewTextProvider(cfg)
 	if err != nil {

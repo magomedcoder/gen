@@ -33,6 +33,10 @@ func WithMmprojPath(string) LlamaOption {
 	return func(s *LlamaService) {}
 }
 
+func WithGPULayers(int) LlamaOption {
+	return func(s *LlamaService) {}
+}
+
 func (s *LlamaService) WarmDefaultModel(ctx context.Context, model string) error {
 	return fmt.Errorf("llama отключена")
 }

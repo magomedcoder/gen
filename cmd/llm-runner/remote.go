@@ -182,7 +182,7 @@ func cmdRemoteRun() *cli.Command {
 			},
 			&cli.StringFlag{
 				Name:  "prompt",
-				Value: "Hello",
+				Value: "привет",
 				Usage: "сообщение user",
 			},
 		},

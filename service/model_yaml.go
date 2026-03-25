@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,18 +11,34 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+var ErrNoSidecarManifest = errors.New("нет YAML-манифеста рядом с файлом весов")
+
 type ModelYAML struct {
-	From      string              `yaml:"from"`
-	System    string              `yaml:"system"`
-	Template  string              `yaml:"template"`
-	Parameter *ModelYAMLParameter `yaml:"parameter"`
+	From      string              `yaml:"from,omitempty"`
+	System    string              `yaml:"system,omitempty"`
+	Template  string              `yaml:"template,omitempty"`
+	Parameter *ModelYAMLParameter `yaml:"parameter,omitempty"`
+	NumCtx    *int                `yaml:"num_ctx,omitempty"`
+	Stop      []string            `yaml:"stop,omitempty"`
+	Messages  []ModelYAMLMessage  `yaml:"messages,omitempty"`
+	Adapter   string              `yaml:"adapter,omitempty"`
+	LoraBase  string              `yaml:"lora_base,omitempty"`
+}
+
+type ModelYAMLMessage struct {
+	Role    string `yaml:"role"`
+	Content string `yaml:"content"`
 }
 
 type ModelYAMLParameter struct {
-	Temperature *float64 `yaml:"temperature"`
-	TopP        *float64 `yaml:"top_p"`
-	TopK        *int     `yaml:"top_k"`
-	MaxTokens   *int     `yaml:"max_tokens"`
+	Temperature   *float64 `yaml:"temperature"`
+	TopP          *float64 `yaml:"top_p"`
+	TopK          *int     `yaml:"top_k"`
+	MaxTokens     *int     `yaml:"max_tokens"`
+	RepeatLastN   *int     `yaml:"repeat_last_n,omitempty"`
+	RepeatPenalty *float64 `yaml:"repeat_penalty,omitempty"`
+	Seed          *int     `yaml:"seed,omitempty"`
+	MinP          *float64 `yaml:"min_p,omitempty"`
 }
 
 func parseModelYAML(data []byte) (*ModelYAML, error) {
@@ -29,6 +46,7 @@ func parseModelYAML(data []byte) (*ModelYAML, error) {
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, err
 	}
+
 	return &cfg, nil
 }
 
@@ -56,6 +74,58 @@ func ManifestYAMLStemForRef(userInput string) string {
 	}
 
 	return name
+}
+
+func LoadManifestYAMLForShow(modelsDir, userInput string) (yamlPath string, raw []byte, weightsBasename string, err error) {
+	if strings.TrimSpace(modelsDir) == "" {
+		return "", nil, "", fmt.Errorf("каталог моделей не задан")
+	}
+
+	ref := strings.TrimSpace(userInput)
+	if ref == "" {
+		return "", nil, "", fmt.Errorf("пустое имя модели")
+	}
+
+	canonical, errGGUF := ResolveGGUFFile(modelsDir, ref)
+	if errGGUF == nil {
+		stem := strings.TrimSuffix(canonical, ".gguf")
+		for _, p := range yamlPathCandidates(modelsDir, stem) {
+			data, e := os.ReadFile(p)
+			if e == nil {
+				if _, e := parseModelYAML(data); e != nil {
+					return "", nil, canonical, fmt.Errorf("%s: %w", p, e)
+				}
+
+				return p, data, canonical, nil
+			}
+		}
+
+		return "", nil, canonical, fmt.Errorf("%w (%s)", ErrNoSidecarManifest, canonical)
+	}
+
+	stem := ManifestYAMLStemForRef(ref)
+	for _, p := range yamlPathCandidates(modelsDir, stem) {
+		data, e := os.ReadFile(p)
+		if e != nil {
+			continue
+		}
+
+		cfg, e2 := parseModelYAML(data)
+		if e2 != nil {
+			return "", nil, "", fmt.Errorf("%s: %w", p, e2)
+		}
+
+		w := ""
+		if f := strings.TrimSpace(cfg.From); f != "" {
+			if wb, e3 := ResolveGGUFFile(modelsDir, f); e3 == nil {
+				w = wb
+			}
+		}
+
+		return p, data, w, nil
+	}
+
+	return "", nil, "", fmt.Errorf("модель %q: %w", ref, errGGUF)
 }
 
 func ResolveModelForInference(modelsDir, userInput string) (canonicalGGUF string, cfg *ModelYAML, err error) {
@@ -178,6 +248,87 @@ func ApplyModelYAMLSystem(norm []*domain.AIChatMessage, yamlCfg *ModelYAML) []*d
 	out = append(out, norm...)
 
 	return out
+}
+
+func ApplyModelYAMLMessages(norm []*domain.AIChatMessage, yamlCfg *ModelYAML) []*domain.AIChatMessage {
+	if yamlCfg == nil || len(yamlCfg.Messages) == 0 {
+		return norm
+	}
+
+	var sid int64
+	if len(norm) > 0 {
+		sid = norm[0].SessionId
+	}
+
+	insertAt := 0
+	for insertAt < len(norm) && norm[insertAt].Role == domain.AIChatMessageRoleSystem {
+		insertAt++
+	}
+
+	prefix := make([]*domain.AIChatMessage, 0, len(yamlCfg.Messages))
+	for _, m := range yamlCfg.Messages {
+		role := domain.AIFromProtoRole(m.Role)
+		prefix = append(prefix, domain.NewAIChatMessage(sid, m.Content, role))
+	}
+
+	if len(norm) == 0 {
+		return prefix
+	}
+
+	out := make([]*domain.AIChatMessage, 0, len(norm)+len(prefix))
+	out = append(out, norm[:insertAt]...)
+	out = append(out, prefix...)
+	out = append(out, norm[insertAt:]...)
+
+	return out
+}
+
+func cloneNormalizeManifestRefs(cfg *ModelYAML, modelsDir string) (*ModelYAML, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("пустой манифест")
+	}
+
+	cp := *cfg
+	if cp.Parameter != nil {
+		p := *cp.Parameter
+		cp.Parameter = &p
+	}
+
+	if len(cp.Messages) > 0 {
+		cp.Messages = append([]ModelYAMLMessage(nil), cp.Messages...)
+	}
+
+	if len(cp.Stop) > 0 {
+		cp.Stop = append([]string(nil), cp.Stop...)
+	}
+
+	if err := normalizeManifestGGUFRefs(modelsDir, &cp); err != nil {
+		return nil, err
+	}
+
+	return &cp, nil
+}
+
+func normalizeManifestGGUFRefs(modelsDir string, cp *ModelYAML) error {
+	if a := strings.TrimSpace(cp.Adapter); a != "" {
+		r, err := ResolveGGUFFile(modelsDir, a)
+		if err != nil {
+			return fmt.Errorf("adapter: %w", err)
+		}
+
+		cp.Adapter = r
+	}
+
+	if b := strings.TrimSpace(cp.LoraBase); b != "" {
+		r, err := ResolveGGUFFile(modelsDir, b)
+		if err != nil {
+			return fmt.Errorf("lora_base: %w", err)
+		}
+
+		cp.LoraBase = r
+	}
+
+	return nil
 }
 
 func addManifestCatalogEntries(dir string, seen map[string]struct{}) error {

@@ -27,6 +27,7 @@ type Config struct {
 	MaxContextTokens         int      `yaml:"max_context_tokens"`
 	MaxConcurrentGenerations int      `yaml:"max_concurrent_generations"`
 	ModelRetention           string   `yaml:"model_retention"`
+	GpuLayers                int      `yaml:"gpu_layers"`
 }
 
 func Load() (*Config, error) {
@@ -85,20 +86,25 @@ func (c *Config) validate() error {
 	if strings.TrimSpace(c.Listen.Host) == "" {
 		return fmt.Errorf("listen.host: укажите хост для прослушивания")
 	}
+
 	if c.Listen.Port < 1 || c.Listen.Port > 65535 {
 		return fmt.Errorf("listen.port: укажите порт от 1 до 65535")
 	}
+
 	if strings.TrimSpace(c.DefaultModel) == "" {
 		return fmt.Errorf("default_model: укажите модель по умолчанию (имя из каталога model_path)")
 	}
+
 	r := strings.TrimSpace(c.ModelRetention)
 	if r == "" {
 		return nil
 	}
+
 	rl := strings.ToLower(r)
 	if rl == "keep" || rl == "unload_after_rpc" {
 		return nil
 	}
+
 	return fmt.Errorf("model_retention: неизвестное значение %q (допустимы keep, unload_after_rpc)", r)
 }
 
@@ -121,4 +127,18 @@ func (c *Config) ModelsDir() string {
 	}
 
 	return p
+}
+
+func (c *Config) RequireAbsModelsDir() (string, error) {
+	d := strings.TrimSpace(c.ModelsDir())
+	if d == "" {
+		return "", fmt.Errorf("model_path: укажите каталог или файл модели в config.yaml (LLM_RUNNER_CONFIG)")
+	}
+
+	abs, err := filepath.Abs(d)
+	if err != nil {
+		return "", fmt.Errorf("model_path: %w", err)
+	}
+
+	return abs, nil
 }

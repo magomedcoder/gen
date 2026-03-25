@@ -14,7 +14,10 @@ func main() {
 		Usage: "LLM runner",
 		Commands: []*cli.Command{
 			cmdServe(),
+			cmdCreate(),
+			cmdShow(),
 			cmdDownload(),
+			cmdModels(),
 			cmdRemote(),
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {

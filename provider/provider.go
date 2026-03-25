@@ -62,6 +62,11 @@ func NewTextProvider(cfg *config.Config) (TextProvider, error) {
 	if strings.TrimSpace(cfg.MmprojPath) != "" {
 		opts = append(opts, service.WithMmprojPath(cfg.MmprojPath))
 	}
+
+	if cfg.GpuLayers != 0 {
+		opts = append(opts, service.WithGPULayers(cfg.GpuLayers))
+	}
+
 	svc := service.NewLlamaService(cfg.ModelPath, opts...)
 
 	return NewText(svc), nil

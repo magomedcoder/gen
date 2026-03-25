@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 
+	"github.com/magomedcoder/llm-runner/config"
 	"github.com/magomedcoder/llm-runner/huggingface"
 	"github.com/urfave/cli/v3"
 )
@@ -35,13 +36,8 @@ func cmdDownload() *cli.Command {
 				Usage:   "только список .gguf",
 			},
 			&cli.StringFlag{
-				Name:  "out",
-				Value: "./models",
-				Usage: "каталог для файлов",
-			},
-			&cli.StringFlag{
 				Name:  "as",
-				Usage: "сохранить как base:tag → base-tag.gguf",
+				Usage: "сохранить как base:tag -> base-tag.gguf",
 			},
 		},
 		Action: runDownload,
@@ -49,13 +45,23 @@ func cmdDownload() *cli.Command {
 }
 
 func runDownload(_ context.Context, cmd *cli.Command) error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+
+	outDir, err := cfg.RequireAbsModelsDir()
+	if err != nil {
+		return err
+	}
+
 	return huggingface.Run(huggingface.Options{
 		RepoID:   cmd.String("repo"),
 		File:     cmd.String("file"),
 		Revision: cmd.String("revision"),
 		Token:    cmd.String("token"),
 		ListOnly: cmd.Bool("list"),
-		OutDir:   cmd.String("out"),
 		AsRef:    cmd.String("as"),
+		OutDir:   outDir,
 	})
 }

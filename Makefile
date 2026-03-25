@@ -8,14 +8,14 @@ deps:
 run-cpu:
 	go run -tags="llama" ./cmd/llm-runner serve
 
-run-gpu:
+run-gpu: build-llama-cublas
 	go run -tags="llama,nvidia" ./cmd/llm-runner serve
 
 build-cpu:
 	@mkdir -p build
 	go build -tags="llama" -o build/llm-runner ./cmd/llm-runner
 
-build-gpu:
+build-gpu: build-llama-cublas
 	@mkdir -p build
 	go build -tags="llama,nvidia" -o build/llm-runner ./cmd/llm-runner
 

@@ -12,6 +12,7 @@ import (
 
 	"github.com/magomedcoder/llm-runner/domain"
 	"github.com/magomedcoder/llm-runner/llama"
+	"github.com/magomedcoder/llm-runner/logger"
 	"github.com/magomedcoder/llm-runner/template"
 )
 
@@ -20,6 +21,7 @@ const defaultChunkSize = 128
 type LlamaService struct {
 	modelsDir        string
 	currentModelName string
+	lastModelRef     string
 	mmprojPathConfig string
 	chunkSize        int
 	predictOpts      []llama.PredictOption
@@ -28,6 +30,7 @@ type LlamaService struct {
 	maxContextTokens int
 	llamaNCtx        int
 	enableEmbeddings bool
+	gpuLayers        int
 }
 
 type LlamaOption func(*LlamaService)
@@ -71,6 +74,12 @@ func WithEmbeddings(enable bool) LlamaOption {
 func WithMmprojPath(path string) LlamaOption {
 	return func(s *LlamaService) {
 		s.mmprojPathConfig = strings.TrimSpace(path)
+	}
+}
+
+func WithGPULayers(n int) LlamaOption {
+	return func(s *LlamaService) {
+		s.gpuLayers = n
 	}
 }
 
@@ -165,7 +174,8 @@ func (s *LlamaService) ensureModel(modelName string) (*ModelYAML, string, error)
 	}
 
 	fullPath := filepath.Join(s.modelsDir, resolved)
-	if s.model != nil && s.currentModelName == resolved {
+	ref := strings.TrimSpace(modelName)
+	if s.model != nil && s.currentModelName == resolved && s.lastModelRef == ref {
 		return yamlCfg, mmprojPath, nil
 	}
 
@@ -173,19 +183,50 @@ func (s *LlamaService) ensureModel(modelName string) (*ModelYAML, string, error)
 		s.model.Free()
 		s.model = nil
 		s.currentModelName = ""
+		s.lastModelRef = ""
 	}
 
 	var modelOpts []llama.ModelOption
 	if s.enableEmbeddings {
 		modelOpts = append(modelOpts, llama.EnableEmbeddings)
 	}
+
 	nCtx := s.llamaNCtx
 	if nCtx <= 0 {
 		nCtx = 4096
 	}
+
+	if yamlCfg != nil && yamlCfg.NumCtx != nil && *yamlCfg.NumCtx > 0 {
+		nCtx = *yamlCfg.NumCtx
+	}
+
 	modelOpts = append(modelOpts, llama.SetContext(nCtx))
+	if s.gpuLayers != 0 {
+		modelOpts = append(modelOpts, llama.SetGPULayers(s.gpuLayers))
+	}
+
 	if strings.TrimSpace(mmprojPath) != "" {
 		modelOpts = append(modelOpts, llama.WithMmproj(mmprojPath))
+	}
+
+	if yamlCfg != nil {
+		if a := strings.TrimSpace(yamlCfg.Adapter); a != "" {
+			ra, err := ResolveGGUFFile(s.modelsDir, a)
+			if err != nil {
+				return nil, "", fmt.Errorf("llama: adapter: %w", err)
+			}
+
+			modelOpts = append(modelOpts, llama.SetLoraAdapter(filepath.Join(s.modelsDir, ra)))
+		}
+
+		if b := strings.TrimSpace(yamlCfg.LoraBase); b != "" {
+			rb, err := ResolveGGUFFile(s.modelsDir, b)
+			if err != nil {
+				return nil, "", fmt.Errorf("llama: lora_base: %w", err)
+			}
+
+			modelOpts = append(modelOpts, llama.SetLoraBase(filepath.Join(s.modelsDir, rb)))
+		}
 	}
 
 	m, err := llama.New(fullPath, modelOpts...)
@@ -195,6 +236,12 @@ func (s *LlamaService) ensureModel(modelName string) (*ModelYAML, string, error)
 
 	s.model = m
 	s.currentModelName = resolved
+	s.lastModelRef = ref
+	if s.gpuLayers != 0 {
+		info := m.GetModelInfo()
+		logger.I("llama: модель %q - gpu_layers=%d, слоёв в модели=%d; в stderr от llama.cpp ожидается строка про offload на GPU (не 0/N)", DisplayModelName(resolved), s.gpuLayers, info.LayerCount)
+	}
+
 	return yamlCfg, mmprojPath, nil
 }
 
@@ -207,6 +254,7 @@ func (s *LlamaService) modelDisplayNamesLocked() []string {
 	if err != nil {
 		return nil
 	}
+
 	return names
 }
 
@@ -222,10 +270,12 @@ func (s *LlamaService) WarmDefaultModel(ctx context.Context, model string) error
 func (s *LlamaService) CheckConnection(ctx context.Context) (bool, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
 	files, err := ListGGUFBasenames(s.modelsDir)
 	if err != nil || len(files) == 0 {
 		return false, fmt.Errorf("llama: нет моделей в папке %q", s.modelsDir)
 	}
+
 	return true, nil
 }
 
@@ -257,6 +307,7 @@ func (s *LlamaService) UnloadModel(ctx context.Context) error {
 		s.model.Free()
 		s.model = nil
 		s.currentModelName = ""
+		s.lastModelRef = ""
 	}
 
 	return nil
@@ -270,6 +321,7 @@ func (s *LlamaService) SendMessage(ctx context.Context, model string, messages [
 
 	norm := NormalizeChatMessages(messages)
 	norm = ApplyModelYAMLSystem(norm, yamlCfg)
+	norm = ApplyModelYAMLMessages(norm, yamlCfg)
 	if len(norm) == 0 {
 		return nil, fmt.Errorf("llama: пустой список сообщений (нет текста content)")
 	}
@@ -291,11 +343,16 @@ func (s *LlamaService) SendMessage(ctx context.Context, model string, messages [
 	if yamlCfg != nil {
 		chatTmpl = yamlCfg.Template
 	}
+
 	prompt, presetStops, err := s.resolveChatPrompt(norm, genMerged, visionInject, mediaMarker, chatTmpl)
 	if err != nil {
 		return nil, err
 	}
+
 	stopForPredict := MergeStopSequences(stopSequences, presetStops)
+	if yamlCfg != nil && len(yamlCfg.Stop) > 0 {
+		stopForPredict = MergeStopSequences(stopForPredict, yamlCfg.Stop)
+	}
 	stopForPredict = MergeStopSequences(stopForPredict, inferStopSequencesFromPrompt(prompt))
 
 	if s.maxContextTokens > 0 {
@@ -325,6 +382,25 @@ func (s *LlamaService) SendMessage(ctx context.Context, model string, messages [
 
 			if genMerged.TopP != nil {
 				opts = append(opts, llama.SetTopP(*genMerged.TopP))
+			}
+
+			if yamlCfg != nil && yamlCfg.Parameter != nil {
+				p := yamlCfg.Parameter
+				if p.RepeatLastN != nil {
+					opts = append(opts, llama.SetRepeat(*p.RepeatLastN))
+				}
+
+				if p.RepeatPenalty != nil {
+					opts = append(opts, llama.SetPenalty(float32(*p.RepeatPenalty)))
+				}
+
+				if p.Seed != nil {
+					opts = append(opts, llama.SetSeed(*p.Seed))
+				}
+
+				if p.MinP != nil {
+					opts = append(opts, llama.SetMinP(float32(*p.MinP)))
+				}
 			}
 
 			if genMerged.ResponseFormat != nil && genMerged.ResponseFormat.Type == "json_object" {
@@ -369,12 +445,14 @@ func (s *LlamaService) SendMessage(ctx context.Context, model string, messages [
 		}))
 		imgs := CollectVisionImageBytes(norm)
 		s.mu.Lock()
+
 		var err error
 		if len(imgs) > 0 {
 			_, err = s.model.PredictMTMD(prompt, imgs, opts...)
 		} else {
 			_, err = s.model.Predict(prompt, opts...)
 		}
+
 		s.mu.Unlock()
 		streamFilter.flush()
 		if err != nil {

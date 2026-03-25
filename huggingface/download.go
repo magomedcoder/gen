@@ -86,8 +86,8 @@ func Run(opts Options) error {
 		opts.Revision = "main"
 	}
 
-	if opts.OutDir == "" {
-		opts.OutDir = "./models"
+	if strings.TrimSpace(opts.OutDir) == "" {
+		return fmt.Errorf("не задан каталог для сохранения (OutDir)")
 	}
 
 	ctx := optsContext(opts)
