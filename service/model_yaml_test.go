@@ -14,6 +14,7 @@ func TestMergeGenParams_yamlDefaults(t *testing.T) {
 		Parameter: &ModelYAMLParameter{
 			Temperature: ptrFloat64(0.1),
 			MaxTokens:   ptrInt(99),
+			MinP:        ptrFloat64(0.07),
 		},
 	}
 	out := MergeGenParams(nil, y)
@@ -23,6 +24,9 @@ func TestMergeGenParams_yamlDefaults(t *testing.T) {
 
 	if out.MaxTokens == nil || *out.MaxTokens != 99 {
 		t.Fatalf("max_tokens из yaml: %+v", out)
+	}
+	if out.MinP == nil || *out.MinP != float32(0.07) {
+		t.Fatalf("min_p из yaml: %+v", out)
 	}
 
 	reqT := float32(0.8)
@@ -34,6 +38,15 @@ func TestMergeGenParams_yamlDefaults(t *testing.T) {
 
 	if out2.MaxTokens == nil || *out2.MaxTokens != 99 {
 		t.Fatalf("max_tokens должен браться из yaml: %+v", out2)
+	}
+	if out2.MinP == nil || *out2.MinP != float32(0.07) {
+		t.Fatalf("min_p должен браться из yaml: %+v", out2)
+	}
+
+	reqMinP := float32(0.22)
+	out3 := MergeGenParams(&domain.GenerationParams{MinP: &reqMinP}, y)
+	if out3.MinP == nil || *out3.MinP != float32(0.22) {
+		t.Fatalf("min_p из запроса должен перекрывать yaml: %+v", out3)
 	}
 }
 

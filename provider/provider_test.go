@@ -29,3 +29,38 @@ func TestNewTextProvider_llama_withPath(t *testing.T) {
 		t.Fatal("ожидался непустой провайдер")
 	}
 }
+
+func TestNewTextProvider_smoke_chatAndDebugOptions(t *testing.T) {
+	nProbs := 8
+	enableThinking := true
+	reasoningBudget := 256
+	typicalP := float32(0.95)
+	minKeep := 1
+	dynRange := float32(0.5)
+	dynExp := float32(1.2)
+	cfg := &config.Config{
+		ModelPath:                  "/models",
+		MaxContextTokens:           4096,
+		ChatAPIEnabled:             true,
+		ChatStreamBufferSize:       128,
+		ChatReasoningFormat:        "deepseek",
+		ChatEnableThinking:         &enableThinking,
+		ChatReasoningBudget:        &reasoningBudget,
+		NProbs:                     &nProbs,
+		DebugGeneration:            true,
+		TypicalP:                   &typicalP,
+		MinKeep:                    &minKeep,
+		DynamicTemperatureRange:    &dynRange,
+		DynamicTemperatureExponent: &dynExp,
+		ReinitLlamaLogging:         true,
+		LogModelStats:              true,
+	}
+
+	tp, err := NewTextProvider(cfg)
+	if err != nil {
+		t.Fatalf("NewTextProvider smoke: %v", err)
+	}
+	if tp == nil {
+		t.Fatal("ожидался непустой провайдер")
+	}
+}

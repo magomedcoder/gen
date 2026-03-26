@@ -46,15 +46,7 @@ func ParseModelfile(r io.Reader) (*ModelYAML, error) {
 			continue
 
 		case "ADAPTER":
-			p := unquoteOllamaPath(arg)
-			if p == "" {
-				return nil, fmt.Errorf("modelfile: ADAPTER без пути (строка %d)", i+1)
-			}
-
-			if out.Adapter != "" {
-				return nil, fmt.Errorf("modelfile: повторная директива ADAPTER")
-			}
-			out.Adapter = p
+			return nil, fmt.Errorf("modelfile: директива ADAPTER не поддерживается текущим API llama")
 
 		case "REQUIRES":
 			continue

@@ -109,10 +109,9 @@ func TestWriteModelManifest_sidecarOmitsFrom(t *testing.T) {
 	}
 }
 
-func TestParseModelfile_adapterAndSampling(t *testing.T) {
+func TestParseModelfile_sampling(t *testing.T) {
 	src := `
 FROM b.gguf
-ADAPTER ./lora.gguf
 PARAMETER repeat_last_n 128
 PARAMETER repeat_penalty 1.15
 PARAMETER seed 1
@@ -123,34 +122,16 @@ PARAMETER min_p 0.05
 		t.Fatal(err)
 	}
 
-	if mf.Adapter != "./lora.gguf" {
-		t.Fatalf("adapter=%q", mf.Adapter)
-	}
-
 	if mf.Parameter == nil || mf.Parameter.RepeatLastN == nil || *mf.Parameter.RepeatLastN != 128 {
 		t.Fatalf("param=%+v", mf.Parameter)
 	}
 }
 
-func TestWriteModelManifest_withAdapter(t *testing.T) {
-	dir := t.TempDir()
-	_ = os.WriteFile(filepath.Join(dir, "Base.gguf"), []byte{0}, 0o644)
-	_ = os.WriteFile(filepath.Join(dir, "Lo.gguf"), []byte{0}, 0o644)
-	cfg := &ModelYAML{
-		From:    "Base.gguf",
-		Adapter: "Lo.gguf",
-	}
-	if err := WriteModelManifest(dir, "a", cfg, false); err != nil {
-		t.Fatal(err)
-	}
-
-	raw, err := os.ReadFile(filepath.Join(dir, "a.yaml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if !strings.Contains(string(raw), "adapter: Lo.gguf") {
-		t.Fatalf("yaml:\n%s", raw)
+func TestParseModelfile_adapterUnsupported(t *testing.T) {
+	src := "FROM b.gguf\nADAPTER ./lora.gguf\n"
+	_, err := ParseModelfile(strings.NewReader(src))
+	if err == nil || !strings.Contains(err.Error(), "ADAPTER не поддерживается") {
+		t.Fatalf("expected unsupported ADAPTER error, got %v", err)
 	}
 }
 

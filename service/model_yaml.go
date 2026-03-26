@@ -21,8 +21,6 @@ type ModelYAML struct {
 	NumCtx    *int                `yaml:"num_ctx,omitempty"`
 	Stop      []string            `yaml:"stop,omitempty"`
 	Messages  []ModelYAMLMessage  `yaml:"messages,omitempty"`
-	Adapter   string              `yaml:"adapter,omitempty"`
-	LoraBase  string              `yaml:"lora_base,omitempty"`
 }
 
 type ModelYAMLMessage struct {
@@ -189,6 +187,7 @@ func MergeGenParams(req *domain.GenerationParams, yamlCfg *ModelYAML) *domain.Ge
 		out.MaxTokens = req.MaxTokens
 		out.TopK = req.TopK
 		out.TopP = req.TopP
+		out.MinP = req.MinP
 		out.ResponseFormat = req.ResponseFormat
 		if len(req.Tools) > 0 {
 			out.Tools = append([]domain.Tool(nil), req.Tools...)
@@ -213,6 +212,11 @@ func MergeGenParams(req *domain.GenerationParams, yamlCfg *ModelYAML) *domain.Ge
 	if out.MaxTokens == nil && p.MaxTokens != nil {
 		v := int32(*p.MaxTokens)
 		out.MaxTokens = &v
+	}
+
+	if out.MinP == nil && p.MinP != nil {
+		v := float32(*p.MinP)
+		out.MinP = &v
 	}
 
 	return &out
@@ -310,24 +314,8 @@ func cloneNormalizeManifestRefs(cfg *ModelYAML, modelsDir string) (*ModelYAML, e
 }
 
 func normalizeManifestGGUFRefs(modelsDir string, cp *ModelYAML) error {
-	if a := strings.TrimSpace(cp.Adapter); a != "" {
-		r, err := ResolveGGUFFile(modelsDir, a)
-		if err != nil {
-			return fmt.Errorf("adapter: %w", err)
-		}
-
-		cp.Adapter = r
-	}
-
-	if b := strings.TrimSpace(cp.LoraBase); b != "" {
-		r, err := ResolveGGUFFile(modelsDir, b)
-		if err != nil {
-			return fmt.Errorf("lora_base: %w", err)
-		}
-
-		cp.LoraBase = r
-	}
-
+	_ = modelsDir
+	_ = cp
 	return nil
 }
 

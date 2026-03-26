@@ -272,30 +272,27 @@ func (s *Server) EmbedBatch(ctx context.Context, req *llmrunnerpb.EmbedBatchRequ
 
 	defer s.maybeUnloadAfterRPC()
 
-	out := &llmrunnerpb.EmbedBatchResponse{
-		Embeddings: make([]*llmrunnerpb.Embedding, 0, len(texts)),
+	if s.sem != nil {
+		select {
+		case s.sem <- struct{}{}:
+			defer func() { <-s.sem }()
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
 	}
 
-	for _, t := range texts {
-		t = strings.TrimSpace(t)
+	vecs, err := s.textProvider.EmbedBatch(ctx, model, texts)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "эмбеддинг batch: %v", err)
+	}
+	if len(vecs) != len(texts) {
+		return nil, status.Errorf(codes.Internal, "эмбеддинг batch: несоответствие размеров (%d != %d)", len(vecs), len(texts))
+	}
 
-		if s.sem != nil {
-			select {
-			case s.sem <- struct{}{}:
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			}
-		}
-
-		vec, err := s.textProvider.Embed(ctx, model, t)
-		if s.sem != nil {
-			<-s.sem
-		}
-
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "эмбеддинг: %v", err)
-		}
-
+	out := &llmrunnerpb.EmbedBatchResponse{
+		Embeddings: make([]*llmrunnerpb.Embedding, 0, len(vecs)),
+	}
+	for _, vec := range vecs {
 		out.Embeddings = append(out.Embeddings, &llmrunnerpb.Embedding{Values: vec})
 	}
 

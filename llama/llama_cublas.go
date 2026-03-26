@@ -1,9 +1,10 @@
-//go:build llama && cublas
-// +build llama,cublas
+//go:build cublas
+// +build cublas
 
 package llama
 
 /*
-#cgo LDFLAGS: -lcublas -lcudart -L/usr/local/cuda/lib64/
+#cgo CPPFLAGS: -DGGML_USE_CUDA
+#cgo LDFLAGS: -lggml-cuda -lcublas -lcudart -L/usr/local/cuda/lib64/
 */
 import "C"

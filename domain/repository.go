@@ -24,6 +24,7 @@ type GenerationParams struct {
 	MaxTokens      *int32
 	TopK           *int32
 	TopP           *float32
+	MinP           *float32
 	ResponseFormat *ResponseFormat
 	Tools          []Tool
 }

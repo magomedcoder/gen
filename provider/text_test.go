@@ -9,10 +9,11 @@ import (
 )
 
 type mockTextBackend struct {
-	checkConn func(context.Context) (bool, error)
-	getModels func(context.Context) ([]string, error)
-	sendMsg   func(context.Context, string, []*domain.AIChatMessage, []string) (chan string, error)
-	embed     func(context.Context, string, string) ([]float32, error)
+	checkConn  func(context.Context) (bool, error)
+	getModels  func(context.Context) ([]string, error)
+	sendMsg    func(context.Context, string, []*domain.AIChatMessage, []string) (chan string, error)
+	embed      func(context.Context, string, string) ([]float32, error)
+	embedBatch func(context.Context, string, []string) ([][]float32, error)
 }
 
 func (m *mockTextBackend) CheckConnection(ctx context.Context) (bool, error) {
@@ -59,6 +60,13 @@ func (m *mockTextBackend) Embed(ctx context.Context, model string, text string) 
 		return m.embed(ctx, model, text)
 	}
 
+	return nil, nil
+}
+
+func (m *mockTextBackend) EmbedBatch(ctx context.Context, model string, texts []string) ([][]float32, error) {
+	if m.embedBatch != nil {
+		return m.embedBatch(ctx, model, texts)
+	}
 	return nil, nil
 }
 

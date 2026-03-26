@@ -12,16 +12,104 @@ log_level: "debug"
 
 model_path: "./models"
 
-# mmproj_path: ""
-
 default_model: ""
 
 max_context_tokens: 4096
 
-# 0 - только CPU
-# -1 - все слои в VRAM (make build-gpu + libllama с GGML_CUDA)
-gpu_layers: 0
+gpu_layers: 0 # 0 - только CPU - -1 - все слои в VRAM (make build-gpu + libllama с GGML_CUDA)
+
+# mlock: false
+
+# mmap: true
+
+# main_gpu: ""
+
+# tensor_split: ""
+
+# silent_loading: false
+
+# progress_callback: false
 
 max_concurrent_generations: 0
 
 model_retention: keep
+
+# threads: 8
+
+# threads_batch: 8
+
+# batch_size: 512
+
+# f16_memory: false
+
+# kv_cache_type: "q8_0" # f16, q8_0, q4_0
+
+# flash_attn: "auto" # auto, enabled, disabled
+
+# prefix_caching: true
+
+# parallel: 1
+
+# top_n_sigma: 2.0
+
+# frequency_penalty: 0.2
+
+# presence_penalty: 0.1
+
+# ignore_eos: false
+
+# dry_multiplier: 0.8
+
+# dry_base: 1.75
+
+# dry_allowed_length: 2
+
+# dry_penalty_last_n: -1
+
+# dry_sequence_breakers: ["\n", ":", "\"", "*"]
+
+# xtc_probability: 0.0
+
+# xtc_threshold: 0.1
+
+# mirostat: 0
+
+# mirostat_tau: 5.0
+
+# mirostat_eta: 0.1
+
+# typical_p: 1.0
+
+# min_keep: 0
+
+# dynamic_temperature_range: 0.0
+
+# dynamic_temperature_exponent: 1.0
+
+# n_prev: 64
+
+# n_probs: 0
+
+# debug_generation: false
+
+# speculative_enabled: false
+
+# speculative_draft_model: ""
+
+# speculative_draft_tokens: 16
+
+# token_pipeline_enabled: false # GenerateWithTokensStream (не используется при speculative_enabled=true)
+
+# chat_api_enabled: false # Context.ChatStream (fallback на prompt-пайплайн при false)
+
+# chat_stream_buffer_size: 256
+
+# chat_reasoning_format: "none"
+
+# chat_enable_thinking: false
+
+# chat_reasoning_budget: -1
+
+# reinit_llama_logging: false
+
+# log_model_stats: false

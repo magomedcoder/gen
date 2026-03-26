@@ -17,8 +17,8 @@ func cmdCreate() *cli.Command {
 		Name:  "create",
 		Usage: "Создать YAML-манифест модели из Modelfile",
 		Description: "Пишет <каталог>/<имя>.yaml. Имя может быть с тегом: mymodel:q4 -> файл mymodel-q4.yaml.\n\n" +
-			"Директивы: FROM, ADAPTER (LoRA .gguf), SYSTEM, TEMPLATE (\"\"\"), PARAMETER (temperature, top_p, top_k, min_p, max_tokens, num_predict, num_ctx, stop, repeat_last_n, repeat_penalty, seed), MESSAGE, REQUIRES (игнор).\n" +
-			"TEMPLATE — Jinja для llama.cpp. В YAML можно задать lora_base.",
+			"Директивы: FROM, SYSTEM, TEMPLATE (\"\"\"), PARAMETER (temperature, top_p, top_k, min_p, max_tokens, num_predict, num_ctx, stop, repeat_last_n, repeat_penalty, seed), MESSAGE, REQUIRES (игнор).\n" +
+			"TEMPLATE - Jinja для llama.cpp.",
 		UsageText: "llm-runner create [options] <имя>",
 		Flags: []cli.Flag{
 			&cli.StringFlag{

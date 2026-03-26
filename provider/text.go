@@ -43,3 +43,7 @@ func (t *Text) SendMessage(ctx context.Context, sessionId int64, model string, m
 func (t *Text) Embed(ctx context.Context, model string, text string) ([]float32, error) {
 	return t.backend.Embed(ctx, model, text)
 }
+
+func (t *Text) EmbedBatch(ctx context.Context, model string, texts []string) ([][]float32, error) {
+	return t.backend.EmbedBatch(ctx, model, texts)
+}

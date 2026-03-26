@@ -24,15 +24,7 @@ func EncodeModelfile(cfg *ModelYAML, weightsBasename string) (string, error) {
 	}
 
 	var b strings.Builder
-	if lb := strings.TrimSpace(cfg.LoraBase); lb != "" {
-		fmt.Fprintf(&b, "# llm-runner lora_base: %s\n", lb)
-	}
-
 	fmt.Fprintf(&b, "FROM %s\n", from)
-
-	if a := strings.TrimSpace(cfg.Adapter); a != "" {
-		fmt.Fprintf(&b, "ADAPTER %s\n", a)
-	}
 
 	if cfg.NumCtx != nil && *cfg.NumCtx > 0 {
 		fmt.Fprintf(&b, "PARAMETER num_ctx %d\n", *cfg.NumCtx)

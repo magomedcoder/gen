@@ -75,8 +75,8 @@ func TestEncodeModelfile_sidecarFromWeights(t *testing.T) {
 	}
 }
 
-func TestParseModelYAMLData_EncodeAdapter(t *testing.T) {
-	raw := []byte("from: B.gguf\nadapter: L.gguf\nlora_base: LB.gguf\n")
+func TestParseModelYAMLData_EncodeBasic(t *testing.T) {
+	raw := []byte("from: B.gguf\n")
 	cfg, err := ParseModelYAMLData(raw)
 	if err != nil {
 		t.Fatal(err)
@@ -87,11 +87,7 @@ func TestParseModelYAMLData_EncodeAdapter(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !strings.Contains(s, "FROM B.gguf") || !strings.Contains(s, "ADAPTER L.gguf") {
-		t.Fatal(s)
-	}
-
-	if !strings.Contains(s, "lora_base: LB.gguf") {
+	if !strings.Contains(s, "FROM B.gguf") {
 		t.Fatal(s)
 	}
 }

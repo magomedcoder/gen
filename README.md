@@ -1,17 +1,19 @@
 # LLM Runner
 
+## Быстрый старт (сборка и запуск)
+
 ```bash
-# Установка необходимых зависимостей и клонирование llama.cpp
+# Установка зависимостей
 make deps
 
 # Генерация proto
 make gen
 
-# Сборка libllama.a (без CUDA)
-make build-llama
+# Сборка библиотек (без CUDA)
+make build-libs-cpu
 
-# Сборка libllama.a с поддержкой NVIDIA (CUDA)
-make build-llama-cublas
+# Сборка библиотек с поддержкой NVIDIA (CUDA)
+make build-libs-gpu
 
 # Запуск (CPU, без CUDA)
 make run-cpu
@@ -26,9 +28,24 @@ make build-cpu
 make build-gpu
 ```
 
+---
+
+## Скачивание модели (Hugging Face)
+
 ```bash
-./build/llm-runner serve
+./build/llm-runner download --repo <org/model> --list
+./build/llm-runner download --repo <org/model> --file ....gguf
 ```
+
+## Клиент к запущенному раннеру
+
+```bash
+./build/llm-runner remote ping
+./build/llm-runner remote models
+./build/llm-runner remote run --model mymodel --prompt "привет"
+```
+
+---
 
 ```bash
 # Собрать yaml из Modelfile
@@ -43,19 +60,4 @@ make build-gpu
 
 # Список локальных .gguf в каталоге model_path
 ./build/llm-runner models
-```
-
-## Скачивание весов (Hugging Face)
-
-```bash
-./build/llm-runner download --repo <org/model> --list
-./build/llm-runner download --repo <org/model> --file ....gguf
-```
-
-## Клиент к запущенному раннеру
-
-```bash
-./build/llm-runner remote ping
-./build/llm-runner remote models
-./build/llm-runner remote run --model mymodel --prompt "привет"
 ```
