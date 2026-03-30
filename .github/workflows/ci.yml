@@ -1,12 +1,12 @@
 # Сборка при push в main и обновление тега dev-build
 name: CI
 
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-  workflow_dispatch:
+#on:
+#  push:
+#    branches: [main]
+#  pull_request:
+#    branches: [main]
+#  workflow_dispatch:
 
 jobs:
   build:
@@ -48,58 +48,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download all artifacts
+      - name: Download build artifact
         uses: actions/download-artifact@v4
         with:
-          path: artifacts
+          name: gen-linux-amd64
+          path: artifacts/gen-linux-amd64
 
-      - name: Prepare dev-build artifacts
+      - name: Prepare dev-build binary
         run: |
-          cd artifacts
-
-          if [ -f android-apk/app-release.apk ]; then
-            mv android-apk/app-release.apk ../gen-android-dev.apk
-          else
-            echo "APK not found!" && exit 1
-          fi
-
-          if [ -d ios-app ]; then
-            mv ios-app ../gen-ios-dev.app
-          else
-            echo "ios-app not found!" && exit 1
-          fi
-
-          if [ -f linux-installer/gen-linux.tar.gz ]; then
-            mv linux-installer/gen-linux.tar.gz ../gen-linux-dev.tar.gz
-          else
-            echo "linux-installer artifact not found!" && exit 1
-          fi
-
-          DEB=$(find linux-installer -maxdepth 1 -name 'gen-*-amd64.deb' -print -quit)
-          if [ -z "$DEB" ] || [ ! -f "$DEB" ]; then
-            DEB="linux-installer/gen-amd64.deb"
-          fi
-          if [ -n "$DEB" ] && [ -f "$DEB" ]; then
-            cp "$DEB" ../gen-linux-dev.deb
-          else
-            echo "linux .deb not found! Contents of linux-installer:"
-            ls -la linux-installer/
-            exit 1
-          fi
-
-          if [ -f windows-installer/GenSetup.exe ]; then
-            mv windows-installer/GenSetup.exe ../gen-windows-dev.exe
-          elif [ -f GenSetup.exe ]; then
-            mv GenSetup.exe ../gen-windows-dev.exe
-          else
-            echo "windows-installer artifact not found!" && exit 1
-          fi
-
-          if [ -f macos-installer/gen-macos.dmg ]; then
-            mv macos-installer/gen-macos.dmg ../gen-macos-dev.dmg
-          else
-            echo "macos-installer artifact not found!" && exit 1
-          fi
+          cp artifacts/gen-linux-amd64/gen ./gen-linux-amd64-dev-build
 
       - name: Upload Dev-Build Release to GitHub
         uses: softprops/action-gh-release@v2
@@ -108,12 +65,6 @@ jobs:
           name: "Dev build"
           draft: false
           prerelease: true
-          files: |
-            gen-android-dev.apk
-            gen-ios-dev.app
-            gen-linux-dev.tar.gz
-            gen-linux-dev.deb
-            gen-windows-dev.exe
-            gen-macos-dev.dmg
+          files: gen-linux-amd64-dev-build
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

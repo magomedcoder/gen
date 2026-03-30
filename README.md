@@ -1,14 +1,15 @@
 # Gen
 
-### Клиентское приложение
+Серверная часть проекта Gen
 
-| Платформа | Версия                                |
-|-----------|---------------------------------------|
-| Linux     | glibc 2.31+ (Ubuntu 20.04+ и аналоги) |
-| Android   | 7.0+                                  |
-| iOS       | 13.0+                                 |
-| macOS     | Catalina 10.15+                       |
-| Windows   | 10+                                   |
+---
+
+## Связанные репозитории
+
+- **[gen-app](https://github.com/magomedcoder/gen-app)** — клиенты для Linux, Windows, macOS, Android, iOS.
+- **[llm-runner](https://github.com/magomedcoder/llm-runner)** — сервис запуска и взаимодействия с LLM.
+
+---
 
 ## Разработка
 
@@ -16,7 +17,4 @@
 
 - **Go** 1.26+
 - **PostgreSQL** 16+
-- **Клиент (Flutter/Dart):**
-    - Flutter 3.24+
-    - Dart SDK ^3.10.7
 - **Protobuf** 30.2+
