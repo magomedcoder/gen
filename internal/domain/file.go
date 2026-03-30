@@ -3,12 +3,16 @@ package domain
 import "time"
 
 type File struct {
-	Id          int64
-	Filename    string
-	MimeType    string
-	Size        int64
-	StoragePath string
-	CreatedAt   time.Time
+	Id            int64
+	Filename      string
+	MimeType      string
+	Size          int64
+	StoragePath   string
+	CreatedAt     time.Time
+	ChatSessionID *int64
+	UserID        *int
+	ExpiresAt     *time.Time
+	Kind          string
 }
 
 func NewFile(filename, mimeType string, size int64, storagePath string) *File {

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:fixnum/fixnum.dart';
 import 'package:grpc/grpc.dart';
@@ -10,8 +11,12 @@ import 'package:gen/core/log/logs.dart';
 import 'package:gen/data/mappers/message_mapper.dart';
 import 'package:gen/data/mappers/session_mapper.dart';
 import 'package:gen/domain/entities/chat_session_settings.dart';
+import 'package:gen/domain/entities/chat_stream_chunk.dart';
 import 'package:gen/domain/entities/message.dart';
+import 'package:gen/domain/entities/session_file_download.dart';
 import 'package:gen/domain/entities/session.dart';
+import 'package:gen/domain/entities/spreadsheet_apply_result.dart';
+import 'package:gen/generated/grpc_pb/chat.pb.dart' as chat_pb;
 import 'package:gen/generated/grpc_pb/common.pb.dart' as common;
 import 'package:gen/generated/grpc_pb/chat.pbgrpc.dart' as grpc;
 
@@ -27,7 +32,7 @@ Message? _lastUserMessage(List<Message> messages) {
 abstract class IChatRemoteDataSource {
   Future<bool> checkConnection();
 
-  Stream<String> sendChatMessage(
+  Stream<ChatStreamChunk> sendChatMessage(
     int sessionId,
     List<Message> messages,
   );
@@ -66,6 +71,32 @@ abstract class IChatRemoteDataSource {
   Future<void> setSelectedRunner(String? runner);
   Future<String?> getDefaultRunnerModel(String runner);
   Future<void> setDefaultRunnerModel(String runner, String? model);
+
+  Future<int> putSessionFile({
+    required int sessionId,
+    required String filename,
+    required List<int> content,
+    int ttlSeconds = 0,
+  });
+
+  Future<SessionFileDownload> getSessionFile({
+    required int sessionId,
+    required int fileId,
+  });
+
+  Future<SpreadsheetApplyResult> applySpreadsheet({
+    List<int>? workbookXlsx,
+    required String operationsJson,
+    String previewSheet,
+    String previewRange,
+  });
+
+  Future<Uint8List> buildDocx({required String specJson});
+
+  Future<String> applyMarkdownPatch({
+    required String baseText,
+    required String patchJson,
+  });
 }
 
 class ChatRemoteDataSource implements IChatRemoteDataSource {
@@ -98,12 +129,12 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
   }
 
   @override
-  Stream<String> sendChatMessage(
+  Stream<ChatStreamChunk> sendChatMessage(
     int sessionId,
     List<Message> messages,
   ) {
     Logs().d('ChatRemote: sendMessage sessionId=$sessionId');
-    final controller = StreamController<String>();
+    final controller = StreamController<ChatStreamChunk>();
     StreamSubscription<grpc.ChatResponse>? streamSubscription;
 
     Future<void> closeWithError(Object error, [StackTrace? st]) async {
@@ -134,12 +165,33 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
             if (controller.isClosed) {
               return;
             }
-            if (response.content.isNotEmpty) {
-              controller.add(response.content);
-            }
             if (response.done) {
               Logs().i('ChatRemote: sendMessage завершён');
               controller.close();
+              return;
+            }
+            final mid = response.id.toInt();
+            if (response.chunkKind ==
+                chat_pb.StreamChunkKind.STREAM_CHUNK_KIND_TOOL_STATUS) {
+              controller.add(
+                ChatStreamChunk(
+                  kind: ChatStreamChunkKind.toolStatus,
+                  text: response.content,
+                  toolName:
+                      response.hasToolName() ? response.toolName : null,
+                  messageId: mid,
+                ),
+              );
+              return;
+            }
+            if (response.content.isNotEmpty) {
+              controller.add(
+                ChatStreamChunk(
+                  kind: ChatStreamChunkKind.text,
+                  text: response.content,
+                  messageId: mid,
+                ),
+              );
             }
           },
           onError: (Object e, StackTrace st) async {
@@ -151,6 +203,16 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
               Logs().e('ChatRemote: sendMessage', exception: e);
               if (e.code == StatusCode.unauthenticated) {
                 await closeWithError(UnauthorizedFailure(kSessionExpiredMessage), st);
+              } else if (e.code == StatusCode.invalidArgument) {
+                final detail = e.message?.trim();
+                await closeWithError(
+                  ApiFailure(
+                    detail != null && detail.isNotEmpty
+                        ? detail
+                        : 'Некорректные данные запроса',
+                  ),
+                  st,
+                );
               } else {
                 await closeWithError(NetworkFailure('Ошибка gRPC'), st);
               }
@@ -174,6 +236,15 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
         Logs().e('ChatRemote: sendMessage', exception: e);
         if (e.code == StatusCode.unauthenticated) {
           await closeWithError(UnauthorizedFailure(kSessionExpiredMessage));
+        } else if (e.code == StatusCode.invalidArgument) {
+          final detail = e.message?.trim();
+          await closeWithError(
+            ApiFailure(
+              detail != null && detail.isNotEmpty
+                  ? detail
+                  : 'Некорректные данные запроса',
+            ),
+          );
         } else {
           await closeWithError(NetworkFailure('Ошибка gRPC'));
         }
@@ -416,5 +487,200 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
       toolsJson: response.toolsJson,
       profile: response.profile,
     );
+  }
+
+  @override
+  Future<int> putSessionFile({
+    required int sessionId,
+    required String filename,
+    required List<int> content,
+    int ttlSeconds = 0,
+  }) async {
+    Logs().d('ChatRemote: putSessionFile sessionId=$sessionId');
+    final req = chat_pb.PutSessionFileRequest(
+      sessionId: Int64(sessionId),
+      filename: filename,
+      content: content,
+      ttlSeconds: ttlSeconds,
+    );
+    try {
+      final resp = await _authGuard.execute(() => _client.putSessionFile(req));
+      return resp.fileId.toInt();
+    } on GrpcError catch (e) {
+      Logs().e('ChatRemote: putSessionFile', exception: e);
+      if (e.code == StatusCode.invalidArgument) {
+        final detail = e.message?.trim();
+        throw ApiFailure(
+          detail != null && detail.isNotEmpty
+              ? detail
+              : 'Некорректные данные файла',
+        );
+      }
+      if (e.code == StatusCode.permissionDenied) {
+        final detail = e.message?.trim();
+        throw ApiFailure(
+          detail != null && detail.isNotEmpty
+              ? detail
+              : 'Нет доступа к сессии',
+        );
+      }
+      throwGrpcError(e, 'Ошибка загрузки файла сессии');
+    } catch (e) {
+      if (e is Failure) rethrow;
+      Logs().e('ChatRemote: putSessionFile', exception: e);
+      throw ApiFailure('Ошибка загрузки файла сессии');
+    }
+  }
+
+  @override
+  Future<SessionFileDownload> getSessionFile({
+    required int sessionId,
+    required int fileId,
+  }) async {
+    Logs().d('ChatRemote: getSessionFile sessionId=$sessionId fileId=$fileId');
+    final req = chat_pb.GetSessionFileRequest(
+      sessionId: Int64(sessionId),
+      fileId: Int64(fileId),
+    );
+    try {
+      final resp = await _authGuard.execute(() => _client.getSessionFile(req));
+      return SessionFileDownload(
+        filename: resp.filename,
+        content: Uint8List.fromList(resp.content),
+      );
+    } on GrpcError catch (e) {
+      Logs().e('ChatRemote: getSessionFile', exception: e);
+      if (e.code == StatusCode.unauthenticated) {
+        throw UnauthorizedFailure(kSessionExpiredMessage);
+      }
+      if (e.code == StatusCode.notFound) {
+        final detail = e.message?.trim();
+        throw ApiFailure(
+          detail != null && detail.isNotEmpty
+              ? detail
+              : 'Файл не найден или удалён',
+        );
+      }
+      if (e.code == StatusCode.permissionDenied) {
+        final detail = e.message?.trim();
+        throw ApiFailure(
+          detail != null && detail.isNotEmpty
+              ? detail
+              : 'Нет доступа к файлу',
+        );
+      }
+      if (e.code == StatusCode.invalidArgument) {
+        final detail = e.message?.trim();
+        throw ApiFailure(
+          detail != null && detail.isNotEmpty
+              ? detail
+              : 'Некорректный запрос файла',
+        );
+      }
+      throwGrpcError(e, 'Ошибка получения файла сессии');
+    } catch (e) {
+      if (e is Failure) rethrow;
+      Logs().e('ChatRemote: getSessionFile', exception: e);
+      throw ApiFailure('Ошибка получения файла сессии');
+    }
+  }
+
+  @override
+  Future<SpreadsheetApplyResult> applySpreadsheet({
+    List<int>? workbookXlsx,
+    required String operationsJson,
+    String previewSheet = '',
+    String previewRange = '',
+  }) async {
+    Logs().d('ChatRemote: applySpreadsheet');
+    final req = chat_pb.SpreadsheetApplyRequest(
+      operationsJson: operationsJson,
+      previewSheet: previewSheet,
+      previewRange: previewRange,
+    );
+    if (workbookXlsx != null && workbookXlsx.isNotEmpty) {
+      req.workbookXlsx = workbookXlsx;
+    }
+    try {
+      final resp = await _authGuard.execute(() => _client.applySpreadsheet(req));
+      return SpreadsheetApplyResult(
+        workbookBytes: Uint8List.fromList(resp.workbookXlsx),
+        previewTsv: resp.previewTsv,
+        exportedCsv: resp.hasExportedCsv() && resp.exportedCsv.isNotEmpty
+            ? resp.exportedCsv
+            : null,
+      );
+    } on GrpcError catch (e) {
+      Logs().e('ChatRemote: applySpreadsheet', exception: e);
+      if (e.code == StatusCode.invalidArgument) {
+        final detail = e.message?.trim();
+        throw ApiFailure(
+          detail != null && detail.isNotEmpty
+              ? detail
+              : 'Некорректные данные таблицы',
+        );
+      }
+      throwGrpcError(e, 'Ошибка таблицы');
+    } catch (e) {
+      if (e is Failure) rethrow;
+      Logs().e('ChatRemote: applySpreadsheet', exception: e);
+      throw ApiFailure('Ошибка таблицы');
+    }
+  }
+
+  @override
+  Future<Uint8List> buildDocx({required String specJson}) async {
+    Logs().d('ChatRemote: buildDocx');
+    final req = chat_pb.DocxBuildRequest(specJson: specJson);
+    try {
+      final resp = await _authGuard.execute(() => _client.buildDocx(req));
+      return Uint8List.fromList(resp.docx);
+    } on GrpcError catch (e) {
+      Logs().e('ChatRemote: buildDocx', exception: e);
+      if (e.code == StatusCode.invalidArgument) {
+        final detail = e.message?.trim();
+        throw ApiFailure(
+          detail != null && detail.isNotEmpty
+              ? detail
+              : 'Некорректная спецификация документа',
+        );
+      }
+      throwGrpcError(e, 'Ошибка документа Word');
+    } catch (e) {
+      if (e is Failure) rethrow;
+      Logs().e('ChatRemote: buildDocx', exception: e);
+      throw ApiFailure('Ошибка документа Word');
+    }
+  }
+
+  @override
+  Future<String> applyMarkdownPatch({
+    required String baseText,
+    required String patchJson,
+  }) async {
+    Logs().d('ChatRemote: applyMarkdownPatch');
+    final req = chat_pb.MarkdownPatchRequest(
+      baseText: baseText,
+      patchJson: patchJson,
+    );
+    try {
+      final resp = await _authGuard.execute(() => _client.applyMarkdownPatch(req));
+      return resp.text;
+    } on GrpcError catch (e) {
+      Logs().e('ChatRemote: applyMarkdownPatch', exception: e);
+      if (e.code == StatusCode.invalidArgument) {
+        final detail = e.message?.trim();
+        throw ApiFailure(
+          detail != null && detail.isNotEmpty
+              ? detail
+              : 'Некорректный патч текста',
+        );
+      }
+      throwGrpcError(e, 'Ошибка патча текста');
+    } catch (e) {
+      if (e is Failure) rethrow;
+      Logs().e('ChatRemote: applyMarkdownPatch', exception: e);
+      throw ApiFailure('Ошибка патча текста');
+    }
   }
 }

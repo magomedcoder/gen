@@ -28,7 +28,10 @@ class ChatMessageList extends StatelessWidget {
         if (index < state.messages.length) {
           return Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: ChatBubble(message: state.messages[index]),
+            child: ChatBubble(
+              message: state.messages[index],
+              sessionId: state.currentSessionId,
+            ),
           );
         }
         return Padding(
@@ -40,7 +43,9 @@ class ChatMessageList extends StatelessWidget {
               role: MessageRole.assistant,
               createdAt: DateTime.now(),
             ),
+            sessionId: state.currentSessionId,
             isStreaming: true,
+            streamingStatus: state.toolProgressLabel,
           ),
         );
       },

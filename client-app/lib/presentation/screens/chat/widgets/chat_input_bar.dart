@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
@@ -97,18 +96,6 @@ class ChatInputBarState extends State<ChatInputBar> {
         return;
       }
 
-      if (!AttachmentSettings.isBinaryDocument(file.name)) {
-        try {
-          utf8.decode(bytes);
-        } on FormatException {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Неподдерживаемый формат')),
-            );
-          }
-          return;
-        }
-      }
     }
 
     context.read<ChatBloc>().add(
@@ -224,18 +211,6 @@ class ChatInputBarState extends State<ChatInputBar> {
         );
       }
       return;
-    }
-    if (!AttachmentSettings.isBinaryDocument(file.name)) {
-      try {
-        utf8.decode(file.bytes!);
-      } on FormatException {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Неподдерживаемый формат')),
-          );
-        }
-        return;
-      }
     }
     setState(() => _selectedFile = file);
   }

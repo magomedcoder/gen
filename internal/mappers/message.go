@@ -19,21 +19,31 @@ func MessageToProto(msg *domain.Message) *chatpb.ChatMessage {
 		Role:      domain.ToProtoRole(msg.Role),
 		CreatedAt: msg.CreatedAt.Unix(),
 	}
+
 	if msg.AttachmentName != "" {
 		p.AttachmentName = &msg.AttachmentName
 	}
+
 	if msg.ToolCallID != "" {
 		v := msg.ToolCallID
 		p.ToolCallId = &v
 	}
+
 	if msg.ToolName != "" {
 		v := msg.ToolName
 		p.ToolName = &v
 	}
+
 	if msg.ToolCallsJSON != "" {
 		v := msg.ToolCallsJSON
 		p.ToolCallsJson = &v
 	}
+
+	if msg.AttachmentFileID != nil {
+		v := *msg.AttachmentFileID
+		p.AttachmentFileId = &v
+	}
+
 	return p
 }
 
@@ -68,6 +78,10 @@ func MessagesFromProto(pbMsgs []*chatpb.ChatMessage, sessionID int64) []*domain.
 		}
 		if m.ToolCallsJson != nil {
 			msg.ToolCallsJSON = strings.TrimSpace(*m.ToolCallsJson)
+		}
+		if m.AttachmentFileId != nil && *m.AttachmentFileId != 0 {
+			v := *m.AttachmentFileId
+			msg.AttachmentFileID = &v
 		}
 		out = append(out, msg)
 	}

@@ -1,8 +1,16 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
+import 'package:gen/core/docx_file_export.dart';
+import 'package:gen/core/injector.dart';
 import 'package:gen/core/layout/responsive.dart';
+import 'package:gen/core/session_file_id_scan.dart';
+import 'package:gen/core/spreadsheet_file_export.dart';
+import 'package:gen/core/user_file_save.dart';
 import 'package:gen/domain/entities/message.dart';
+import 'package:gen/domain/usecases/chat/get_session_file_usecase.dart';
 import 'package:gen/presentation/widgets/code_block_builder.dart';
 
 Color _messageBodyTextColor(ColorScheme cs) {
@@ -22,12 +30,16 @@ BorderRadius _bubbleRadius(bool isUser) {
 
 class ChatBubble extends StatefulWidget {
   final Message message;
+  final int? sessionId;
   final bool isStreaming;
+  final String? streamingStatus;
 
   const ChatBubble({
     super.key,
     required this.message,
+    this.sessionId,
     this.isStreaming = false,
+    this.streamingStatus,
   });
 
   @override
@@ -36,6 +48,59 @@ class ChatBubble extends StatefulWidget {
 
 class _ChatBubbleState extends State<ChatBubble> {
   bool _justCopied = false;
+  int? _downloadingFileId;
+
+  Future<void> _downloadSessionFile(int fileId) async {
+    final sessionId = widget.sessionId;
+    if (sessionId == null || fileId <= 0) {
+      return;
+    }
+    setState(() => _downloadingFileId = fileId);
+    try {
+      final dl = await sl<GetSessionFileUseCase>()(
+        sessionId: sessionId,
+        fileId: fileId,
+      );
+      final name = dl.filename;
+      final lower = name.toLowerCase();
+      var ok = false;
+      if (lower.endsWith('.xlsx')) {
+        ok = await saveSpreadsheetToFile(dl.content, name);
+      } else if (lower.endsWith('.csv') ||
+          lower.endsWith('.md') ||
+          lower.endsWith('.txt')) {
+        ok = await saveCsvToFile(
+          utf8.decode(dl.content, allowMalformed: true),
+          name,
+        );
+      } else if (lower.endsWith('.docx')) {
+        ok = await saveDocxToFile(dl.content, name);
+      } else {
+        ok = await saveUserPickedFile(dl.content, name);
+      }
+      if (!mounted) {
+        return;
+      }
+      if (ok) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(content: Text('Сохранено: $name')),
+        );
+      }
+    } on Object catch (e) {
+      if (!mounted) {
+        return;
+      }
+      final msg = e.toString();
+      final short = msg.length > 160 ? '${msg.substring(0, 160)}…' : msg;
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(content: Text('Не удалось скачать файл: $short')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _downloadingFileId = null);
+      }
+    }
+  }
 
   MarkdownStyleSheet _assistantMarkdownSheet(ThemeData theme) {
     final cs = theme.colorScheme;
@@ -102,6 +167,13 @@ class _ChatBubbleState extends State<ChatBubble> {
       : (Breakpoints.isTablet(context) ? 420.0 : 560.0);
     final semanticsRole = isUser ? 'Ваше сообщение' : 'Ответ ассистента';
     final hasCopyableText = message.content.trim().isNotEmpty;
+    final sessionFileIds = !isUser && !isStreaming && widget.sessionId != null
+        ? extractSessionFileIdsFromText(message.content)
+        : const <int>[];
+    final attachmentLabel = message.attachmentFileName ??
+        (message.attachmentFileId != null
+            ? 'Файл #${message.attachmentFileId}'
+            : null);
     final messageTextColor = _messageBodyTextColor(theme.colorScheme);
 
     return Semantics(
@@ -131,7 +203,7 @@ class _ChatBubbleState extends State<ChatBubble> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (message.attachmentFileName != null)
+                  if (attachmentLabel != null)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
                       child: Row(
@@ -145,7 +217,7 @@ class _ChatBubbleState extends State<ChatBubble> {
                           const SizedBox(width: 6),
                           Flexible(
                             child: Text(
-                              message.attachmentFileName!,
+                              attachmentLabel,
                               style: TextStyle(
                                 fontSize: 13,
                                 color: messageTextColor,
@@ -180,6 +252,20 @@ class _ChatBubbleState extends State<ChatBubble> {
                             ),
                           },
                         ),
+                  if (isStreaming && message.content.isEmpty &&
+                      (widget.streamingStatus?.trim().isNotEmpty ?? false))
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        widget.streamingStatus!.trim(),
+                        style: TextStyle(
+                          fontSize: 13,
+                          height: 1.35,
+                          color: messageTextColor.withValues(alpha: 0.85),
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
                   if (isStreaming)
                     Padding(
                       padding: const EdgeInsets.only(top: 6),
@@ -202,6 +288,70 @@ class _ChatBubbleState extends State<ChatBubble> {
                               height: 1.2,
                               color: messageTextColor.withValues(alpha: 0.75),
                             ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (sessionFileIds.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Файл можно скачать и открыть во внешней программе.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              height: 1.3,
+                              color: messageTextColor.withValues(alpha: 0.72),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 6,
+                            children: [
+                              for (final fid in sessionFileIds)
+                                Tooltip(
+                                  message:
+                                      'Скачать артефакт с сервера (в приложении превью нет)',
+                                  child: TextButton.icon(
+                                    onPressed: _downloadingFileId != null
+                                        ? null
+                                        : () => _downloadSessionFile(fid),
+                                    icon: _downloadingFileId == fid
+                                        ? SizedBox(
+                                            width: 16,
+                                            height: 16,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: messageTextColor.withValues(
+                                                alpha: 0.85,
+                                              ),
+                                            ),
+                                          )
+                                        : Icon(
+                                            Icons.download_rounded,
+                                            size: 18,
+                                            color: theme.colorScheme.primary,
+                                          ),
+                                    label: Text(
+                                      'Файл #$fid',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: theme.colorScheme.primary,
+                                      ),
+                                    ),
+                                    style: TextButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 6,
+                                      ),
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
                         ],
                       ),

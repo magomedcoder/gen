@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/magomedcoder/gen/api/pb/chatpb"
 	"github.com/magomedcoder/gen/api/pb/commonpb"
 	"github.com/magomedcoder/gen/internal/domain"
@@ -13,6 +14,7 @@ import (
 	"github.com/magomedcoder/gen/internal/usecase"
 	"github.com/magomedcoder/gen/pkg/document"
 	"github.com/magomedcoder/gen/pkg/logger"
+	"github.com/magomedcoder/gen/pkg/spreadsheet"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -57,8 +59,13 @@ func (c *ChatHandler) SendMessage(req *chatpb.SendMessageRequest, stream chatpb.
 		if m == nil || strings.TrimSpace(m.GetRole()) == "" {
 			return status.Error(codes.InvalidArgument, "у каждого сообщения должна быть задана role")
 		}
+
 		if m.AttachmentContent != nil && len(m.AttachmentContent) > 0 && len(req.Messages) > 1 {
 			return status.Error(codes.InvalidArgument, "вложения поддерживаются только при одном сообщении в запросе")
+		}
+
+		if m.GetAttachmentFileId() != 0 && len(req.Messages) > 1 {
+			return status.Error(codes.InvalidArgument, "attachment_file_id поддерживается только при одном сообщении в запросе")
 		}
 	}
 
@@ -69,8 +76,7 @@ func (c *ChatHandler) SendMessage(req *chatpb.SendMessageRequest, stream chatpb.
 		return status.Error(codes.InvalidArgument, "последнее сообщение должно быть role=user или role=tool")
 	}
 
-	var responseChan chan string
-	var messageId int64
+	var responseChan chan usecase.ChatStreamChunk
 	var sendErr error
 
 	useLegacySingleUser := len(req.Messages) == 1 && lastRole == "user"
@@ -85,7 +91,15 @@ func (c *ChatHandler) SendMessage(req *chatpb.SendMessageRequest, stream chatpb.
 		if lastMessage.AttachmentContent != nil {
 			attachmentContent = lastMessage.AttachmentContent
 		}
-		responseChan, messageId, sendErr = c.chatUseCase.SendMessage(ctx, userID, req.GetSessionId(), userMessage, attachmentName, attachmentContent)
+		if lastMessage.GetAttachmentFileId() != 0 && len(attachmentContent) > 0 {
+			return status.Error(codes.InvalidArgument, "нельзя одновременно передавать вложение и attachment_file_id")
+		}
+		var existingFileID *int64
+		if fid := lastMessage.GetAttachmentFileId(); fid != 0 {
+			v := fid
+			existingFileID = &v
+		}
+		responseChan, sendErr = c.chatUseCase.SendMessage(ctx, userID, req.GetSessionId(), userMessage, attachmentName, attachmentContent, existingFileID)
 	} else {
 		turns := mappers.MessagesFromProto(req.Messages, req.GetSessionId())
 		for _, t := range turns {
@@ -93,7 +107,7 @@ func (c *ChatHandler) SendMessage(req *chatpb.SendMessageRequest, stream chatpb.
 				t.Id = 0
 			}
 		}
-		responseChan, messageId, sendErr = c.chatUseCase.SendMessageMulti(ctx, userID, req.GetSessionId(), turns)
+		responseChan, sendErr = c.chatUseCase.SendMessageMulti(ctx, userID, req.GetSessionId(), turns)
 	}
 	if sendErr != nil {
 		logger.E("SendMessage: %v", sendErr)
@@ -101,7 +115,7 @@ func (c *ChatHandler) SendMessage(req *chatpb.SendMessageRequest, stream chatpb.
 			return mapped
 		}
 
-		if errors.Is(sendErr, document.ErrUnsupportedAttachmentType) || errors.Is(sendErr, document.ErrInvalidTextEncoding) {
+		if errors.Is(sendErr, document.ErrUnsupportedAttachmentType) || errors.Is(sendErr, document.ErrInvalidTextEncoding) || errors.Is(sendErr, document.ErrTextExtractionFailed) {
 			return status.Error(codes.InvalidArgument, sendErr.Error())
 		}
 
@@ -111,29 +125,52 @@ func (c *ChatHandler) SendMessage(req *chatpb.SendMessageRequest, stream chatpb.
 
 		return ToStatusError(codes.Internal, sendErr)
 	}
-	logger.V("SendMessage: стрим ответа запущен messageId=%d", messageId)
+	logger.V("SendMessage: стрим ответа запущен")
 
 	createdAt := time.Now().Unix()
+	var lastMsgID int64
 
 	for chunk := range responseChan {
-		err := stream.Send(&chatpb.ChatResponse{
-			Id:        messageId,
-			Content:   chunk,
+		if chunk.Kind == usecase.StreamChunkKindText && chunk.MessageID != 0 {
+			lastMsgID = chunk.MessageID
+		}
+
+		respID := chunk.MessageID
+		if respID == 0 {
+			respID = lastMsgID
+		}
+
+		pbKind := chatpb.StreamChunkKind_STREAM_CHUNK_KIND_TEXT
+		if chunk.Kind == usecase.StreamChunkKindToolStatus {
+			pbKind = chatpb.StreamChunkKind_STREAM_CHUNK_KIND_TOOL_STATUS
+		}
+
+		resp := &chatpb.ChatResponse{
+			Id:        respID,
+			Content:   chunk.Text,
 			Role:      "assistant",
 			CreatedAt: createdAt,
 			Done:      false,
-		})
-		if err != nil {
+			ChunkKind: pbKind,
+		}
+
+		if chunk.ToolName != "" {
+			tn := chunk.ToolName
+			resp.ToolName = &tn
+		}
+
+		if err := stream.Send(resp); err != nil {
 			return err
 		}
 	}
 
 	return stream.Send(&chatpb.ChatResponse{
-		Id:        messageId,
+		Id:        lastMsgID,
 		Content:   "",
 		Role:      "assistant",
 		CreatedAt: createdAt,
 		Done:      true,
+		ChunkKind: chatpb.StreamChunkKind_STREAM_CHUNK_KIND_TEXT,
 	})
 }
 
@@ -431,4 +468,177 @@ func (c *ChatHandler) EmbedBatch(ctx context.Context, req *chatpb.EmbedBatchRequ
 		out.Embeddings = append(out.Embeddings, &chatpb.Embedding{Values: row})
 	}
 	return out, nil
+}
+
+func (c *ChatHandler) PutSessionFile(ctx context.Context, req *chatpb.PutSessionFileRequest) (*chatpb.PutSessionFileResponse, error) {
+	userID, err := c.getUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "пустой запрос")
+	}
+
+	if req.GetSessionId() <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "некорректный session_id")
+	}
+
+	id, err := c.chatUseCase.PutSessionFile(ctx, userID, req.GetSessionId(), req.GetFilename(), req.GetContent(), req.GetTtlSeconds())
+	if err != nil {
+		if errors.Is(err, domain.ErrUnauthorized) {
+			return nil, status.Error(codes.PermissionDenied, "нет доступа к сессии")
+		}
+
+		if mapped := statusForModelResolutionError(err); mapped != nil {
+			return nil, mapped
+		}
+
+		if errors.Is(err, document.ErrUnsupportedAttachmentType) || errors.Is(err, document.ErrInvalidTextEncoding) {
+			return nil, status.Error(codes.InvalidArgument, err.Error())
+		}
+		msg := err.Error()
+		switch {
+		case strings.Contains(msg, "не настроено"),
+			strings.Contains(msg, "пустой файл"),
+			strings.Contains(msg, "превышает"),
+			strings.Contains(msg, "некорректное имя"),
+			strings.Contains(msg, "квота"),
+			strings.Contains(msg, "слишком много"):
+			return nil, status.Error(codes.InvalidArgument, msg)
+		default:
+			return nil, ToStatusError(codes.Internal, err)
+		}
+	}
+
+	return &chatpb.PutSessionFileResponse{FileId: id}, nil
+}
+
+func (c *ChatHandler) GetSessionFile(ctx context.Context, req *chatpb.GetSessionFileRequest) (*chatpb.GetSessionFileResponse, error) {
+	userID, err := c.getUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "пустой запрос")
+	}
+
+	if req.GetSessionId() <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "некорректный session_id")
+	}
+
+	if req.GetFileId() <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "некорректный file_id")
+	}
+
+	name, data, err := c.chatUseCase.GetSessionFile(ctx, userID, req.GetSessionId(), req.GetFileId())
+	if err != nil {
+		if errors.Is(err, domain.ErrUnauthorized) {
+			return nil, status.Error(codes.PermissionDenied, "нет доступа к сессии")
+		}
+
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, status.Error(codes.NotFound, "файл не найден")
+		}
+
+		msg := err.Error()
+		switch {
+		case strings.Contains(msg, "не найден"):
+			return nil, status.Error(codes.NotFound, msg)
+		case strings.Contains(msg, "не относится"),
+			strings.Contains(msg, "не принадлежит"),
+			strings.Contains(msg, "истёк"),
+			strings.Contains(msg, "неверный путь"),
+			strings.Contains(msg, "пустой storage_path"):
+			return nil, status.Error(codes.PermissionDenied, msg)
+		case strings.Contains(msg, "не настроено"),
+			strings.Contains(msg, "превышает"),
+			strings.Contains(msg, "некорректный file_id"):
+			return nil, status.Error(codes.InvalidArgument, msg)
+		case errors.Is(err, document.ErrUnsupportedAttachmentType) || errors.Is(err, document.ErrInvalidTextEncoding):
+			return nil, status.Error(codes.InvalidArgument, err.Error())
+		default:
+			return nil, ToStatusError(codes.Internal, err)
+		}
+	}
+
+	return &chatpb.GetSessionFileResponse{Filename: name, Content: data}, nil
+}
+
+func (c *ChatHandler) ApplySpreadsheet(ctx context.Context, req *chatpb.SpreadsheetApplyRequest) (*chatpb.SpreadsheetApplyResponse, error) {
+	_, err := c.getUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "пустой запрос")
+	}
+
+	out, preview, exportedCSV, err := c.chatUseCase.ApplySpreadsheet(
+		ctx,
+		req.GetWorkbookXlsx(),
+		req.GetOperationsJson(),
+		req.GetPreviewSheet(),
+		req.GetPreviewRange(),
+	)
+
+	if err != nil {
+		if errors.Is(err, spreadsheet.ErrInvalidOp) || errors.Is(err, spreadsheet.ErrWorkbookTooLarge) {
+			return nil, status.Error(codes.InvalidArgument, err.Error())
+		}
+
+		return nil, ToStatusError(codes.Internal, err)
+	}
+
+	return &chatpb.SpreadsheetApplyResponse{
+		WorkbookXlsx: out,
+		PreviewTsv:   preview,
+		ExportedCsv:  exportedCSV,
+	}, nil
+}
+
+func (c *ChatHandler) BuildDocx(ctx context.Context, req *chatpb.DocxBuildRequest) (*chatpb.DocxBuildResponse, error) {
+	_, err := c.getUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "пустой запрос")
+	}
+
+	out, err := c.chatUseCase.BuildDocx(ctx, req.GetSpecJson())
+	if err != nil {
+		if errors.Is(err, document.ErrDocxBuildInvalidSpec) || errors.Is(err, document.ErrDocxBuildTooLarge) {
+			return nil, status.Error(codes.InvalidArgument, err.Error())
+		}
+
+		return nil, ToStatusError(codes.Internal, err)
+	}
+
+	return &chatpb.DocxBuildResponse{Docx: out}, nil
+}
+
+func (c *ChatHandler) ApplyMarkdownPatch(ctx context.Context, req *chatpb.MarkdownPatchRequest) (*chatpb.MarkdownPatchResponse, error) {
+	_, err := c.getUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "пустой запрос")
+	}
+
+	out, err := c.chatUseCase.ApplyMarkdownPatch(ctx, req.GetBaseText(), req.GetPatchJson())
+	if err != nil {
+		if errors.Is(err, document.ErrMdPatchInvalidSpec) || errors.Is(err, document.ErrMdPatchAmbiguousSubstr) {
+			return nil, status.Error(codes.InvalidArgument, err.Error())
+		}
+
+		return nil, ToStatusError(codes.Internal, err)
+	}
+
+	return &chatpb.MarkdownPatchResponse{Text: out}, nil
 }

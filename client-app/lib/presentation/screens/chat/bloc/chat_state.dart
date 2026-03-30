@@ -4,6 +4,7 @@ import 'package:gen/domain/entities/message.dart';
 import 'package:gen/domain/entities/session.dart';
 
 const _kKeepCurrentSessionId = Symbol('_kKeepCurrentSessionId');
+const _kKeepToolProgress = Object();
 
 class ChatState extends Equatable {
   final bool isConnected;
@@ -13,6 +14,7 @@ class ChatState extends Equatable {
   final List<ChatSession> sessions;
   final List<Message> messages;
   final String? currentStreamingText;
+  final String? toolProgressLabel;
   final String? error;
   final List<String> runners;
   final Map<String, String> runnerNames;
@@ -23,6 +25,7 @@ class ChatState extends Equatable {
   final String? retryText;
   final String? retryAttachmentFileName;
   final List<int>? retryAttachmentContent;
+  final int? retryAttachmentFileId;
 
   const ChatState({
     this.isConnected = false,
@@ -32,6 +35,7 @@ class ChatState extends Equatable {
     this.sessions = const [],
     this.messages = const [],
     this.currentStreamingText,
+    this.toolProgressLabel,
     this.error,
     this.runners = const [],
     this.runnerNames = const {},
@@ -42,6 +46,7 @@ class ChatState extends Equatable {
     this.retryText,
     this.retryAttachmentFileName,
     this.retryAttachmentContent,
+    this.retryAttachmentFileId,
   });
 
   ChatState copyWith({
@@ -52,6 +57,7 @@ class ChatState extends Equatable {
     List<ChatSession>? sessions,
     List<Message>? messages,
     String? currentStreamingText,
+    Object? toolProgressLabel = _kKeepToolProgress,
     String? error,
     List<String>? runners,
     Map<String, String>? runnerNames,
@@ -62,7 +68,9 @@ class ChatState extends Equatable {
     String? retryText,
     String? retryAttachmentFileName,
     List<int>? retryAttachmentContent,
+    int? retryAttachmentFileId,
     bool clearRetryPayload = false,
+    bool clearToolProgress = false,
   }) {
     return ChatState(
       isConnected: isConnected ?? this.isConnected,
@@ -74,6 +82,11 @@ class ChatState extends Equatable {
       sessions: sessions ?? this.sessions,
       messages: messages ?? this.messages,
       currentStreamingText: currentStreamingText,
+      toolProgressLabel: clearToolProgress
+          ? null
+          : (identical(toolProgressLabel, _kKeepToolProgress)
+              ? this.toolProgressLabel
+              : toolProgressLabel as String?),
       error: error,
       runners: runners ?? this.runners,
       runnerNames: runnerNames ?? this.runnerNames,
@@ -88,6 +101,9 @@ class ChatState extends Equatable {
       retryAttachmentContent: clearRetryPayload
         ? null
         : (retryAttachmentContent ?? this.retryAttachmentContent),
+      retryAttachmentFileId: clearRetryPayload
+        ? null
+        : (retryAttachmentFileId ?? this.retryAttachmentFileId),
     );
   }
 
@@ -100,6 +116,7 @@ class ChatState extends Equatable {
     sessions,
     messages,
     currentStreamingText,
+    toolProgressLabel,
     error,
     runners,
     runnerNames,
@@ -110,5 +127,6 @@ class ChatState extends Equatable {
     retryText,
     retryAttachmentFileName,
     retryAttachmentContent,
+    retryAttachmentFileId,
   ];
 }

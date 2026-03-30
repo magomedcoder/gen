@@ -1,13 +1,17 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:gen/domain/entities/chat_session_settings.dart';
+import 'package:gen/domain/entities/chat_stream_chunk.dart';
+import 'package:gen/domain/entities/spreadsheet_apply_result.dart';
 import 'package:gen/domain/entities/message.dart';
 import 'package:gen/domain/entities/session.dart';
+import 'package:gen/domain/entities/session_file_download.dart';
 
 abstract interface class ChatRepository {
   Future<bool> checkConnection();
 
-  Stream<String> sendMessage(
+  Stream<ChatStreamChunk> sendMessage(
     int sessionId,
     List<Message> messages,
   );
@@ -47,4 +51,30 @@ abstract interface class ChatRepository {
   Future<void> setSelectedRunner(String? runner);
   Future<String?> getDefaultRunnerModel(String runner);
   Future<void> setDefaultRunnerModel(String runner, String? model);
+
+  Future<int> putSessionFile({
+    required int sessionId,
+    required String filename,
+    required List<int> content,
+    int ttlSeconds = 0,
+  });
+
+  Future<SessionFileDownload> getSessionFile({
+    required int sessionId,
+    required int fileId,
+  });
+
+  Future<SpreadsheetApplyResult> applySpreadsheet({
+    List<int>? workbookXlsx,
+    required String operationsJson,
+    String previewSheet,
+    String previewRange,
+  });
+
+  Future<Uint8List> buildDocx({required String specJson});
+
+  Future<String> applyMarkdownPatch({
+    required String baseText,
+    required String patchJson,
+  });
 }

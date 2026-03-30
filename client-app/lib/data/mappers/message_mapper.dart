@@ -38,6 +38,7 @@ abstract class MessageMapper {
       createdAt: _dateTimeFromUnixSeconds(proto.createdAt.toInt()),
       attachmentFileName: proto.hasAttachmentName() ? proto.attachmentName : null,
       attachmentContent: proto.attachmentContent.isNotEmpty ? Uint8List.fromList(proto.attachmentContent) : null,
+      attachmentFileId: proto.hasAttachmentFileId() ? proto.attachmentFileId.toInt() : null,
     );
   }
 
@@ -53,6 +54,11 @@ abstract class MessageMapper {
 
     if (entity.attachmentContent != null && entity.attachmentContent!.isNotEmpty) {
       p.attachmentContent = entity.attachmentContent!;
+    }
+
+    final fid = entity.attachmentFileId;
+    if (fid != null && fid > 0) {
+      p.attachmentFileId = Int64(fid);
     }
 
     return p;

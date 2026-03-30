@@ -13,7 +13,25 @@ import (
 	"github.com/magomedcoder/gen/internal/domain"
 	"github.com/magomedcoder/gen/pkg/document"
 	"github.com/magomedcoder/gen/pkg/logger"
+	"github.com/magomedcoder/gen/pkg/spreadsheet"
 )
+
+const defaultResponseLanguagePrompt = "Язык ответа: отвечай на том же языке, что и последнее сообщение пользователя в этом запросе. " +
+	"Если язык нельзя определить (например, только код, числа или нейтральные символы), отвечай по-русски."
+
+func chatSessionSystemMessage(sessionID int64, settings *domain.ChatSessionSettings) *domain.Message {
+	var extra string
+	if settings != nil {
+		extra = strings.TrimSpace(settings.SystemPrompt)
+	}
+
+	text := defaultResponseLanguagePrompt
+	if extra != "" {
+		text = defaultResponseLanguagePrompt + "\n\n" + extra
+	}
+
+	return domain.NewMessage(sessionID, text, domain.MessageRoleSystem)
+}
 
 type ChatUseCase struct {
 	sessionRepo         domain.ChatSessionRepository
@@ -140,67 +158,79 @@ func genParamsFromSessionSettings(settings *domain.ChatSessionSettings) (stopSeq
 	return stopSequences, timeoutSeconds, genParams
 }
 
-func (c *ChatUseCase) SendMessage(ctx context.Context, userId int, sessionId int64, userMessage string, attachmentName string, attachmentContent []byte) (chan string, int64, error) {
+func (c *ChatUseCase) SendMessage(ctx context.Context, userId int, sessionId int64, userMessage string, attachmentName string, attachmentContent []byte, existingAttachmentFileID *int64) (chan ChatStreamChunk, error) {
 	logger.D("SendMessage: session=%d user=%d", sessionId, userId)
 	session, err := c.verifySessionOwnership(ctx, userId, sessionId)
 	if err != nil {
 		logger.W("SendMessage: сессия не принадлежит пользователю: %v", err)
-		return nil, 0, err
+		return nil, err
 	}
 
 	resolvedModel, err := resolveModelForUser(ctx, c.llmRepo, c.preferenceRepo, userId, "", session.Model, c.defaultRunnerAddr)
 	if err != nil {
 		logger.W("SendMessage: выбор модели: %v", err)
-		return nil, 0, err
+		return nil, err
 	}
 
 	rawMessages, _, err := c.messageRepo.GetBySessionId(ctx, sessionId, 1, 100)
 	if err != nil {
 		logger.E("SendMessage: получение сообщений: %v", err)
-		return nil, 0, err
+		return nil, err
 	}
 	messages := filterHistoryForLLM(rawMessages)
 
-	if len(attachmentContent) > 0 || attachmentName != "" {
-		if len(attachmentContent) == 0 || strings.TrimSpace(attachmentName) == "" {
-			return nil, 0, fmt.Errorf("вложение передано некорректно")
-		}
-
-		if len(attachmentContent) > document.MaxRecommendedAttachmentSizeBytes {
-			return nil, 0, fmt.Errorf("размер вложения превышает рекомендуемый максимум: %d байт", document.MaxRecommendedAttachmentSizeBytes)
-		}
-
-		if document.IsImageAttachment(attachmentName) {
-			if err := document.ValidateImageAttachment(attachmentName, attachmentContent); err != nil {
-				return nil, 0, err
-			}
-		} else if err := document.ValidateAttachment(attachmentName, attachmentContent); err != nil {
-			return nil, 0, err
-		}
-	}
-
 	var attachmentFileID *int64
-	if len(attachmentContent) > 0 && attachmentName != "" && c.attachmentsSaveDir != "" {
-		file, err := c.saveAttachmentAndCreateFile(ctx, sessionId, attachmentName, attachmentContent)
-		if err == nil {
-			v := file.Id
-			attachmentFileID = &v
-		} else {
-			logger.W("ChatUseCase: вложение: %v", err)
+
+	if existingAttachmentFileID != nil && *existingAttachmentFileID > 0 {
+		if len(attachmentContent) > 0 {
+			return nil, fmt.Errorf("нельзя одновременно передавать вложение и attachment_file_id")
+		}
+		name, content, err := c.loadSessionAttachmentForSend(ctx, userId, sessionId, *existingAttachmentFileID)
+		if err != nil {
+			return nil, err
+		}
+		attachmentName = name
+		attachmentContent = content
+		attachmentFileID = existingAttachmentFileID
+	} else {
+		if len(attachmentContent) > 0 || attachmentName != "" {
+			if len(attachmentContent) == 0 || strings.TrimSpace(attachmentName) == "" {
+				return nil, fmt.Errorf("вложение передано некорректно")
+			}
+
+			if len(attachmentContent) > document.MaxRecommendedAttachmentSizeBytes {
+				return nil, fmt.Errorf("размер вложения превышает рекомендуемый максимум: %d байт", document.MaxRecommendedAttachmentSizeBytes)
+			}
+
+			if document.IsImageAttachment(attachmentName) {
+				if err := document.ValidateImageAttachment(attachmentName, attachmentContent); err != nil {
+					return nil, err
+				}
+			} else if err := document.ValidateAttachment(attachmentName, attachmentContent); err != nil {
+				return nil, err
+			}
+		}
+
+		if len(attachmentContent) > 0 && attachmentName != "" && c.attachmentsSaveDir != "" {
+			file, err := c.saveAttachmentAndCreateFile(ctx, userId, sessionId, attachmentName, attachmentContent)
+			if err == nil {
+				v := file.Id
+				attachmentFileID = &v
+			} else {
+				logger.W("ChatUseCase: вложение: %v", err)
+			}
 		}
 	}
 
 	userMsg := domain.NewMessageWithAttachment(sessionId, userMessage, domain.MessageRoleUser, attachmentFileID)
 	if err := c.messageRepo.Create(ctx, userMsg); err != nil {
 		logger.E("SendMessage: создание сообщения: %v", err)
-		return nil, 0, err
+		return nil, err
 	}
 
 	settings, _ := c.sessionSettingsRepo.GetBySessionID(ctx, sessionId)
 	messagesForLLM := make([]*domain.Message, 0, len(messages)+2)
-	if settings != nil && strings.TrimSpace(settings.SystemPrompt) != "" {
-		messagesForLLM = append(messagesForLLM, domain.NewMessage(sessionId, settings.SystemPrompt, domain.MessageRoleSystem))
-	}
+	messagesForLLM = append(messagesForLLM, chatSessionSystemMessage(sessionId, settings))
 	messagesForLLM = append(messagesForLLM, messages...)
 	if len(attachmentContent) > 0 && attachmentName != "" {
 		userMsgForLLM := *userMsg
@@ -209,36 +239,44 @@ func (c *ChatUseCase) SendMessage(ctx context.Context, userId int, sessionId int
 			userMsgForLLM.AttachmentName = attachmentName
 			userMsgForLLM.AttachmentContent = attachmentContent
 		} else {
-			userMsgForLLM.Content = buildMessageWithFile(attachmentName, attachmentContent, userMessage)
+			built, err := buildMessageWithFile(attachmentName, attachmentContent, userMessage)
+			if err != nil {
+				return nil, err
+			}
+			userMsgForLLM.Content = built
 		}
 		messagesForLLM = append(messagesForLLM, &userMsgForLLM)
 	} else {
 		messagesForLLM = append(messagesForLLM, userMsg)
 	}
 
+	stopSequences, timeoutSeconds, genParams := genParamsFromSessionSettings(settings)
+
+	if err := c.hydrateAttachmentsForRunner(ctx, messagesForLLM); err != nil {
+		logger.E("SendMessage: подгрузка вложений для раннера: %v", err)
+		return nil, err
+	}
+
+	if genParams != nil && len(genParams.Tools) > 0 {
+		return c.sendMessageWithToolLoop(ctx, userId, sessionId, resolvedModel, messagesForLLM, stopSequences, timeoutSeconds, genParams)
+	}
+
 	assistantMsg := domain.NewMessage(sessionId, "", domain.MessageRoleAssistant)
 	if err := c.messageRepo.Create(ctx, assistantMsg); err != nil {
 		logger.E("SendMessage: создание черновика ответа: %v", err)
-		return nil, 0, err
+		return nil, err
 	}
 	messageID := assistantMsg.Id
-
-	stopSequences, timeoutSeconds, genParams := genParamsFromSessionSettings(settings)
-
-	if err := c.hydrateImageAttachmentsForRunner(ctx, messagesForLLM); err != nil {
-		logger.E("SendMessage: подгрузка вложений для раннера: %v", err)
-		return nil, 0, err
-	}
 
 	responseChan, err := c.llmRepo.SendMessage(ctx, sessionId, resolvedModel, messagesForLLM, stopSequences, timeoutSeconds, genParams)
 	if err != nil {
 		logger.E("SendMessage: вызов LLM: %v", err)
-		return nil, 0, err
+		return nil, err
 	}
 	logger.V("SendMessage: стрим от LLM запущен session=%d", sessionId)
 
 	var fullResponse strings.Builder
-	clientChan := make(chan string, 100)
+	clientChan := make(chan ChatStreamChunk, 100)
 	go func() {
 		defer func() {
 			_ = c.messageRepo.UpdateContent(context.Background(), messageID, fullResponse.String())
@@ -250,24 +288,24 @@ func (c *ChatUseCase) SendMessage(ctx context.Context, userId int, sessionId int
 			select {
 			case <-ctx.Done():
 				return
-			case clientChan <- chunk:
+			case clientChan <- ChatStreamChunk{Kind: StreamChunkKindText, Text: chunk, MessageID: messageID}:
 			}
 		}
 	}()
 
-	return clientChan, messageID, nil
+	return clientChan, nil
 }
 
-func (c *ChatUseCase) SendMessageMulti(ctx context.Context, userId int, sessionId int64, turns []*domain.Message) (chan string, int64, error) {
+func (c *ChatUseCase) SendMessageMulti(ctx context.Context, userId int, sessionId int64, turns []*domain.Message) (chan ChatStreamChunk, error) {
 	logger.D("SendMessageMulti: session=%d user=%d turns=%d", sessionId, userId, len(turns))
 	session, err := c.verifySessionOwnership(ctx, userId, sessionId)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
 	resolvedModel, err := resolveModelForUser(ctx, c.llmRepo, c.preferenceRepo, userId, "", session.Model, c.defaultRunnerAddr)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
 	now := time.Now()
@@ -286,45 +324,43 @@ func (c *ChatUseCase) SendMessageMulti(ctx context.Context, userId int, sessionI
 
 		if err := c.messageRepo.Create(ctx, &row); err != nil {
 			logger.E("SendMessageMulti: создание сообщения: %v", err)
-			return nil, 0, err
+			return nil, err
 		}
 	}
 
 	rawMessages, _, err := c.messageRepo.GetBySessionId(ctx, sessionId, 1, 200)
 	if err != nil {
 		logger.E("SendMessageMulti: получение сообщений: %v", err)
-		return nil, 0, err
+		return nil, err
 	}
 	messages := filterHistoryForLLM(rawMessages)
 
 	settings, _ := c.sessionSettingsRepo.GetBySessionID(ctx, sessionId)
 	messagesForLLM := make([]*domain.Message, 0, len(messages)+1)
-	if settings != nil && strings.TrimSpace(settings.SystemPrompt) != "" {
-		messagesForLLM = append(messagesForLLM, domain.NewMessage(sessionId, settings.SystemPrompt, domain.MessageRoleSystem))
-	}
+	messagesForLLM = append(messagesForLLM, chatSessionSystemMessage(sessionId, settings))
 	messagesForLLM = append(messagesForLLM, messages...)
 
 	assistantMsg := domain.NewMessage(sessionId, "", domain.MessageRoleAssistant)
 	if err := c.messageRepo.Create(ctx, assistantMsg); err != nil {
 		logger.E("SendMessageMulti: черновик ответа: %v", err)
-		return nil, 0, err
+		return nil, err
 	}
 	messageID := assistantMsg.Id
 
 	stopSequences, timeoutSeconds, genParams := genParamsFromSessionSettings(settings)
 
-	if err := c.hydrateImageAttachmentsForRunner(ctx, messagesForLLM); err != nil {
+	if err := c.hydrateAttachmentsForRunner(ctx, messagesForLLM); err != nil {
 		logger.E("SendMessageMulti: подгрузка вложений для раннера: %v", err)
-		return nil, 0, err
+		return nil, err
 	}
 
 	responseChan, err := c.llmRepo.SendMessage(ctx, sessionId, resolvedModel, messagesForLLM, stopSequences, timeoutSeconds, genParams)
 	if err != nil {
 		logger.E("SendMessageMulti: вызов LLM: %v", err)
-		return nil, 0, err
+		return nil, err
 	}
 
-	clientChan := make(chan string, 100)
+	clientChan := make(chan ChatStreamChunk, 100)
 	var fullResponse strings.Builder
 	go func() {
 		defer func() {
@@ -337,12 +373,12 @@ func (c *ChatUseCase) SendMessageMulti(ctx context.Context, userId int, sessionI
 			select {
 			case <-ctx.Done():
 				return
-			case clientChan <- chunk:
+			case clientChan <- ChatStreamChunk{Kind: StreamChunkKindText, Text: chunk, MessageID: messageID}:
 			}
 		}
 	}()
 
-	return clientChan, messageID, nil
+	return clientChan, nil
 }
 
 func (c *ChatUseCase) GetSessionSettings(ctx context.Context, userId int, sessionID int64) (*domain.ChatSessionSettings, error) {
@@ -464,7 +500,7 @@ func (c *ChatUseCase) UpdateSessionTitle(ctx context.Context, userId int, sessio
 	return session, nil
 }
 
-func (c *ChatUseCase) hydrateImageAttachmentsForRunner(ctx context.Context, messages []*domain.Message) error {
+func (c *ChatUseCase) hydrateAttachmentsForRunner(ctx context.Context, messages []*domain.Message) error {
 	if len(messages) == 0 {
 		return nil
 	}
@@ -478,13 +514,8 @@ func (c *ChatUseCase) hydrateImageAttachmentsForRunner(ctx context.Context, mess
 			continue
 		}
 
-		name := strings.TrimSpace(m.AttachmentName)
-		if name == "" || !document.IsImageAttachment(name) {
-			continue
-		}
-
 		if strings.TrimSpace(c.attachmentsSaveDir) == "" {
-			return fmt.Errorf("изображение в истории чата (file_id=%d): не задан каталог вложений", *m.AttachmentFileID)
+			return fmt.Errorf("вложение в истории чата (file_id=%d): не задан каталог вложений", *m.AttachmentFileID)
 		}
 
 		f, err := c.fileRepo.GetById(ctx, *m.AttachmentFileID)
@@ -494,6 +525,10 @@ func (c *ChatUseCase) hydrateImageAttachmentsForRunner(ctx context.Context, mess
 
 		if f == nil {
 			return fmt.Errorf("файл вложения id=%d не найден", *m.AttachmentFileID)
+		}
+
+		if f.ExpiresAt != nil && time.Now().After(*f.ExpiresAt) {
+			return fmt.Errorf("файл вложения id=%d: истёк срок хранения", *m.AttachmentFileID)
 		}
 
 		path := strings.TrimSpace(f.StoragePath)
@@ -516,14 +551,94 @@ func (c *ChatUseCase) hydrateImageAttachmentsForRunner(ctx context.Context, mess
 			return fmt.Errorf("вложение %q превышает лимит %d байт", path, document.MaxRecommendedAttachmentSizeBytes)
 		}
 
-		if err := document.ValidateImageAttachment(name, data); err != nil {
+		name := strings.TrimSpace(m.AttachmentName)
+		if name == "" {
+			name = filepath.Base(f.Filename)
+		}
+
+		if document.IsImageAttachment(name) {
+			if err := document.ValidateImageAttachment(name, data); err != nil {
+				return err
+			}
+			m.AttachmentContent = data
+			continue
+		}
+
+		if err := document.ValidateAttachment(name, data); err != nil {
 			return err
 		}
 
-		m.AttachmentContent = data
+		built, err := buildMessageWithFile(name, data, m.Content)
+		if err != nil {
+			return err
+		}
+
+		m.Content = built
 	}
 
 	return nil
+}
+
+func (c *ChatUseCase) loadSessionAttachmentForSend(ctx context.Context, userID int, sessionID int64, fileID int64) (name string, content []byte, err error) {
+	if strings.TrimSpace(c.attachmentsSaveDir) == "" {
+		return "", nil, fmt.Errorf("хранилище вложений не настроено")
+	}
+
+	f, err := c.fileRepo.GetById(ctx, fileID)
+	if err != nil {
+		return "", nil, fmt.Errorf("файл id=%d: %w", fileID, err)
+	}
+
+	if f == nil {
+		return "", nil, fmt.Errorf("файл id=%d не найден", fileID)
+	}
+
+	if f.ChatSessionID == nil || *f.ChatSessionID != sessionID {
+		return "", nil, fmt.Errorf("файл не относится к этой сессии")
+	}
+
+	if f.UserID == nil || *f.UserID != userID {
+		return "", nil, fmt.Errorf("файл не принадлежит пользователю")
+	}
+
+	if f.ExpiresAt != nil && time.Now().After(*f.ExpiresAt) {
+		return "", nil, fmt.Errorf("срок действия файла истёк")
+	}
+
+	path := strings.TrimSpace(f.StoragePath)
+	if path == "" {
+		return "", nil, fmt.Errorf("файл id=%d: пустой storage_path", fileID)
+	}
+
+	expectedDir := filepath.Clean(filepath.Join(c.attachmentsSaveDir, strconv.FormatInt(sessionID, 10)))
+	cleanPath := filepath.Clean(path)
+	if !strings.HasPrefix(cleanPath, expectedDir+string(filepath.Separator)) && cleanPath != expectedDir {
+		return "", nil, fmt.Errorf("файл id=%d: неверный путь хранения", fileID)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", nil, fmt.Errorf("чтение файла: %w", err)
+	}
+
+	if len(data) > document.MaxRecommendedAttachmentSizeBytes {
+		return "", nil, fmt.Errorf("размер вложения превышает рекомендуемый максимум: %d байт", document.MaxRecommendedAttachmentSizeBytes)
+	}
+
+	baseName := filepath.Base(f.Filename)
+	if baseName == "" || baseName == "." {
+		baseName = "file"
+	}
+
+	if document.IsImageAttachment(baseName) {
+		if err := document.ValidateImageAttachment(baseName, data); err != nil {
+			return "", nil, err
+		}
+	} else if err := document.ValidateAttachment(baseName, data); err != nil {
+		return "", nil, err
+	}
+
+	return baseName, data, nil
 }
 
 func filterHistoryForLLM(messages []*domain.Message) []*domain.Message {
@@ -547,29 +662,139 @@ func filterHistoryForLLM(messages []*domain.Message) []*domain.Message {
 	return out
 }
 
-func buildMessageWithFile(attachmentName string, attachmentContent []byte, userMessage string) string {
+const documentAttachmentInstruction = "Ниже - текст вложенного документа. Отвечай, опираясь на него; при необходимости приводи короткие цитаты."
+const documentTruncatedNotice = "Внимание: из-за ограничения длины контекста показана только начальная часть файла."
+
+func buildMessageWithFile(attachmentName string, attachmentContent []byte, userMessage string) (string, error) {
 	fileContent, err := document.ExtractText(attachmentName, attachmentContent)
 	if err != nil {
-		logger.W("ChatUseCase: извлечение текста из вложения %q: %v, используем сырое содержимое", attachmentName, err)
-		fileContent = string(attachmentContent)
+		logger.W("ChatUseCase: извлечение текста из вложения %q: %v", attachmentName, err)
+		return "", fmt.Errorf("%w: %v", document.ErrTextExtractionFailed, err)
 	}
-	s := fmt.Sprintf("Файл «%s»:\n\n```\n%s\n```", attachmentName, fileContent)
+	fileContent, truncated := document.TruncateExtractedText(fileContent, document.MaxEmbeddedAttachmentTextRunes)
+
+	var b strings.Builder
+	b.WriteString(documentAttachmentInstruction)
+	b.WriteString("\n\n")
+	if truncated {
+		b.WriteString(documentTruncatedNotice)
+		b.WriteString("\n\n")
+	}
+
+	b.WriteString(fmt.Sprintf("Файл «%s»:\n\n```\n%s\n```", attachmentName, fileContent))
 	if userMessage != "" {
-		s += "\n\n---\n\n" + userMessage
+		b.WriteString("\n\n---\n\n")
+		b.WriteString(userMessage)
 	}
-	return s
+
+	return b.String(), nil
 }
 
-func (c *ChatUseCase) saveAttachmentAndCreateFile(ctx context.Context, sessionId int64, attachmentName string, content []byte) (*domain.File, error) {
+func (c *ChatUseCase) PutSessionFile(ctx context.Context, userID int, sessionID int64, filename string, content []byte, ttlSeconds int32) (int64, error) {
+	if strings.TrimSpace(c.attachmentsSaveDir) == "" {
+		return 0, fmt.Errorf("хранилище вложений не настроено")
+	}
+
+	if len(content) == 0 {
+		return 0, fmt.Errorf("пустой файл")
+	}
+
+	if len(content) > document.MaxRecommendedAttachmentSizeBytes {
+		return 0, fmt.Errorf("размер файла превышает рекомендуемый максимум: %d байт", document.MaxRecommendedAttachmentSizeBytes)
+	}
+
+	filename = strings.TrimSpace(filename)
+	baseName := filepath.Base(filename)
+	if baseName == "" || baseName == "." {
+		return 0, fmt.Errorf("некорректное имя файла")
+	}
+
+	if document.IsImageAttachment(baseName) {
+		if err := document.ValidateImageAttachment(baseName, content); err != nil {
+			return 0, err
+		}
+	} else if err := document.ValidateAttachment(baseName, content); err != nil {
+		return 0, err
+	}
+
+	if _, err := c.verifySessionOwnership(ctx, userID, sessionID); err != nil {
+		return 0, err
+	}
+
+	ttl := int64(ttlSeconds)
+	if ttl <= 0 {
+		ttl = sessionArtifactDefaultTTL
+	}
+
+	if ttl < sessionArtifactMinTTL {
+		ttl = sessionArtifactMinTTL
+	}
+
+	if ttl > sessionArtifactMaxTTL {
+		ttl = sessionArtifactMaxTTL
+	}
+
+	n, sum, err := c.fileRepo.CountSessionTTLArtifacts(ctx, sessionID, userID)
+	if err != nil {
+		return 0, err
+	}
+
+	if n >= maxSessionArtifactFileCount {
+		return 0, fmt.Errorf("слишком много временных файлов в сессии (лимит %d)", maxSessionArtifactFileCount)
+	}
+
+	if sum+int64(len(content)) > maxSessionArtifactTotalBytes {
+		return 0, fmt.Errorf("превышена квота размера временных файлов сессии")
+	}
+
+	exp := time.Now().Add(time.Duration(ttl) * time.Second)
+	file, err := c.saveFileInSession(ctx, userID, sessionID, baseName, content, sessionFileKindArtifact, &exp)
+	if err != nil {
+		return 0, err
+	}
+
+	return file.Id, nil
+}
+
+func (c *ChatUseCase) GetSessionFile(ctx context.Context, userID int, sessionID int64, fileID int64) (filename string, content []byte, err error) {
+	if fileID <= 0 {
+		return "", nil, fmt.Errorf("некорректный file_id")
+	}
+
+	return c.loadSessionAttachmentForSend(ctx, userID, sessionID, fileID)
+}
+
+const (
+	sessionFileKindAttachment = "attachment"
+	sessionFileKindArtifact   = "artifact"
+
+	sessionArtifactMinTTL        = int64(60)
+	sessionArtifactMaxTTL        = int64(7 * 24 * 3600)
+	sessionArtifactDefaultTTL    = int64(24 * 3600)
+	maxSessionArtifactFileCount  = 200
+	maxSessionArtifactTotalBytes = 80 * 1024 * 1024
+)
+
+func (c *ChatUseCase) saveAttachmentAndCreateFile(ctx context.Context, userID int, sessionID int64, attachmentName string, content []byte) (*domain.File, error) {
 	baseName := filepath.Base(attachmentName)
 	if baseName == "" || baseName == "." {
 		baseName = "attachment"
 	}
-	dir := filepath.Join(c.attachmentsSaveDir, strconv.FormatInt(sessionId, 10))
+	return c.saveFileInSession(ctx, userID, sessionID, baseName, content, sessionFileKindAttachment, nil)
+}
+
+func (c *ChatUseCase) saveFileInSession(ctx context.Context, userID int, sessionID int64, baseName string, content []byte, kind string, expiresAt *time.Time) (*domain.File, error) {
+	dir := filepath.Join(c.attachmentsSaveDir, strconv.FormatInt(sessionID, 10))
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, err
 	}
+	sid := sessionID
+	uid := userID
 	file := domain.NewFile(baseName, "", int64(len(content)), ".")
+	file.ChatSessionID = &sid
+	file.UserID = &uid
+	file.Kind = kind
+	file.ExpiresAt = expiresAt
 	if err := c.fileRepo.Create(ctx, file); err != nil {
 		return nil, err
 	}
@@ -583,4 +808,22 @@ func (c *ChatUseCase) saveAttachmentAndCreateFile(ctx context.Context, sessionId
 	}
 	file.StoragePath = storagePath
 	return file, nil
+}
+
+func (c *ChatUseCase) ApplySpreadsheet(
+	_ context.Context,
+	workbook []byte,
+	operationsJSON string,
+	previewSheet string,
+	previewRange string,
+) (workbookOut []byte, previewTSV string, exportedCSV string, err error) {
+	return spreadsheet.Apply(workbook, operationsJSON, previewSheet, previewRange)
+}
+
+func (c *ChatUseCase) BuildDocx(_ context.Context, specJSON string) ([]byte, error) {
+	return document.BuildDOCXFromSpecJSON(specJSON)
+}
+
+func (c *ChatUseCase) ApplyMarkdownPatch(_ context.Context, baseText, patchJSON string) (string, error) {
+	return document.ApplyMarkdownPatchJSON(baseText, patchJSON)
 }

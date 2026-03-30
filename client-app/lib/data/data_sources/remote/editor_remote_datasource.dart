@@ -4,12 +4,13 @@ import 'package:gen/core/failures.dart';
 import 'package:gen/core/grpc_channel_manager.dart';
 import 'package:gen/core/grpc_error_handler.dart';
 import 'package:gen/core/log/logs.dart';
+import 'package:gen/generated/grpc_pb/editor.pb.dart' as grpc_pb;
 import 'package:gen/generated/grpc_pb/editor.pbgrpc.dart' as grpc;
 
 abstract class IEditorRemoteDataSource {
   Future<String> transform({
     required String text,
-    required grpc.TransformType type,
+    required grpc_pb.TransformType type,
     bool preserveMarkdown,
   });
 
@@ -42,19 +43,19 @@ class EditorRemoteDataSource implements IEditorRemoteDataSource {
   @override
   Future<String> transform({
     required String text,
-    required grpc.TransformType type,
+    required grpc_pb.TransformType type,
     bool preserveMarkdown = false,
   }) async {
     Logs().d('EditorRemoteDataSource: transform type=$type');
     await cancelTransform();
 
-    final request = grpc.TransformRequest(
+    final request = grpc_pb.TransformRequest(
       text: text,
       type: type,
       preserveMarkdown: preserveMarkdown,
     );
 
-    Future<grpc.TransformResponse> invokeOnce() async {
+    Future<grpc_pb.TransformResponse> invokeOnce() async {
       final rf = _client.transform(request);
       _activeTransform = rf;
       try {
@@ -90,7 +91,7 @@ class EditorRemoteDataSource implements IEditorRemoteDataSource {
     try {
       await _authGuard.execute(
         () => _client.saveHistory(
-          grpc.SaveHistoryRequest(
+          grpc_pb.SaveHistoryRequest(
             text: text,
             runner: runner ?? '',
           ),

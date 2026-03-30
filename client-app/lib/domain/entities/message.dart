@@ -11,6 +11,7 @@ class Message extends Equatable {
   final DateTime createdAt;
   final String? attachmentFileName;
   final Uint8List? attachmentContent;
+  final int? attachmentFileId;
 
   const Message({
     required this.id,
@@ -19,6 +20,7 @@ class Message extends Equatable {
     required this.createdAt,
     this.attachmentFileName,
     this.attachmentContent,
+    this.attachmentFileId,
   });
 
   Map<String, dynamic> toJson() => {
@@ -27,5 +29,5 @@ class Message extends Equatable {
       };
 
   @override
-  List<Object?> get props => [id, content, role, createdAt, attachmentFileName];
+  List<Object?> get props => [id, content, role, createdAt, attachmentFileName, attachmentFileId];
 }

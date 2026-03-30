@@ -1,10 +1,14 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:gen/core/failures.dart';
 import 'package:gen/data/data_sources/remote/chat_remote_datasource.dart';
 import 'package:gen/domain/entities/chat_session_settings.dart';
+import 'package:gen/domain/entities/chat_stream_chunk.dart';
 import 'package:gen/domain/entities/message.dart';
 import 'package:gen/domain/entities/session.dart';
+import 'package:gen/domain/entities/session_file_download.dart';
+import 'package:gen/domain/entities/spreadsheet_apply_result.dart';
 import 'package:gen/domain/repositories/chat_repository.dart';
 
 class ChatRepositoryImpl implements ChatRepository {
@@ -22,7 +26,7 @@ class ChatRepositoryImpl implements ChatRepository {
   }
 
   @override
-  Stream<String> sendMessage(
+  Stream<ChatStreamChunk> sendMessage(
     int sessionId,
     List<Message> messages,
   ) {
@@ -166,6 +170,88 @@ class ChatRepositoryImpl implements ChatRepository {
       await dataSource.setDefaultRunnerModel(runner, model);
     } catch (e) {
       throw ApiFailure('Ошибка сохранения модели по умолчанию: $e');
+    }
+  }
+
+  @override
+  Future<int> putSessionFile({
+    required int sessionId,
+    required String filename,
+    required List<int> content,
+    int ttlSeconds = 0,
+  }) async {
+    try {
+      return await dataSource.putSessionFile(
+        sessionId: sessionId,
+        filename: filename,
+        content: content,
+        ttlSeconds: ttlSeconds,
+      );
+    } catch (e) {
+      if (e is Failure) rethrow;
+      throw ApiFailure('Ошибка загрузки файла сессии: $e');
+    }
+  }
+
+  @override
+  Future<SessionFileDownload> getSessionFile({
+    required int sessionId,
+    required int fileId,
+  }) async {
+    try {
+      return await dataSource.getSessionFile(
+        sessionId: sessionId,
+        fileId: fileId,
+      );
+    } catch (e) {
+      if (e is Failure) rethrow;
+      throw ApiFailure('Ошибка получения файла сессии: $e');
+    }
+  }
+
+  @override
+  Future<SpreadsheetApplyResult> applySpreadsheet({
+    List<int>? workbookXlsx,
+    required String operationsJson,
+    String previewSheet = '',
+    String previewRange = '',
+  }) async {
+    try {
+      return await dataSource.applySpreadsheet(
+        workbookXlsx: workbookXlsx,
+        operationsJson: operationsJson,
+        previewSheet: previewSheet,
+        previewRange: previewRange,
+      );
+    } catch (e) {
+      if (e is Failure) rethrow;
+      throw ApiFailure('Ошибка таблицы: $e');
+    }
+  }
+
+  @override
+  Future<Uint8List> buildDocx({required String specJson}) async {
+    try {
+      return await dataSource.buildDocx(specJson: specJson);
+    } catch (e) {
+      if (e is Failure) rethrow;
+      throw ApiFailure('Ошибка документа Word: $e');
+    }
+  }
+
+  @override
+  Future<String> applyMarkdownPatch({
+    required String baseText,
+    required String patchJson,
+  }) async {
+    try {
+      return await dataSource.applyMarkdownPatch(
+        baseText: baseText,
+        patchJson: patchJson,
+      );
+    } catch (e) {
+      if (e is Failure) rethrow;
+      throw ApiFailure('Ошибка патча текста: $e');
     }
   }
 }

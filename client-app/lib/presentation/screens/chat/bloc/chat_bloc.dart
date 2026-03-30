@@ -5,6 +5,7 @@ import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gen/core/log/logs.dart';
 import 'package:gen/core/request_logout_on_unauthorized.dart';
+import 'package:gen/domain/entities/chat_stream_chunk.dart';
 import 'package:gen/domain/entities/message.dart';
 import 'package:gen/domain/entities/runner_info.dart';
 import 'package:gen/domain/usecases/chat/connect_usecase.dart';
@@ -42,7 +43,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
   final GetSelectedRunnerUseCase getSelectedRunnerUseCase;
   final SetSelectedRunnerUseCase setSelectedRunnerUseCase;
 
-  StreamSubscription<String>? _streamSubscription;
+  StreamSubscription<ChatStreamChunk>? _streamSubscription;
   Completer<bool>? _streamCompleter;
 
   ChatBloc({
@@ -357,8 +358,12 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     required bool allowReuseLastUserMessage,
   }) async {
     final text = event.text.trim();
-    final hasAttachment = event.attachmentFileName != null && event.attachmentContent != null && event.attachmentContent!.isNotEmpty;
-    if (text.isEmpty && !hasAttachment) {
+    final hasAttachmentBytes = event.attachmentFileName != null &&
+        event.attachmentContent != null &&
+        event.attachmentContent!.isNotEmpty;
+    final hasAttachmentById =
+        event.attachmentFileId != null && event.attachmentFileId! > 0;
+    if (text.isEmpty && !hasAttachmentBytes && !hasAttachmentById) {
       return;
     }
 
@@ -390,15 +395,19 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       }
     }
 
+    final byServerFileId = hasAttachmentById;
     final userMessage = Message(
       id: _localTempMessageId(),
       content: text,
       role: MessageRole.user,
       createdAt: DateTime.now(),
       attachmentFileName: event.attachmentFileName,
-      attachmentContent: event.attachmentContent != null
-        ? Uint8List.fromList(event.attachmentContent!)
-        : null,
+      attachmentContent: byServerFileId
+          ? null
+          : (event.attachmentContent != null
+              ? Uint8List.fromList(event.attachmentContent!)
+              : null),
+      attachmentFileId: byServerFileId ? event.attachmentFileId : null,
     );
 
     var updatedMessages = [...state.messages, userMessage];
@@ -408,6 +417,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
           last.role == MessageRole.user &&
           last.content == text &&
           last.attachmentFileName == event.attachmentFileName &&
+          last.attachmentFileId == event.attachmentFileId &&
           _isSameAttachment(event.attachmentContent, last.attachmentContent);
       if (sameUserMessage) {
         updatedMessages = [...state.messages];
@@ -420,6 +430,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       isLoading: true,
       isStreaming: true,
       currentStreamingText: '',
+      clearToolProgress: true,
       error: null,
       clearRetryPayload: true,
     ));
@@ -434,8 +445,18 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
       _streamSubscription = stream.listen(
         (chunk) {
-          streamingText += chunk;
-          emit(state.copyWith(currentStreamingText: streamingText));
+          if (chunk.kind == ChatStreamChunkKind.toolStatus) {
+            final line = chunk.text.trim().isNotEmpty
+                ? chunk.text
+                : (chunk.toolName ?? 'инструмент');
+            emit(state.copyWith(toolProgressLabel: line));
+            return;
+          }
+          streamingText += chunk.text;
+          emit(state.copyWith(
+            currentStreamingText: streamingText,
+            clearToolProgress: true,
+          ));
         },
         onDone: () {
           if (_streamCompleter != null && !_streamCompleter!.isCompleted) {
@@ -471,6 +492,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
           isLoading: false,
           isStreaming: false,
           currentStreamingText: null,
+          clearToolProgress: true,
           clearRetryPayload: true,
         ));
       } else {
@@ -479,10 +501,12 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
           isLoading: false,
           isStreaming: false,
           currentStreamingText: null,
+          clearToolProgress: true,
           error: 'Сервер не вернул ответ. Проверьте доступность раннера и попробуйте снова.',
           retryText: event.text,
           retryAttachmentFileName: event.attachmentFileName,
           retryAttachmentContent: event.attachmentContent,
+          retryAttachmentFileId: event.attachmentFileId,
         ));
       }
     } on Object catch (e) {
@@ -495,6 +519,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         retryText: event.text,
         retryAttachmentFileName: event.attachmentFileName,
         retryAttachmentContent: event.attachmentContent,
+        retryAttachmentFileId: event.attachmentFileId,
       ));
     } finally {
       await _streamSubscription?.cancel();
@@ -507,8 +532,12 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     ChatRetryLastMessage event,
     Emitter<ChatState> emit,
   ) async {
-    final retryText = state.retryText;
-    if (retryText == null || retryText.trim().isEmpty) {
+    final retryText = state.retryText ?? '';
+    final hasPayload = retryText.trim().isNotEmpty ||
+        state.retryAttachmentFileName != null ||
+        state.retryAttachmentContent != null ||
+        state.retryAttachmentFileId != null;
+    if (!hasPayload) {
       return;
     }
     await _sendMessageInternal(
@@ -516,6 +545,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         retryText,
         attachmentFileName: state.retryAttachmentFileName,
         attachmentContent: state.retryAttachmentContent,
+        attachmentFileId: state.retryAttachmentFileId,
       ),
       emit,
       allowReuseLastUserMessage: true,

@@ -1,3 +1,4 @@
+import 'package:gen/domain/entities/chat_stream_chunk.dart';
 import 'package:gen/domain/entities/message.dart';
 import 'package:gen/domain/repositories/chat_repository.dart';
 
@@ -6,7 +7,7 @@ class SendMessageUseCase {
 
   SendMessageUseCase(this.repository);
 
-  Stream<String> call(
+  Stream<ChatStreamChunk> call(
     int sessionId,
     List<Message> messages,
   ) {
