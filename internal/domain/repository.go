@@ -70,6 +70,10 @@ type FileRepository interface {
 	UpdateStoragePath(ctx context.Context, id int64, storagePath string) error
 
 	GetById(ctx context.Context, id int64) (*File, error)
+
+	DeleteExpired(ctx context.Context) (deleted int64, err error)
+
+	CountSessionTTLArtifacts(ctx context.Context, sessionID int64, userID int) (count int32, totalSize int64, err error)
 }
 
 type EditorHistoryRepository interface {

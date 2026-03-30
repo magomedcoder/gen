@@ -36,12 +36,16 @@ CREATE TABLE IF NOT EXISTS chat_sessions
 
 CREATE TABLE IF NOT EXISTS files
 (
-    id           BIGSERIAL PRIMARY KEY,
-    filename     VARCHAR(255) NOT NULL,
-    mime_type    VARCHAR(100) NULL,
-    size         BIGINT       NOT NULL DEFAULT 0,
-    storage_path TEXT         NOT NULL,
-    created_at   TIMESTAMP    NOT NULL DEFAULT NOW()
+    id              BIGSERIAL PRIMARY KEY,
+    filename        VARCHAR(255) NOT NULL,
+    mime_type       VARCHAR(100) NULL,
+    size            BIGINT       NOT NULL DEFAULT 0,
+    storage_path    TEXT         NOT NULL,
+    chat_session_id BIGINT       NULL REFERENCES chat_sessions (id) ON DELETE SET NULL,
+    user_id         INTEGER      NULL REFERENCES users (id) ON DELETE SET NULL,
+    expires_at      TIMESTAMP    NULL,
+    kind            VARCHAR(32)  NOT NULL DEFAULT '',
+    created_at      TIMESTAMP    NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS messages
@@ -56,7 +60,7 @@ CREATE TABLE IF NOT EXISTS messages
     tool_calls_json    TEXT        NULL,
     created_at         TIMESTAMP   NOT NULL DEFAULT NOW(),
     updated_at         TIMESTAMP   NOT NULL DEFAULT NOW(),
-    deleted_at         TIMESTAMP    NULL
+    deleted_at         TIMESTAMP   NULL
 );
 
 CREATE TABLE IF NOT EXISTS user_chat_preferences
@@ -78,26 +82,26 @@ CREATE TABLE IF NOT EXISTS user_runner_models
 CREATE TABLE IF NOT EXISTS editor_text_history
 (
     id         BIGSERIAL PRIMARY KEY,
-    user_id    INTEGER   NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    user_id    INTEGER      NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     runner     VARCHAR(255) NOT NULL DEFAULT '',
-    text       TEXT      NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    text       TEXT         NOT NULL,
+    created_at TIMESTAMP    NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS chat_session_settings
 (
-    session_id       BIGINT PRIMARY KEY REFERENCES chat_sessions (id) ON DELETE CASCADE,
-    system_prompt    TEXT      NOT NULL DEFAULT '',
-    stop_sequences   TEXT[]    NOT NULL DEFAULT '{}',
-    timeout_seconds  INTEGER   NOT NULL DEFAULT 0,
-    temperature      REAL      NULL,
-    top_k            INTEGER   NULL,
-    top_p            REAL      NULL,
-    json_mode        BOOLEAN   NOT NULL DEFAULT FALSE,
-    json_schema      TEXT      NOT NULL DEFAULT '',
-    tools_json       TEXT      NOT NULL DEFAULT '',
-    profile          VARCHAR(64) NOT NULL DEFAULT '',
-    updated_at       TIMESTAMP NOT NULL DEFAULT NOW()
+    session_id      BIGINT PRIMARY KEY REFERENCES chat_sessions (id) ON DELETE CASCADE,
+    system_prompt   TEXT        NOT NULL DEFAULT '',
+    stop_sequences  TEXT[]      NOT NULL DEFAULT '{}',
+    timeout_seconds INTEGER     NOT NULL DEFAULT 0,
+    temperature     REAL        NULL,
+    top_k           INTEGER     NULL,
+    top_p           REAL        NULL,
+    json_mode       BOOLEAN     NOT NULL DEFAULT FALSE,
+    json_schema     TEXT        NOT NULL DEFAULT '',
+    tools_json      TEXT        NOT NULL DEFAULT '',
+    profile         VARCHAR(64) NOT NULL DEFAULT '',
+    updated_at      TIMESTAMP   NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_username ON users (username);
@@ -111,6 +115,8 @@ CREATE INDEX IF NOT EXISTS idx_chat_sessions_user_id ON chat_sessions (user_id);
 CREATE INDEX IF NOT EXISTS idx_chat_sessions_created_at ON chat_sessions (created_at);
 CREATE INDEX IF NOT EXISTS idx_chat_sessions_deleted_at ON chat_sessions (deleted_at);
 CREATE INDEX IF NOT EXISTS idx_files_created_at ON files (created_at);
+CREATE INDEX IF NOT EXISTS idx_files_expires_at ON files (expires_at) WHERE expires_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_files_chat_session_kind ON files (chat_session_id, kind) WHERE chat_session_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages (session_id);
 CREATE INDEX IF NOT EXISTS idx_messages_role ON messages (role);
 CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages (created_at);

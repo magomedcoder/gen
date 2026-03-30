@@ -14,6 +14,7 @@ import (
 	"github.com/magomedcoder/gen/api/pb/userpb"
 	"github.com/magomedcoder/gen/config"
 	"github.com/magomedcoder/gen/internal/bootstrap"
+	"github.com/magomedcoder/gen/internal/domain"
 	"github.com/magomedcoder/gen/internal/handler"
 	"github.com/magomedcoder/gen/internal/repository/postgres"
 	"github.com/magomedcoder/gen/internal/runner"
@@ -26,6 +27,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 )
 
 func main() {
@@ -113,6 +115,8 @@ func main() {
 	editorHandler := handler.NewEditorHandler(editorUseCase, authUseCase)
 	userHandler := handler.NewUserHandler(userUseCase, authUseCase)
 
+	go runSessionFileTTLCleanup(fileRepo)
+
 	grpcServer := grpc.NewServer()
 
 	runnerHandler := handler.NewRunnerHandler(runnerReg, runnerPool, authUseCase, cfg)
@@ -148,4 +152,22 @@ func main() {
 
 	grpcServer.GracefulStop()
 	logger.I("Сервер остановлен")
+}
+
+func runSessionFileTTLCleanup(fileRepo domain.FileRepository) {
+	tick := time.NewTicker(10 * time.Minute)
+	defer tick.Stop()
+	for range tick.C {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		n, err := fileRepo.DeleteExpired(ctx)
+		cancel()
+		if err != nil {
+			logger.W("очистка файлов по TTL: %v", err)
+			continue
+		}
+
+		if n > 0 {
+			logger.I("удалено просроченных файлов: %d", n)
+		}
+	}
 }
