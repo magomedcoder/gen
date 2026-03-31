@@ -174,6 +174,86 @@ func (c *ChatHandler) SendMessage(req *chatpb.SendMessageRequest, stream chatpb.
 	})
 }
 
+func (c *ChatHandler) RegenerateAssistantResponse(req *chatpb.RegenerateAssistantRequest, stream chatpb.ChatService_RegenerateAssistantResponseServer) error {
+	ctx := stream.Context()
+	logger.D("RegenerateAssistantResponse: session=%d assistantMsg=%d", req.GetSessionId(), req.GetAssistantMessageId())
+	userID, err := c.getUserID(ctx)
+	if err != nil {
+		return err
+	}
+
+	responseChan, regErr := c.chatUseCase.RegenerateAssistantResponse(ctx, userID, req.GetSessionId(), req.GetAssistantMessageId())
+	if regErr != nil {
+		logger.E("RegenerateAssistantResponse: %v", regErr)
+		if mapped := statusForModelResolutionError(regErr); mapped != nil {
+			return mapped
+		}
+
+		if errors.Is(regErr, domain.ErrRegenerateToolsNotSupported) {
+			return status.Error(codes.FailedPrecondition, regErr.Error())
+		}
+
+		if strings.Contains(regErr.Error(), "перегенерировать можно только") ||
+			strings.Contains(regErr.Error(), "не является ответом") ||
+			strings.Contains(regErr.Error(), "не найдено") ||
+			strings.Contains(regErr.Error(), "некорректный assistant_message_id") {
+			return status.Error(codes.InvalidArgument, regErr.Error())
+		}
+
+		if errors.Is(regErr, domain.ErrUnauthorized) {
+			return status.Error(codes.PermissionDenied, regErr.Error())
+		}
+
+		return ToStatusError(codes.Internal, regErr)
+	}
+
+	createdAt := time.Now().Unix()
+	var lastMsgID int64
+
+	for chunk := range responseChan {
+		if chunk.Kind == usecase.StreamChunkKindText && chunk.MessageID != 0 {
+			lastMsgID = chunk.MessageID
+		}
+
+		respID := chunk.MessageID
+		if respID == 0 {
+			respID = lastMsgID
+		}
+
+		pbKind := chatpb.StreamChunkKind_STREAM_CHUNK_KIND_TEXT
+		if chunk.Kind == usecase.StreamChunkKindToolStatus {
+			pbKind = chatpb.StreamChunkKind_STREAM_CHUNK_KIND_TOOL_STATUS
+		}
+
+		resp := &chatpb.ChatResponse{
+			Id:        respID,
+			Content:   chunk.Text,
+			Role:      "assistant",
+			CreatedAt: createdAt,
+			Done:      false,
+			ChunkKind: pbKind,
+		}
+
+		if chunk.ToolName != "" {
+			tn := chunk.ToolName
+			resp.ToolName = &tn
+		}
+
+		if err := stream.Send(resp); err != nil {
+			return err
+		}
+	}
+
+	return stream.Send(&chatpb.ChatResponse{
+		Id:        lastMsgID,
+		Content:   "",
+		Role:      "assistant",
+		CreatedAt: createdAt,
+		Done:      true,
+		ChunkKind: chatpb.StreamChunkKind_STREAM_CHUNK_KIND_TEXT,
+	})
+}
+
 func (c *ChatHandler) CreateSession(ctx context.Context, req *chatpb.CreateSessionRequest) (*chatpb.ChatSession, error) {
 	logger.D("CreateSession: title=%s", req.GetTitle())
 	userID, err := c.getUserID(ctx)

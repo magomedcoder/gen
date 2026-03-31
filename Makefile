@@ -1,12 +1,10 @@
-.PHONY: install gen gen-go-proto gen-dart-proto run
+.PHONY: install gen gen-proto run
 
 install:
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest \
 	&& go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
-gen: gen-go-proto gen-dart-proto
-
-gen-go-proto:
+gen-proto:
 	@for proto in ./api/proto/*.proto; do \
 		name=$$(basename $$proto .proto); \
 		mkdir -p ./api/pb/$${name}pb; \
@@ -23,12 +21,6 @@ gen-go-proto:
 		--go_out=module=github.com/magomedcoder/gen:. \
 		--go-grpc_out=module=github.com/magomedcoder/gen:. \
 		../llm-runner/llmrunner.proto
-
-gen-dart-proto:
-	mkdir -p ./client-app/lib/generated/grpc_pb
-	protoc --proto_path=./api/proto \
-		--dart_out=grpc:./client-app/lib/generated/grpc_pb \
-		./api/proto/*.proto
 
 run:
 	go run ./cmd/gen

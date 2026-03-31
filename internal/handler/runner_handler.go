@@ -68,6 +68,27 @@ func (h *RunnerHandler) GetRunners(ctx context.Context, _ *commonpb.Empty) (*run
 	}, nil
 }
 
+func (h *RunnerHandler) GetUserRunners(ctx context.Context, _ *commonpb.Empty) (*runnerpb.GetUserRunnersResponse, error) {
+	if _, err := GetUserFromContext(ctx, h.authUseCase); err != nil {
+		return nil, err
+	}
+
+	all := h.registry.GetRunners()
+	out := make([]*runnerpb.UserRunnerInfo, 0, len(all))
+	for _, r := range all {
+		if r == nil || !r.Enabled || strings.TrimSpace(r.Address) == "" {
+			continue
+		}
+
+		out = append(out, &runnerpb.UserRunnerInfo{
+			Address: strings.TrimSpace(r.Address),
+			Name:    strings.TrimSpace(r.Name),
+		})
+	}
+
+	return &runnerpb.GetUserRunnersResponse{Runners: out}, nil
+}
+
 func (h *RunnerHandler) SetRunnerEnabled(ctx context.Context, req *runnerpb.SetRunnerEnabledRequest) (*commonpb.Empty, error) {
 	if err := RequireAdmin(ctx, h.authUseCase); err != nil {
 		return nil, err
