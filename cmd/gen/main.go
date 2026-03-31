@@ -106,7 +106,7 @@ func main() {
 	defer runnerPool.Close()
 	llmRepo := runnerPool
 
-	chatUseCase := usecase.NewChatUseCase(sessionRepo, chatPreferenceRepo, chatSessionSettingsRepo, messageRepo, fileRepo, llmRepo, cfg.UploadDir, cfg.DefaultRunnerAddress())
+	chatUseCase := usecase.NewChatUseCase(sessionRepo, chatPreferenceRepo, chatSessionSettingsRepo, messageRepo, fileRepo, llmRepo, runnerPool, cfg.UploadDir, cfg.DefaultRunnerAddress())
 	editorUseCase := usecase.NewEditorUseCase(llmRepo, chatPreferenceRepo, editorHistoryRepo, cfg.DefaultRunnerAddress())
 	userUseCase := usecase.NewUserUseCase(userRepo, tokenRepo, jwtService)
 

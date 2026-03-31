@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/magomedcoder/gen/internal/domain"
+	"github.com/magomedcoder/gen/internal/runner"
 	"github.com/magomedcoder/gen/pkg/document"
 	"github.com/magomedcoder/gen/pkg/logger"
 	"github.com/magomedcoder/gen/pkg/spreadsheet"
@@ -40,6 +41,7 @@ type ChatUseCase struct {
 	messageRepo         domain.MessageRepository
 	fileRepo            domain.FileRepository
 	llmRepo             domain.LLMRepository
+	runnerPool          *runner.Pool
 	attachmentsSaveDir  string
 	defaultRunnerAddr   string
 }
@@ -51,6 +53,7 @@ func NewChatUseCase(
 	messageRepo domain.MessageRepository,
 	fileRepo domain.FileRepository,
 	llmRepo domain.LLMRepository,
+	runnerPool *runner.Pool,
 	attachmentsSaveDir string,
 	defaultRunnerAddr string,
 ) *ChatUseCase {
@@ -61,6 +64,7 @@ func NewChatUseCase(
 		messageRepo:         messageRepo,
 		fileRepo:            fileRepo,
 		llmRepo:             llmRepo,
+		runnerPool:          runnerPool,
 		attachmentsSaveDir:  attachmentsSaveDir,
 		defaultRunnerAddr:   strings.TrimSpace(defaultRunnerAddr),
 	}
@@ -87,7 +91,41 @@ func (c *ChatUseCase) GetDefaultRunnerModel(ctx context.Context, userID int, run
 }
 
 func (c *ChatUseCase) SetDefaultRunnerModel(ctx context.Context, userID int, runner string, model string) error {
-	return c.preferenceRepo.SetDefaultRunnerModel(ctx, userID, runner, model)
+	if err := c.preferenceRepo.SetDefaultRunnerModel(ctx, userID, runner, model); err != nil {
+		return err
+	}
+
+	if c.runnerPool == nil {
+		return nil
+	}
+
+	runnerAddr := strings.TrimSpace(runner)
+	modelName := strings.TrimSpace(model)
+	if runnerAddr == "" {
+		return nil
+	}
+
+	go func() {
+		warmCtx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+		defer cancel()
+
+		if err := c.runnerPool.WaitRunnerIdle(warmCtx, runnerAddr); err != nil {
+			logger.W("SetDefaultRunnerModel: wait idle runner=%s: %v", runnerAddr, err)
+			return
+		}
+
+		if err := c.runnerPool.UnloadModelOnRunner(warmCtx, runnerAddr); err != nil {
+			logger.W("SetDefaultRunnerModel: unload model runner=%s: %v", runnerAddr, err)
+		}
+
+		if modelName != "" {
+			if err := c.runnerPool.WarmModelOnRunner(warmCtx, runnerAddr, modelName); err != nil {
+				logger.W("SetDefaultRunnerModel: warm model runner=%s model=%q: %v", runnerAddr, modelName, err)
+			}
+		}
+	}()
+
+	return nil
 }
 
 func (c *ChatUseCase) verifySessionOwnership(ctx context.Context, userId int, sessionID int64) (*domain.ChatSession, error) {

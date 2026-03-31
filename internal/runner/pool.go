@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/magomedcoder/gen/api/pb/llmrunnerpb"
 	"github.com/magomedcoder/gen/api/pb/runnerpb"
@@ -176,6 +177,68 @@ func (p *Pool) ProbeLLMRunner(ctx context.Context, address string) (connected bo
 	}
 
 	return true, gpus, server, loaded
+}
+
+func (p *Pool) WaitRunnerIdle(ctx context.Context, address string) error {
+	address = strings.TrimSpace(address)
+	if address == "" {
+		return fmt.Errorf("пустой адрес раннера")
+	}
+	ai := p.getOrCreateInflight(address)
+	if ai.Load() == 0 {
+		return nil
+	}
+
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if ai.Load() == 0 {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}
+
+func (p *Pool) UnloadModelOnRunner(ctx context.Context, address string) error {
+	address = strings.TrimSpace(address)
+	if address == "" {
+		return fmt.Errorf("пустой адрес раннера")
+	}
+
+	c, err := p.getClient(address)
+	if err != nil {
+		return err
+	}
+
+	return c.UnloadModel(ctx)
+}
+
+func (p *Pool) WarmModelOnRunner(ctx context.Context, address string, model string) error {
+	address = strings.TrimSpace(address)
+	model = strings.TrimSpace(model)
+	if address == "" {
+		return fmt.Errorf("пустой адрес раннера")
+	}
+
+	if model == "" || model == "default" {
+		return nil
+	}
+
+	c, err := p.getClient(address)
+	if err != nil {
+		return err
+	}
+
+	_, err = c.Embed(ctx, model, "warmup")
+	return err
 }
 
 type candidate struct {
