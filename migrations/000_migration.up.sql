@@ -107,15 +107,16 @@ CREATE TABLE IF NOT EXISTS chat_session_settings
 CREATE TABLE IF NOT EXISTS message_edits
 (
     id                   BIGSERIAL PRIMARY KEY,
-    session_id           BIGINT    NOT NULL REFERENCES chat_sessions (id) ON DELETE CASCADE,
-    message_id           BIGINT    NOT NULL REFERENCES messages (id) ON DELETE CASCADE,
-    editor_user_id       INTEGER   NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    old_content          TEXT      NOT NULL,
-    new_content          TEXT      NOT NULL,
-    soft_deleted_from_id BIGINT    NOT NULL,
-    soft_deleted_to_id   BIGINT    NOT NULL,
-    created_at           TIMESTAMP NOT NULL DEFAULT NOW(),
-    reverted_at          TIMESTAMP NULL
+    session_id           BIGINT      NOT NULL REFERENCES chat_sessions (id) ON DELETE CASCADE,
+    message_id           BIGINT      NOT NULL REFERENCES messages (id) ON DELETE CASCADE,
+    editor_user_id       INTEGER     NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    kind                 VARCHAR(32) NOT NULL DEFAULT 'user_edit',
+    old_content          TEXT        NOT NULL,
+    new_content          TEXT        NOT NULL,
+    soft_deleted_from_id BIGINT      NULL,
+    soft_deleted_to_id   BIGINT      NULL,
+    created_at           TIMESTAMP   NOT NULL DEFAULT NOW(),
+    reverted_at          TIMESTAMP   NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_username ON users (username);
@@ -142,3 +143,4 @@ CREATE INDEX IF NOT EXISTS idx_editor_text_history_created_at ON editor_text_his
 CREATE INDEX IF NOT EXISTS idx_chat_session_settings_updated_at ON chat_session_settings (updated_at);
 CREATE INDEX IF NOT EXISTS idx_message_edits_message_id_created_at ON message_edits (message_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_message_edits_session_id_created_at ON message_edits (session_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_message_edits_kind_created_at ON message_edits (kind, created_at);

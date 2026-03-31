@@ -41,6 +41,16 @@ type MessageEdit struct {
 	RevertedAt      *time.Time
 }
 
+type AssistantMessageRegeneration struct {
+	Id          int64
+	SessionId   int64
+	MessageId   int64
+	RegenUserId int
+	OldContent  string
+	NewContent  string
+	CreatedAt   time.Time
+}
+
 func NewChatSession(userId int, title string, model string) *ChatSession {
 	return &ChatSession{
 		UserId:    userId,

@@ -40,6 +40,7 @@ type ChatUseCase struct {
 	sessionSettingsRepo domain.ChatSessionSettingsRepository
 	messageRepo         domain.MessageRepository
 	messageEditRepo     domain.MessageEditRepository
+	assistantRegenRepo  domain.AssistantMessageRegenerationRepository
 	fileRepo            domain.FileRepository
 	llmRepo             domain.LLMRepository
 	runnerPool          *runner.Pool
@@ -53,6 +54,7 @@ func NewChatUseCase(
 	sessionSettingsRepo domain.ChatSessionSettingsRepository,
 	messageRepo domain.MessageRepository,
 	messageEditRepo domain.MessageEditRepository,
+	assistantRegenRepo domain.AssistantMessageRegenerationRepository,
 	fileRepo domain.FileRepository,
 	llmRepo domain.LLMRepository,
 	runnerPool *runner.Pool,
@@ -65,6 +67,7 @@ func NewChatUseCase(
 		sessionSettingsRepo: sessionSettingsRepo,
 		messageRepo:         messageRepo,
 		messageEditRepo:     messageEditRepo,
+		assistantRegenRepo:  assistantRegenRepo,
 		fileRepo:            fileRepo,
 		llmRepo:             llmRepo,
 		runnerPool:          runnerPool,
@@ -445,6 +448,7 @@ func (c *ChatUseCase) RegenerateAssistantResponse(ctx context.Context, userId in
 	if target.Role != domain.MessageRoleAssistant {
 		return nil, fmt.Errorf("перегенерировать можно только ответ ассистента")
 	}
+	oldContent := target.Content
 
 	maxID, err := c.messageRepo.MaxMessageIDInSession(ctx, sessionId)
 	if err != nil {
@@ -499,7 +503,18 @@ func (c *ChatUseCase) RegenerateAssistantResponse(ctx context.Context, userId in
 	clientChan := make(chan ChatStreamChunk, 100)
 	go func() {
 		defer func() {
-			_ = c.messageRepo.UpdateContent(context.Background(), messageID, fullResponse.String())
+			newContent := fullResponse.String()
+			_ = c.messageRepo.UpdateContent(context.Background(), messageID, newContent)
+			if c.assistantRegenRepo != nil && strings.TrimSpace(oldContent) != "" && strings.TrimSpace(newContent) != "" {
+				_ = c.assistantRegenRepo.Create(context.Background(), &domain.AssistantMessageRegeneration{
+					SessionId:   sessionId,
+					MessageId:   messageID,
+					RegenUserId: userId,
+					OldContent:  oldContent,
+					NewContent:  newContent,
+					CreatedAt:   time.Now(),
+				})
+			}
 		}()
 		defer close(clientChan)
 
@@ -645,6 +660,93 @@ func (c *ChatUseCase) GetUserMessageEdits(ctx context.Context, userId int, sessi
 		return []*domain.MessageEdit{}, nil
 	}
 	return c.messageEditRepo.ListByMessageID(ctx, userMessageID, 50)
+}
+
+func (c *ChatUseCase) GetAssistantMessageRegenerations(ctx context.Context, userId int, sessionId int64, assistantMessageID int64) ([]*domain.AssistantMessageRegeneration, error) {
+	if assistantMessageID <= 0 {
+		return nil, fmt.Errorf("некорректный assistant_message_id")
+	}
+
+	if _, err := c.verifySessionOwnership(ctx, userId, sessionId); err != nil {
+		return nil, err
+	}
+
+	target, err := c.messageRepo.GetByID(ctx, assistantMessageID)
+	if err != nil {
+		return nil, err
+	}
+
+	if target == nil || target.SessionId != sessionId || target.Role != domain.MessageRoleAssistant {
+		return nil, fmt.Errorf("сообщение не найдено")
+	}
+
+	if c.assistantRegenRepo == nil {
+		return []*domain.AssistantMessageRegeneration{}, nil
+	}
+
+	return c.assistantRegenRepo.ListByMessageID(ctx, assistantMessageID, 50)
+}
+
+func (c *ChatUseCase) GetSessionMessagesForAssistantMessageVersion(ctx context.Context, userId int, sessionId int64, assistantMessageID int64, versionIndex int32) ([]*domain.Message, error) {
+	if assistantMessageID <= 0 {
+		return nil, fmt.Errorf("некорректный assistant_message_id")
+	}
+	if versionIndex < 0 {
+		return nil, fmt.Errorf("некорректный version_index")
+	}
+	if _, err := c.verifySessionOwnership(ctx, userId, sessionId); err != nil {
+		return nil, err
+	}
+	target, err := c.messageRepo.GetByID(ctx, assistantMessageID)
+	if err != nil {
+		return nil, err
+	}
+	if target == nil || target.SessionId != sessionId || target.Role != domain.MessageRoleAssistant {
+		return nil, fmt.Errorf("сообщение не найдено")
+	}
+
+	prefix, err := c.messageRepo.ListMessagesUpToID(ctx, sessionId, assistantMessageID)
+	if err != nil {
+		return nil, err
+	}
+
+	if c.assistantRegenRepo == nil {
+		return prefix, nil
+	}
+
+	desc, err := c.assistantRegenRepo.ListByMessageID(ctx, assistantMessageID, 200)
+	if err != nil {
+		return nil, err
+	}
+
+	regens := make([]*domain.AssistantMessageRegeneration, 0, len(desc))
+	for i := len(desc) - 1; i >= 0; i-- {
+		regens = append(regens, desc[i])
+	}
+
+	n := int32(len(regens))
+	if versionIndex > n {
+		versionIndex = n
+	}
+
+	for i := range prefix {
+		if prefix[i] == nil || prefix[i].Id != assistantMessageID {
+			continue
+		}
+
+		if len(regens) == 0 {
+			break
+		}
+
+		if versionIndex == 0 {
+			prefix[i].Content = regens[0].OldContent
+		} else {
+			prefix[i].Content = regens[versionIndex-1].NewContent
+		}
+		break
+	}
+
+	return prefix, nil
 }
 
 func (c *ChatUseCase) GetSessionMessagesForUserMessageVersion(ctx context.Context, userId int, sessionId int64, userMessageID int64, versionIndex int32) ([]*domain.Message, error) {

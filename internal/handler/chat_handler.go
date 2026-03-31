@@ -419,6 +419,94 @@ func (c *ChatHandler) GetSessionMessagesForUserMessageVersion(ctx context.Contex
 	}, nil
 }
 
+func (c *ChatHandler) GetAssistantMessageRegenerations(ctx context.Context, req *chatpb.GetAssistantMessageRegenerationsRequest) (*chatpb.GetAssistantMessageRegenerationsResponse, error) {
+	userID, err := c.getUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if req == nil || req.GetSessionId() <= 0 || req.GetAssistantMessageId() <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "некорректный запрос")
+	}
+
+	rows, getErr := c.chatUseCase.GetAssistantMessageRegenerations(ctx, userID, req.GetSessionId(), req.GetAssistantMessageId())
+	if getErr != nil {
+		msg := getErr.Error()
+		switch {
+		case errors.Is(getErr, domain.ErrUnauthorized):
+			return nil, status.Error(codes.PermissionDenied, "нет доступа к сессии")
+		case strings.Contains(msg, "некорректный"),
+			strings.Contains(msg, "не найдено"):
+			return nil, status.Error(codes.InvalidArgument, msg)
+		default:
+			return nil, ToStatusError(codes.Internal, getErr)
+		}
+	}
+
+	out := &chatpb.GetAssistantMessageRegenerationsResponse{
+		Regenerations: make([]*chatpb.AssistantMessageRegeneration, 0, len(rows)),
+	}
+
+	for _, r := range rows {
+		if r == nil {
+			continue
+		}
+
+		out.Regenerations = append(out.Regenerations, &chatpb.AssistantMessageRegeneration{
+			Id:         r.Id,
+			MessageId:  r.MessageId,
+			CreatedAt:  r.CreatedAt.Unix(),
+			OldContent: r.OldContent,
+			NewContent: r.NewContent,
+		})
+	}
+
+	return out, nil
+}
+
+func (c *ChatHandler) GetSessionMessagesForAssistantMessageVersion(ctx context.Context, req *chatpb.GetSessionMessagesForAssistantMessageVersionRequest) (*chatpb.GetSessionMessagesResponse, error) {
+	userID, err := c.getUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if req == nil || req.GetSessionId() <= 0 || req.GetAssistantMessageId() <= 0 || req.GetVersionIndex() < 0 {
+		return nil, status.Error(codes.InvalidArgument, "некорректный запрос")
+	}
+
+	msgs, getErr := c.chatUseCase.GetSessionMessagesForAssistantMessageVersion(
+		ctx,
+		userID,
+		req.GetSessionId(),
+		req.GetAssistantMessageId(),
+		req.GetVersionIndex(),
+	)
+	if getErr != nil {
+		msg := getErr.Error()
+		switch {
+		case errors.Is(getErr, domain.ErrUnauthorized):
+			return nil, status.Error(codes.PermissionDenied, "нет доступа к сессии")
+		case strings.Contains(msg, "некорректный"),
+			strings.Contains(msg, "не найдено"):
+			return nil, status.Error(codes.InvalidArgument, msg)
+		default:
+			return nil, ToStatusError(codes.Internal, getErr)
+		}
+	}
+
+	out := make([]*chatpb.ChatMessage, 0, len(msgs))
+	for _, m := range msgs {
+		out = append(out, mappers.MessageToProto(m))
+	}
+
+	return &chatpb.GetSessionMessagesResponse{
+		Messages: out,
+		Total:    int32(len(out)),
+		Page:     1,
+		PageSize: int32(len(out)),
+	}, nil
+}
+
 func (c *ChatHandler) CreateSession(ctx context.Context, req *chatpb.CreateSessionRequest) (*chatpb.ChatSession, error) {
 	logger.D("CreateSession: title=%s", req.GetTitle())
 	userID, err := c.getUserID(ctx)

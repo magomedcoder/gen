@@ -27,6 +27,10 @@ service ChatService {
 
   rpc GetSessionMessagesForUserMessageVersion(GetSessionMessagesForUserMessageVersionRequest) returns (GetSessionMessagesResponse);
 
+  rpc GetAssistantMessageRegenerations(GetAssistantMessageRegenerationsRequest) returns (GetAssistantMessageRegenerationsResponse);
+
+  rpc GetSessionMessagesForAssistantMessageVersion(GetSessionMessagesForAssistantMessageVersionRequest) returns (GetSessionMessagesResponse);
+
   rpc CreateSession(CreateSessionRequest) returns (ChatSession);
 
   rpc GetSessions(GetSessionsRequest) returns (GetSessionsResponse);
@@ -129,6 +133,29 @@ message GetUserMessageEditsResponse {
 message GetSessionMessagesForUserMessageVersionRequest {
   int64 session_id = 1;
   int64 user_message_id = 2;
+  int32 version_index = 3;
+}
+
+message GetAssistantMessageRegenerationsRequest {
+  int64 session_id = 1;
+  int64 assistant_message_id = 2;
+}
+
+message AssistantMessageRegeneration {
+  int64 id = 1;
+  int64 message_id = 2;
+  int64 created_at = 3;
+  string old_content = 4;
+  string new_content = 5;
+}
+
+message GetAssistantMessageRegenerationsResponse {
+  repeated AssistantMessageRegeneration regenerations = 1;
+}
+
+message GetSessionMessagesForAssistantMessageVersionRequest {
+  int64 session_id = 1;
+  int64 assistant_message_id = 2;
   int32 version_index = 3;
 }
 
