@@ -11,15 +11,6 @@ class ChatSessionSettingsButton extends StatelessWidget {
 
   final ChatState state;
 
-  static double _creativityFromTemperature(double? temperature) {
-    final t = (temperature ?? 0.8).clamp(0.0, 2.0);
-    return t / 2.0;
-  }
-
-  static double _temperatureFromCreativity(double creativity) {
-    return creativity.clamp(0.0, 1.0) * 2.0;
-  }
-
   static const Map<String, String> _profileTitles = {
     'code': 'Код',
     'analytics': 'Аналитика',
@@ -80,7 +71,6 @@ class ChatSessionSettingsButton extends StatelessWidget {
     var expertMode = false;
     var selectedProfile = current.profile;
     var selectedRunner = state.selectedRunner;
-    var creativity = _creativityFromTemperature(current.temperature);
 
     if (state.runners.isEmpty) {
       context.read<ChatBloc>().add(const ChatLoadRunners());
@@ -118,8 +108,6 @@ class ChatSessionSettingsButton extends StatelessWidget {
           topKController.text = '40';
           break;
       }
-      final t = double.tryParse(temperatureController.text.trim());
-      creativity = _creativityFromTemperature(t);
     }
 
     showDialog<void>(
@@ -294,22 +282,6 @@ class ChatSessionSettingsButton extends StatelessWidget {
                             helperMaxLines: 3,
                             border: OutlineInputBorder(),
                           ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      _settingsSection(
-                        ctx,
-                        title: 'Быстрая настройка ответа',
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Креативность: ${_temperatureFromCreativity(creativity).toStringAsFixed(2)}'),
-                            Slider(
-                              value: creativity,
-                              onChanged: (v) => setStateDialog(() => creativity = v),
-                            ),
-                            const Text('Ниже - более предсказуемо, выше - более разнообразно',),
-                          ],
                         ),
                       ),
                       const SizedBox(height: 12),

@@ -22,6 +22,7 @@ import 'package:gen/domain/usecases/chat/update_session_settings_usecase.dart';
 import 'package:gen/domain/usecases/chat/update_session_title_usecase.dart';
 import 'package:gen/domain/usecases/runners/get_runners_usecase.dart';
 import 'package:gen/domain/usecases/runners/get_runners_status_usecase.dart';
+import 'package:gen/domain/usecases/runners/get_user_runners_usecase.dart';
 import 'package:gen/presentation/screens/auth/bloc/auth_bloc.dart';
 import 'package:gen/presentation/screens/chat/bloc/chat_event.dart';
 import 'package:gen/presentation/screens/chat/bloc/chat_state.dart';
@@ -32,6 +33,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
   final AuthBloc authBloc;
   final ConnectUseCase connectUseCase;
   final GetRunnersUseCase getRunnersUseCase;
+  final GetUserRunnersUseCase getUserRunnersUseCase;
   final GetSessionSettingsUseCase getSessionSettingsUseCase;
   final UpdateSessionSettingsUseCase updateSessionSettingsUseCase;
   final SendMessageUseCase sendMessageUseCase;
@@ -54,6 +56,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     required this.authBloc,
     required this.connectUseCase,
     required this.getRunnersUseCase,
+    required this.getUserRunnersUseCase,
     required this.getSessionSettingsUseCase,
     required this.updateSessionSettingsUseCase,
     required this.sendMessageUseCase,
@@ -130,26 +133,44 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       if (isConnected) {
         try {
           final sessionsFuture = getSessionsUseCase(page: 1, pageSize: 20);
-          final runnersFuture = getRunnersUseCase();
-
           final sessions = await sessionsFuture;
+          final isAdmin = authBloc.state.user?.isAdmin ?? false;
+
           List<String> runners = const [];
           Map<String, String> runnerNames = const {};
           String? selectedRunner;
           try {
-            final runnerInfos = await runnersFuture;
-            runners = _extractAvailableRunners(runnerInfos);
-            runnerNames = _extractRunnerNames(runnerInfos);
-            if (runners.isNotEmpty && state.selectedRunner == null) {
-              final defaultRunner = await getSelectedRunnerUseCase();
-              if (defaultRunner != null && runners.contains(defaultRunner)) {
-                selectedRunner = defaultRunner;
-              } else {
-                selectedRunner = runners.first;
-                try {
-                  await setSelectedRunnerUseCase(selectedRunner);
-                } catch (_) {}
+            if (isAdmin) {
+              final runnerInfos = await getRunnersUseCase();
+              runners = _extractAvailableRunners(runnerInfos);
+              runnerNames = _extractRunnerNames(runnerInfos);
+              if (runners.isNotEmpty && state.selectedRunner == null) {
+                final defaultRunner = await getSelectedRunnerUseCase();
+                if (defaultRunner != null && runners.contains(defaultRunner)) {
+                  selectedRunner = defaultRunner;
+                } else {
+                  selectedRunner = runners.first;
+                  try {
+                    await setSelectedRunnerUseCase(selectedRunner);
+                  } catch (_) {}
+                }
               }
+            } else {
+              try {
+                final runnerInfos = await getUserRunnersUseCase();
+                runners = _extractAvailableRunners(runnerInfos);
+                runnerNames = _extractRunnerNames(runnerInfos);
+
+                final saved = await getSelectedRunnerUseCase();
+                if (saved != null && saved.isNotEmpty && runners.contains(saved)) {
+                  selectedRunner = saved;
+                } else if (runners.isNotEmpty) {
+                  selectedRunner = runners.first;
+                  try {
+                    await setSelectedRunnerUseCase(selectedRunner);
+                  } catch (_) {}
+                }
+              } catch (_) {}
             }
           } catch (_) {}
 
@@ -807,6 +828,37 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       try {
         hasActiveRunners = await getRunnersStatusUseCase();
       } catch (_) {}
+
+      final isAdmin = authBloc.state.user?.isAdmin ?? false;
+      if (!isAdmin) {
+        try {
+          final runnerInfos = await getUserRunnersUseCase();
+          final runners = _extractAvailableRunners(runnerInfos);
+          final runnerNames = _extractRunnerNames(runnerInfos);
+          String? selectedRunner = state.selectedRunner;
+          if (runners.isNotEmpty && selectedRunner != null && !runners.contains(selectedRunner)) {
+            selectedRunner = runners.first;
+            try {
+              await setSelectedRunnerUseCase(selectedRunner);
+            } catch (_) {}
+          }
+
+          emit(state.copyWith(
+            runners: runners,
+            runnerNames: runnerNames,
+            selectedRunner: selectedRunner,
+            hasActiveRunners: hasActiveRunners,
+            runnersStatusRefreshing: false,
+          ));
+          return;
+        } catch (_) {
+          emit(state.copyWith(
+            hasActiveRunners: hasActiveRunners,
+            runnersStatusRefreshing: false,
+          ));
+          return;
+        }
+      }
 
       final runnerInfos = await getRunnersUseCase();
       final runners = _extractAvailableRunners(runnerInfos);

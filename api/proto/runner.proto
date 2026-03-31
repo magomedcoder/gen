@@ -9,6 +9,8 @@ option go_package = "github.com/magomedcoder/gen/api/pb/runnerpb;runnerpb";
 service RunnerService {
   rpc GetRunners(common.Empty) returns (GetRunnersResponse);
 
+  rpc GetUserRunners(common.Empty) returns (GetUserRunnersResponse);
+
   rpc SetRunnerEnabled(SetRunnerEnabledRequest) returns (common.Empty);
 
   rpc RegisterRunner(RegisterRunnerRequest) returns (common.Empty);
@@ -61,6 +63,15 @@ message RunnerInfo {
 
 message GetRunnersResponse {
   repeated RunnerInfo runners = 1;
+}
+
+message UserRunnerInfo {
+  string address = 1;
+  string name = 2;
+}
+
+message GetUserRunnersResponse {
+  repeated UserRunnerInfo runners = 1;
 }
 
 message SetRunnerEnabledRequest {

@@ -11,6 +11,9 @@ class RunnersRepositoryImpl implements RunnersRepository {
   Future<List<RunnerInfo>> getRunners() => _remote.getRunners();
 
   @override
+  Future<List<RunnerInfo>> getUserRunners() => _remote.getUserRunners();
+
+  @override
   Future<void> setRunnerEnabled(String address, bool enabled) => _remote.setRunnerEnabled(address, enabled);
 
   @override

@@ -52,7 +52,6 @@ class RunnerCardHeader extends StatelessWidget {
         Text(
           status.label,
           style: theme.textTheme.labelMedium?.copyWith(
-            color: statusColor,
             fontWeight: FontWeight.w500,
           ),
         ),

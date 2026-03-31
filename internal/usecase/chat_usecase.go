@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/magomedcoder/gen/internal/domain"
+	"github.com/magomedcoder/gen/internal/runner"
 	"github.com/magomedcoder/gen/pkg/document"
 	"github.com/magomedcoder/gen/pkg/logger"
 	"github.com/magomedcoder/gen/pkg/spreadsheet"
@@ -40,6 +41,7 @@ type ChatUseCase struct {
 	messageRepo         domain.MessageRepository
 	fileRepo            domain.FileRepository
 	llmRepo             domain.LLMRepository
+	runnerPool          *runner.Pool
 	attachmentsSaveDir  string
 	defaultRunnerAddr   string
 }
@@ -51,6 +53,7 @@ func NewChatUseCase(
 	messageRepo domain.MessageRepository,
 	fileRepo domain.FileRepository,
 	llmRepo domain.LLMRepository,
+	runnerPool *runner.Pool,
 	attachmentsSaveDir string,
 	defaultRunnerAddr string,
 ) *ChatUseCase {
@@ -61,6 +64,7 @@ func NewChatUseCase(
 		messageRepo:         messageRepo,
 		fileRepo:            fileRepo,
 		llmRepo:             llmRepo,
+		runnerPool:          runnerPool,
 		attachmentsSaveDir:  attachmentsSaveDir,
 		defaultRunnerAddr:   strings.TrimSpace(defaultRunnerAddr),
 	}
@@ -87,7 +91,41 @@ func (c *ChatUseCase) GetDefaultRunnerModel(ctx context.Context, userID int, run
 }
 
 func (c *ChatUseCase) SetDefaultRunnerModel(ctx context.Context, userID int, runner string, model string) error {
-	return c.preferenceRepo.SetDefaultRunnerModel(ctx, userID, runner, model)
+	if err := c.preferenceRepo.SetDefaultRunnerModel(ctx, userID, runner, model); err != nil {
+		return err
+	}
+
+	if c.runnerPool == nil {
+		return nil
+	}
+
+	runnerAddr := strings.TrimSpace(runner)
+	modelName := strings.TrimSpace(model)
+	if runnerAddr == "" {
+		return nil
+	}
+
+	go func() {
+		warmCtx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+		defer cancel()
+
+		if err := c.runnerPool.WaitRunnerIdle(warmCtx, runnerAddr); err != nil {
+			logger.W("SetDefaultRunnerModel: wait idle runner=%s: %v", runnerAddr, err)
+			return
+		}
+
+		if err := c.runnerPool.UnloadModelOnRunner(warmCtx, runnerAddr); err != nil {
+			logger.W("SetDefaultRunnerModel: unload model runner=%s: %v", runnerAddr, err)
+		}
+
+		if modelName != "" {
+			if err := c.runnerPool.WarmModelOnRunner(warmCtx, runnerAddr, modelName); err != nil {
+				logger.W("SetDefaultRunnerModel: warm model runner=%s model=%q: %v", runnerAddr, modelName, err)
+			}
+		}
+	}()
+
+	return nil
 }
 
 func (c *ChatUseCase) verifySessionOwnership(ctx context.Context, userId int, sessionID int64) (*domain.ChatSession, error) {
@@ -362,6 +400,100 @@ func (c *ChatUseCase) SendMessageMulti(ctx context.Context, userId int, sessionI
 
 	clientChan := make(chan ChatStreamChunk, 100)
 	var fullResponse strings.Builder
+	go func() {
+		defer func() {
+			_ = c.messageRepo.UpdateContent(context.Background(), messageID, fullResponse.String())
+		}()
+		defer close(clientChan)
+
+		for chunk := range responseChan {
+			fullResponse.WriteString(chunk)
+			select {
+			case <-ctx.Done():
+				return
+			case clientChan <- ChatStreamChunk{Kind: StreamChunkKindText, Text: chunk, MessageID: messageID}:
+			}
+		}
+	}()
+
+	return clientChan, nil
+}
+
+func (c *ChatUseCase) RegenerateAssistantResponse(ctx context.Context, userId int, sessionId int64, assistantMessageID int64) (chan ChatStreamChunk, error) {
+	logger.D("RegenerateAssistantResponse: session=%d user=%d assistantMsg=%d", sessionId, userId, assistantMessageID)
+	if assistantMessageID <= 0 {
+		return nil, fmt.Errorf("некорректный assistant_message_id")
+	}
+
+	session, err := c.verifySessionOwnership(ctx, userId, sessionId)
+	if err != nil {
+		logger.W("RegenerateAssistantResponse: сессия: %v", err)
+		return nil, err
+	}
+
+	target, err := c.messageRepo.GetByID(ctx, assistantMessageID)
+	if err != nil {
+		logger.E("RegenerateAssistantResponse: загрузка сообщения: %v", err)
+		return nil, err
+	}
+	if target == nil || target.SessionId != sessionId {
+		return nil, fmt.Errorf("сообщение не найдено")
+	}
+	if target.Role != domain.MessageRoleAssistant {
+		return nil, fmt.Errorf("перегенерировать можно только ответ ассистента")
+	}
+
+	maxID, err := c.messageRepo.MaxMessageIDInSession(ctx, sessionId)
+	if err != nil {
+		logger.E("RegenerateAssistantResponse: max id: %v", err)
+		return nil, err
+	}
+	if maxID != assistantMessageID {
+		return nil, fmt.Errorf("перегенерировать можно только последнее сообщение в чате")
+	}
+
+	resolvedModel, err := resolveModelForUser(ctx, c.llmRepo, c.preferenceRepo, userId, "", session.Model, c.defaultRunnerAddr)
+	if err != nil {
+		return nil, err
+	}
+
+	settings, _ := c.sessionSettingsRepo.GetBySessionID(ctx, sessionId)
+	stopSequences, timeoutSeconds, genParams := genParamsFromSessionSettings(settings)
+	if genParams != nil && len(genParams.Tools) > 0 {
+		return nil, domain.ErrRegenerateToolsNotSupported
+	}
+
+	rawPrefix, err := c.messageRepo.ListMessagesWithIDLessThan(ctx, sessionId, assistantMessageID)
+	if err != nil {
+		logger.E("RegenerateAssistantResponse: префикс истории: %v", err)
+		return nil, err
+	}
+	messages := filterHistoryForLLM(rawPrefix)
+
+	messagesForLLM := make([]*domain.Message, 0, len(messages)+1)
+	messagesForLLM = append(messagesForLLM, chatSessionSystemMessage(sessionId, settings))
+	messagesForLLM = append(messagesForLLM, messages...)
+
+	if err := c.hydrateAttachmentsForRunner(ctx, messagesForLLM); err != nil {
+		logger.E("RegenerateAssistantResponse: вложения: %v", err)
+		return nil, err
+	}
+
+	if err := c.messageRepo.ResetAssistantForRegenerate(ctx, sessionId, assistantMessageID); err != nil {
+		logger.E("RegenerateAssistantResponse: сброс черновика: %v", err)
+		return nil, err
+	}
+
+	messageID := assistantMessageID
+
+	responseChan, err := c.llmRepo.SendMessage(ctx, sessionId, resolvedModel, messagesForLLM, stopSequences, timeoutSeconds, genParams)
+	if err != nil {
+		logger.E("RegenerateAssistantResponse: LLM: %v", err)
+		return nil, err
+	}
+
+	var fullResponse strings.Builder
+	clientChan := make(chan ChatStreamChunk, 100)
 	go func() {
 		defer func() {
 			_ = c.messageRepo.UpdateContent(context.Background(), messageID, fullResponse.String())

@@ -19,6 +19,34 @@ class RunnerServerInfoSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (serverInfo.models.isNotEmpty) ...[
+          DropdownButtonFormField<String>(
+            initialValue: defaultModel != null && serverInfo.models.contains(defaultModel)
+                ? defaultModel
+                : serverInfo.models.first,
+            isExpanded: true,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              isDense: true,
+              labelText: 'Модель',
+            ),
+            items: [
+              for (final model in serverInfo.models)
+                DropdownMenuItem<String>(
+                  value: model,
+                  child: Text(model),
+                ),
+            ],
+            onChanged: onDefaultModelChanged == null ? null : (String? v) {
+              if (v != null) {
+                onDefaultModelChanged!(v);
+              }
+            },
+          ),
+        ],
+        const SizedBox(height: 12),
+        const Divider(height: 1),
+        const SizedBox(height: 12),
         Text(
           'Сервер',
           style: theme.textTheme.labelMedium?.copyWith(
@@ -56,54 +84,6 @@ class RunnerServerInfoSection extends StatelessWidget {
               ),
           ],
         ),
-        if (serverInfo.models.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          Text(
-            'Модели',
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Wrap(
-            spacing: 6,
-            runSpacing: 4,
-            children: serverInfo.models
-              .map((m) => Chip(
-                label: Text(m, style: theme.textTheme.labelSmall),
-                padding: EdgeInsets.zero,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                visualDensity: VisualDensity.compact,
-              ))
-              .toList(),
-          ),
-          const SizedBox(height: 10),
-          DropdownButtonFormField<String>(
-            initialValue: defaultModel != null && serverInfo.models.contains(defaultModel)
-                ? defaultModel
-                : serverInfo.models.first,
-            isExpanded: true,
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
-              isDense: true,
-              labelText: 'Модель по умолчанию',
-            ),
-            items: [
-              for (final model in serverInfo.models)
-                DropdownMenuItem<String>(
-                  value: model,
-                  child: Text(model),
-                ),
-            ],
-            onChanged: onDefaultModelChanged == null
-              ? null
-              : (String? v) {
-                if (v != null) {
-                  onDefaultModelChanged!(v);
-                }
-              },
-          ),
-        ],
       ],
     );
   }

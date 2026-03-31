@@ -19,6 +19,8 @@ service ChatService {
 
   rpc SendMessage(SendMessageRequest) returns (stream ChatResponse);
 
+  rpc RegenerateAssistantResponse(RegenerateAssistantRequest) returns (stream ChatResponse);
+
   rpc CreateSession(CreateSessionRequest) returns (ChatSession);
 
   rpc GetSessions(GetSessionsRequest) returns (GetSessionsResponse);
@@ -87,6 +89,11 @@ message ChatResponse {
 message SendMessageRequest {
   int64 session_id = 1;
   repeated ChatMessage messages = 2;
+}
+
+message RegenerateAssistantRequest {
+  int64 session_id = 1;
+  int64 assistant_message_id = 2;
 }
 
 message ChatSession {

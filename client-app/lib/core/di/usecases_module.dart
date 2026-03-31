@@ -24,6 +24,7 @@ import 'package:gen/domain/usecases/chat/update_session_title_usecase.dart';
 import 'package:gen/domain/usecases/editor/transform_text_usecase.dart';
 import 'package:gen/domain/usecases/runners/get_runners_status_usecase.dart';
 import 'package:gen/domain/usecases/runners/get_runners_usecase.dart';
+import 'package:gen/domain/usecases/runners/get_user_runners_usecase.dart';
 import 'package:gen/domain/usecases/runners/set_runner_enabled_usecase.dart';
 import 'package:gen/domain/usecases/users/create_user_usecase.dart';
 import 'package:gen/domain/usecases/users/edit_user_usecase.dart';
@@ -52,6 +53,7 @@ void registerUseCasesModule(GetIt sl) {
   sl.registerFactory(() => BuildDocxUseCase(sl()));
   sl.registerFactory(() => ApplyMarkdownPatchUseCase(sl()));
   sl.registerFactory(() => GetRunnersUseCase(sl()));
+  sl.registerFactory(() => GetUserRunnersUseCase(sl()));
   sl.registerFactory(() => SetRunnerEnabledUseCase(sl()));
   sl.registerFactory(() => GetRunnersStatusUseCase(sl()));
 

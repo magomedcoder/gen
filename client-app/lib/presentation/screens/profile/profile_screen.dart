@@ -9,6 +9,7 @@ import 'package:gen/domain/usecases/auth/change_password_usecase.dart';
 import 'package:gen/domain/usecases/chat/get_selected_runner_usecase.dart';
 import 'package:gen/domain/usecases/chat/set_selected_runner_usecase.dart';
 import 'package:gen/domain/usecases/runners/get_runners_usecase.dart';
+import 'package:gen/domain/usecases/runners/get_user_runners_usecase.dart';
 import 'package:gen/presentation/screens/auth/bloc/auth_bloc.dart';
 import 'package:gen/presentation/screens/auth/bloc/auth_event.dart';
 import 'package:gen/presentation/screens/auth/bloc/auth_state.dart';
@@ -62,7 +63,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _loadRunnerPreferences() async {
     setState(() => _loadingRunnerPrefs = true);
     try {
-      final runners = await sl<GetRunnersUseCase>()();
+      final isAdmin = sl<AuthBloc>().state.user?.isAdmin ?? false;
+      final runners = isAdmin
+          ? await sl<GetRunnersUseCase>()()
+          : await sl<GetUserRunnersUseCase>()();
       final selected = await sl<GetSelectedRunnerUseCase>()();
       final available = _extractAvailableRunners(runners);
       final runnerNames = _extractRunnerNames(runners);

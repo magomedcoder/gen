@@ -26,6 +26,7 @@ void registerBlocsModule(GetIt sl) {
       authBloc: sl<AuthBloc>(),
       connectUseCase: sl(),
       getRunnersUseCase: sl(),
+      getUserRunnersUseCase: sl(),
       getSessionSettingsUseCase: sl(),
       updateSessionSettingsUseCase: sl(),
       sendMessageUseCase: sl(),

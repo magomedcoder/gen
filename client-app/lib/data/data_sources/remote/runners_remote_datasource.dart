@@ -11,6 +11,8 @@ import 'package:gen/generated/grpc_pb/runner.pb.dart' as pb;
 abstract class IRunnersRemoteDataSource {
   Future<List<domain.RunnerInfo>> getRunners();
 
+  Future<List<domain.RunnerInfo>> getUserRunners();
+
   Future<void> setRunnerEnabled(String address, bool enabled);
 
   Future<bool> getRunnersStatus();
@@ -75,6 +77,33 @@ class RunnersRemoteDataSource implements IRunnersRemoteDataSource {
       }).toList();
     } catch (e) {
       Logs().e('RunnersRemote: getRunners', exception: e);
+      rethrow;
+    }
+  }
+
+  @override
+  Future<List<domain.RunnerInfo>> getUserRunners() async {
+    Logs().d('RunnersRemote: getUserRunners');
+    try {
+      final resp = await _authGuard.execute(
+        () => _channelManager.runnerClient.getUserRunners(common.Empty()),
+      );
+      Logs().i('RunnersRemote: getUserRunners получено ${resp.runners.length}');
+      return resp.runners
+          .map(
+            (r) => domain.RunnerInfo(
+              address: r.address,
+              name: r.name,
+              enabled: true,
+              connected: false,
+              gpus: const [],
+              serverInfo: null,
+              loadedModel: null,
+            ),
+          )
+          .toList();
+    } catch (e) {
+      Logs().e('RunnersRemote: getUserRunners', exception: e);
       rethrow;
     }
   }

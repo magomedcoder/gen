@@ -2,8 +2,10 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/magomedcoder/gen/internal/domain"
 )
@@ -123,4 +125,136 @@ func (r *messageRepository) GetBySessionId(ctx context.Context, sessionID int64,
 	}
 
 	return messages, total, nil
+}
+
+func (r *messageRepository) GetByID(ctx context.Context, id int64) (*domain.Message, error) {
+	row := r.db.QueryRow(ctx, `
+		SELECT m.id, m.session_id, m.content, m.role, m.attachment_file_id,
+		       COALESCE(m.tool_call_id, ''), COALESCE(m.tool_name, ''), COALESCE(m.tool_calls_json, ''),
+		       f.filename, m.created_at, m.updated_at, m.deleted_at
+		FROM messages m
+		LEFT JOIN files f ON m.attachment_file_id = f.id
+		WHERE m.id = $1 AND m.deleted_at IS NULL
+	`, id)
+
+	var message domain.Message
+	var attachmentFileID *int64
+	var fname *string
+	if err := row.Scan(
+		&message.Id,
+		&message.SessionId,
+		&message.Content,
+		&message.Role,
+		&attachmentFileID,
+		&message.ToolCallID,
+		&message.ToolName,
+		&message.ToolCallsJSON,
+		&fname,
+		&message.CreatedAt,
+		&message.UpdatedAt,
+		&message.DeletedAt,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+
+		return nil, err
+	}
+
+	message.AttachmentFileID = attachmentFileID
+	if fname != nil {
+		message.AttachmentName = *fname
+	}
+
+	return &message, nil
+}
+
+func (r *messageRepository) ListMessagesWithIDLessThan(ctx context.Context, sessionID int64, beforeMessageID int64) ([]*domain.Message, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT m.id, m.session_id, m.content, m.role, m.attachment_file_id,
+		       COALESCE(m.tool_call_id, ''), COALESCE(m.tool_name, ''), COALESCE(m.tool_calls_json, ''),
+		       f.filename, m.created_at, m.updated_at, m.deleted_at
+		FROM messages m
+		LEFT JOIN files f ON m.attachment_file_id = f.id
+		WHERE m.session_id = $1 AND m.deleted_at IS NULL AND m.id < $2
+		ORDER BY m.created_at ASC, m.id ASC
+	`, sessionID, beforeMessageID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var messages []*domain.Message
+	for rows.Next() {
+		var message domain.Message
+		var attachmentFileID *int64
+		var fname *string
+		if err := rows.Scan(
+			&message.Id,
+			&message.SessionId,
+			&message.Content,
+			&message.Role,
+			&attachmentFileID,
+			&message.ToolCallID,
+			&message.ToolName,
+			&message.ToolCallsJSON,
+			&fname,
+			&message.CreatedAt,
+			&message.UpdatedAt,
+			&message.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+
+		message.AttachmentFileID = attachmentFileID
+		if fname != nil {
+			message.AttachmentName = *fname
+		}
+
+		messages = append(messages, &message)
+	}
+
+	if rows.Err() != nil {
+		return nil, rows.Err()
+	}
+
+	return messages, nil
+}
+
+func (r *messageRepository) ResetAssistantForRegenerate(ctx context.Context, sessionID int64, messageID int64) error {
+	tag, err := r.db.Exec(ctx, `
+		UPDATE messages
+		SET content = $3,
+		    tool_calls_json = NULL,
+		    tool_call_id = NULL,
+		    tool_name = NULL,
+		    updated_at = NOW()
+		WHERE id = $1 AND session_id = $2 AND role = 'assistant' AND deleted_at IS NULL
+	`, messageID, sessionID, "")
+	if err != nil {
+		return err
+	}
+
+	if tag.RowsAffected() == 0 {
+		return errors.New("сообщение не найдено или не является ответом ассистента")
+	}
+
+	return nil
+}
+
+func (r *messageRepository) MaxMessageIDInSession(ctx context.Context, sessionID int64) (int64, error) {
+	var maxID *int64
+	err := r.db.QueryRow(ctx, `
+		SELECT MAX(id) FROM messages
+		WHERE session_id = $1 AND deleted_at IS NULL
+	`, sessionID).Scan(&maxID)
+	if err != nil {
+		return 0, err
+	}
+
+	if maxID == nil {
+		return 0, nil
+	}
+
+	return *maxID, nil
 }
