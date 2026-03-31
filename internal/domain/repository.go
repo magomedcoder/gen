@@ -62,6 +62,14 @@ type MessageRepository interface {
 	UpdateContent(ctx context.Context, id int64, content string) error
 
 	GetBySessionId(ctx context.Context, sessionID int64, page, pageSize int32) ([]*Message, int32, error)
+
+	GetByID(ctx context.Context, id int64) (*Message, error)
+
+	ListMessagesWithIDLessThan(ctx context.Context, sessionID int64, beforeMessageID int64) ([]*Message, error)
+
+	ResetAssistantForRegenerate(ctx context.Context, sessionID int64, messageID int64) error
+
+	MaxMessageIDInSession(ctx context.Context, sessionID int64) (int64, error)
 }
 
 type FileRepository interface {

@@ -381,6 +381,100 @@ func (c *ChatUseCase) SendMessageMulti(ctx context.Context, userId int, sessionI
 	return clientChan, nil
 }
 
+func (c *ChatUseCase) RegenerateAssistantResponse(ctx context.Context, userId int, sessionId int64, assistantMessageID int64) (chan ChatStreamChunk, error) {
+	logger.D("RegenerateAssistantResponse: session=%d user=%d assistantMsg=%d", sessionId, userId, assistantMessageID)
+	if assistantMessageID <= 0 {
+		return nil, fmt.Errorf("некорректный assistant_message_id")
+	}
+
+	session, err := c.verifySessionOwnership(ctx, userId, sessionId)
+	if err != nil {
+		logger.W("RegenerateAssistantResponse: сессия: %v", err)
+		return nil, err
+	}
+
+	target, err := c.messageRepo.GetByID(ctx, assistantMessageID)
+	if err != nil {
+		logger.E("RegenerateAssistantResponse: загрузка сообщения: %v", err)
+		return nil, err
+	}
+	if target == nil || target.SessionId != sessionId {
+		return nil, fmt.Errorf("сообщение не найдено")
+	}
+	if target.Role != domain.MessageRoleAssistant {
+		return nil, fmt.Errorf("перегенерировать можно только ответ ассистента")
+	}
+
+	maxID, err := c.messageRepo.MaxMessageIDInSession(ctx, sessionId)
+	if err != nil {
+		logger.E("RegenerateAssistantResponse: max id: %v", err)
+		return nil, err
+	}
+	if maxID != assistantMessageID {
+		return nil, fmt.Errorf("перегенерировать можно только последнее сообщение в чате")
+	}
+
+	resolvedModel, err := resolveModelForUser(ctx, c.llmRepo, c.preferenceRepo, userId, "", session.Model, c.defaultRunnerAddr)
+	if err != nil {
+		return nil, err
+	}
+
+	settings, _ := c.sessionSettingsRepo.GetBySessionID(ctx, sessionId)
+	stopSequences, timeoutSeconds, genParams := genParamsFromSessionSettings(settings)
+	if genParams != nil && len(genParams.Tools) > 0 {
+		return nil, domain.ErrRegenerateToolsNotSupported
+	}
+
+	rawPrefix, err := c.messageRepo.ListMessagesWithIDLessThan(ctx, sessionId, assistantMessageID)
+	if err != nil {
+		logger.E("RegenerateAssistantResponse: префикс истории: %v", err)
+		return nil, err
+	}
+	messages := filterHistoryForLLM(rawPrefix)
+
+	messagesForLLM := make([]*domain.Message, 0, len(messages)+1)
+	messagesForLLM = append(messagesForLLM, chatSessionSystemMessage(sessionId, settings))
+	messagesForLLM = append(messagesForLLM, messages...)
+
+	if err := c.hydrateAttachmentsForRunner(ctx, messagesForLLM); err != nil {
+		logger.E("RegenerateAssistantResponse: вложения: %v", err)
+		return nil, err
+	}
+
+	if err := c.messageRepo.ResetAssistantForRegenerate(ctx, sessionId, assistantMessageID); err != nil {
+		logger.E("RegenerateAssistantResponse: сброс черновика: %v", err)
+		return nil, err
+	}
+
+	messageID := assistantMessageID
+
+	responseChan, err := c.llmRepo.SendMessage(ctx, sessionId, resolvedModel, messagesForLLM, stopSequences, timeoutSeconds, genParams)
+	if err != nil {
+		logger.E("RegenerateAssistantResponse: LLM: %v", err)
+		return nil, err
+	}
+
+	var fullResponse strings.Builder
+	clientChan := make(chan ChatStreamChunk, 100)
+	go func() {
+		defer func() {
+			_ = c.messageRepo.UpdateContent(context.Background(), messageID, fullResponse.String())
+		}()
+		defer close(clientChan)
+
+		for chunk := range responseChan {
+			fullResponse.WriteString(chunk)
+			select {
+			case <-ctx.Done():
+				return
+			case clientChan <- ChatStreamChunk{Kind: StreamChunkKindText, Text: chunk, MessageID: messageID}:
+			}
+		}
+	}()
+
+	return clientChan, nil
+}
+
 func (c *ChatUseCase) GetSessionSettings(ctx context.Context, userId int, sessionID int64) (*domain.ChatSessionSettings, error) {
 	_, err := c.verifySessionOwnership(ctx, userId, sessionID)
 	if err != nil {
