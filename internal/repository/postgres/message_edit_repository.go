@@ -19,16 +19,18 @@ func (r *messageEditRepository) Create(ctx context.Context, edit *domain.Message
 	return r.db.QueryRow(ctx, `
 		INSERT INTO message_edits (
 			session_id, message_id, editor_user_id,
+			kind,
 			old_content, new_content,
 			soft_deleted_from_id, soft_deleted_to_id,
 			created_at
 		)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
 		RETURNING id
 	`,
 		edit.SessionId,
 		edit.MessageId,
 		edit.EditorUserId,
+		"user_edit",
 		edit.OldContent,
 		edit.NewContent,
 		edit.SoftDeletedFrom,
@@ -47,7 +49,7 @@ func (r *messageEditRepository) ListByMessageID(ctx context.Context, messageID i
 		       soft_deleted_from_id, soft_deleted_to_id,
 		       created_at, reverted_at
 		FROM message_edits
-		WHERE message_id = $1
+		WHERE message_id = $1 AND kind = 'user_edit'
 		ORDER BY created_at DESC, id DESC
 		LIMIT $2
 	`, messageID, limit)
@@ -59,6 +61,8 @@ func (r *messageEditRepository) ListByMessageID(ctx context.Context, messageID i
 	var out []*domain.MessageEdit
 	for rows.Next() {
 		var e domain.MessageEdit
+		var softFrom *int64
+		var softTo *int64
 		if err := rows.Scan(
 			&e.Id,
 			&e.SessionId,
@@ -66,12 +70,18 @@ func (r *messageEditRepository) ListByMessageID(ctx context.Context, messageID i
 			&e.EditorUserId,
 			&e.OldContent,
 			&e.NewContent,
-			&e.SoftDeletedFrom,
-			&e.SoftDeletedTo,
+			&softFrom,
+			&softTo,
 			&e.CreatedAt,
 			&e.RevertedAt,
 		); err != nil {
 			return nil, err
+		}
+		if softFrom != nil {
+			e.SoftDeletedFrom = *softFrom
+		}
+		if softTo != nil {
+			e.SoftDeletedTo = *softTo
 		}
 		out = append(out, &e)
 	}
