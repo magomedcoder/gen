@@ -7,6 +7,7 @@
 #include "llama.cpp/common/chat.h"
 #include "llama.cpp/vendor/nlohmann/json.hpp"
 
+#include <algorithm>
 #include <string>
 #include <vector>
 #include <memory>
@@ -331,18 +332,18 @@ char* llama_wrapper_generate_with_tokens(void* ctx, const int* tokens, int n_tok
             return nullptr;
         }
 
-        // Проверка, что промпт помещается с запасом хотя бы для нескольких сгенерированных токенов
-        int tokens_needed = (int)prompt_tokens.size() + params.max_tokens;
-        if (tokens_needed > available_ctx) {
-            char err_msg[256];
-            snprintf(err_msg, sizeof(err_msg), "Подсказка слишком длинная для размера контекста: требуется %d токенов (%d подсказка + %d генерация), но контекст содержит только %d токенов", tokens_needed, (int)prompt_tokens.size(), params.max_tokens > 0 ? params.max_tokens : 128, available_ctx);
-            g_last_error = err_msg;
-
+        // Промпт + бюджет генерации не должны превышать n_ctx
+        int prompt_len = (int)prompt_tokens.size();
+        int gen_room_preview = available_ctx - prompt_len;
+        if (gen_room_preview < 1) {
+            g_last_error = "Подсказка слишком длинная для размера контекста (для генерации требуется как минимум 1 токен)";
             return nullptr;
         }
+        if (params.max_tokens > 0 && prompt_len + params.max_tokens > available_ctx) {
+            char err_msg[512];
+            snprintf(err_msg, sizeof(err_msg), R"(Подсказка слишком длинная для размера контекста: требуется %d токенов (%d подсказка + %d генерация), но контекст содержит только %d токенов)", prompt_len + params.max_tokens, prompt_len, params.max_tokens, available_ctx);
+            g_last_error = err_msg;
 
-        if ((int)prompt_tokens.size() >= available_ctx - 1) {
-            g_last_error = "Подсказка слишком длинная для размера контекста (для генерации требуется как минимум 1 токен)";
             return nullptr;
         }
 
@@ -413,15 +414,13 @@ char* llama_wrapper_generate_with_tokens(void* ctx, const int* tokens, int n_tok
         }
 
         // Валидация параметров генерации
-        // Отклоняем отрицательный max_tokens (0 разрешен и означает "по умолчанию")
+        // 0 = заполнить оставшийся контекст; отрицательные значения запрещены
         if (params.max_tokens < 0) {
             common_sampler_free(sampler);
             g_last_error = "Недопустимое значение max_tokens (должно быть >= 0)";
 
             return nullptr;
         }
-
-        int n_predict = params.max_tokens > 0 ? params.max_tokens : 128;
 
         // После очистки кэша с prefix_len и далее, кэш заканчивается на prefix_len - 1
         // Следующая позиция для использования - prefix_len
@@ -492,6 +491,15 @@ char* llama_wrapper_generate_with_tokens(void* ctx, const int* tokens, int n_tok
         }
 
         // Если n_tokens == 0, декодировать нечего
+
+        int gen_room = available_ctx - n_past;
+        if (gen_room < 1) {
+            common_sampler_free(sampler);
+            g_last_error = "Нет места в контексте для генерации";
+            return nullptr;
+        }
+
+        int n_predict = params.max_tokens > 0 ? std::min(params.max_tokens, gen_room) : gen_room;
 
         // Цикл генерации - повторяет шаблон simple.cpp
         std::string result;
@@ -829,7 +837,23 @@ char* llama_wrapper_generate_draft_with_tokens(void* ctx_target, void* ctx_draft
         llama_token last_token = prompt_tokens.back();
         llama_tokens prompt_tgt(prompt_tokens.begin(), prompt_tokens.end() - 1);
         int n_past = prompt_tokens.size() - 1;
-        int n_predict = params.max_tokens > 0 ? params.max_tokens : 128;
+        if (params.max_tokens < 0) {
+            common_sampler_free(sampler);
+            common_speculative_free(spec);
+            g_last_error = "Недопустимое значение max_tokens (должно быть >= 0)";
+            return nullptr;
+        }
+
+        int available_ctx_tgt = llama_n_ctx(wrapper_tgt->ctx);
+        int gen_room_spec = available_ctx_tgt - (int)prompt_tokens.size();
+        if (gen_room_spec < 1) {
+            common_sampler_free(sampler);
+            common_speculative_free(spec);
+            g_last_error = "Нет места в контексте для генерации";
+            return nullptr;
+        }
+
+        int n_predict = params.max_tokens > 0 ? std::min(params.max_tokens, gen_room_spec) : gen_room_spec;
 
         llama_batch batch_tgt = llama_batch_init(llama_n_batch(wrapper_tgt->ctx), 0, 1);
 

@@ -32,6 +32,7 @@ typedef struct {
 // Параметры генерации
 typedef struct {
     const char* prompt;
+    // 0 = до границы контекста (n_ctx − длина промпта), EOS/стоп-слова - раньше
     int max_tokens;
     int seed;
     const char** stop_words;

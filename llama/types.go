@@ -65,7 +65,7 @@ var defaultContextConfig = contextConfig{
 }
 
 var defaultGenerateConfig = generateConfig{
-	maxTokens:           128,
+	maxTokens:           0, // 0 = до заполнения контекста или (EOS / стоп-слова завершить раньше)
 	temperature:         0.8,
 	seed:                -1,
 	draftTokens:         16,
