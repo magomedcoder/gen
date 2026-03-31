@@ -1,4 +1,4 @@
-import 'package:gen/domain/entities/message.dart';
+import 'package:gen/domain/entities/session_messages_page.dart';
 import 'package:gen/domain/repositories/chat_repository.dart';
 
 class GetSessionMessagesUseCase {
@@ -6,11 +6,15 @@ class GetSessionMessagesUseCase {
 
   GetSessionMessagesUseCase(this.repository);
 
-  Future<List<Message>> call(
+  Future<SessionMessagesPage> call(
     int sessionId, {
-    int page = 1,
-    int pageSize = 50,
+    int beforeMessageId = 0,
+    int pageSize = 40,
   }) {
-    return repository.getSessionMessages(sessionId, page, pageSize);
+    return repository.getSessionMessagesPage(
+      sessionId: sessionId,
+      beforeMessageId: beforeMessageId,
+      pageSize: pageSize,
+    );
   }
 }

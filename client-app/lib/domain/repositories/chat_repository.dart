@@ -9,16 +9,22 @@ import 'package:gen/domain/entities/assistant_message_regeneration.dart';
 import 'package:gen/domain/entities/user_message_edit.dart';
 import 'package:gen/domain/entities/session.dart';
 import 'package:gen/domain/entities/session_file_download.dart';
+import 'package:gen/domain/entities/session_messages_page.dart';
 
 abstract interface class ChatRepository {
   Future<bool> checkConnection();
 
   Stream<ChatStreamChunk> sendMessage(
     int sessionId,
-    List<Message> messages,
+    Message message,
   );
 
   Stream<ChatStreamChunk> regenerateAssistantResponse(
+    int sessionId,
+    int assistantMessageId,
+  );
+
+  Stream<ChatStreamChunk> continueAssistantResponse(
     int sessionId,
     int assistantMessageId,
   );
@@ -57,11 +63,11 @@ abstract interface class ChatRepository {
 
   Future<List<ChatSession>> listSessions(int page, int pageSize);
 
-  Future<List<Message>> getSessionMessages(
-    int sessionId,
-    int page,
-    int pageSize,
-  );
+  Future<SessionMessagesPage> getSessionMessagesPage({
+    required int sessionId,
+    int beforeMessageId = 0,
+    int pageSize = 40,
+  });
 
   Future<void> deleteSession(int sessionId);
 

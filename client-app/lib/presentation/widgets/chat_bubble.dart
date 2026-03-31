@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:gen/core/docx_file_export.dart';
 import 'package:gen/core/injector.dart';
@@ -11,6 +12,8 @@ import 'package:gen/core/spreadsheet_file_export.dart';
 import 'package:gen/core/user_file_save.dart';
 import 'package:gen/domain/entities/message.dart';
 import 'package:gen/domain/usecases/chat/get_session_file_usecase.dart';
+import 'package:gen/presentation/screens/chat/bloc/chat_bloc.dart';
+import 'package:gen/presentation/screens/chat/bloc/chat_event.dart';
 import 'package:gen/presentation/screens/chat/widgets/chat_input_bar.dart';
 import 'package:gen/presentation/widgets/code_block_builder.dart';
 
@@ -41,6 +44,7 @@ class ChatBubble extends StatefulWidget {
   final int? editsTotal;
   final VoidCallback? onPrevEdit;
   final VoidCallback? onNextEdit;
+  final bool showContinuePartial;
 
   const ChatBubble({
     super.key,
@@ -55,6 +59,7 @@ class ChatBubble extends StatefulWidget {
     this.editsTotal,
     this.onPrevEdit,
     this.onNextEdit,
+    this.showContinuePartial = false,
   });
 
   @override
@@ -414,7 +419,8 @@ class _ChatBubbleState extends State<ChatBubble> {
                 isStreaming ||
                 widget.onRegenerate != null ||
                 widget.onEditSubmit != null ||
-                showEditNav)
+                showEditNav ||
+                widget.showContinuePartial)
               Padding(
                 padding: const EdgeInsets.only(left: 4, right: 4, top: 2, bottom: 4),
                 child: Row(
@@ -484,10 +490,24 @@ class _ChatBubbleState extends State<ChatBubble> {
                           ),
                         ),
                       ),
+                    if (widget.showContinuePartial) ...[
+                      const SizedBox(width: 4),
+                      TextButton.icon(
+                        onPressed: message.id > 0
+                          ? () => context.read<ChatBloc>().add(ChatContinueAssistant(message.id))
+                          : null,
+                        icon: const Icon(Icons.play_arrow_rounded, size: 18),
+                        label: const Text('Продолжить'),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ),
+                    ],
                     if (widget.onRegenerate != null)
                       IconButton(
                         onPressed: widget.onRegenerate,
-                        icon: Icon(
+                        icon: const Icon(
                           Icons.refresh_rounded,
                           size: 18,
                         ),
@@ -501,7 +521,7 @@ class _ChatBubbleState extends State<ChatBubble> {
                         onPressed: () {
                           setState(() => _isEditing = !_isEditing);
                         },
-                        icon: Icon(
+                        icon: const Icon(
                           Icons.edit_rounded,
                           size: 18,
                         ),

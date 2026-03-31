@@ -87,6 +87,12 @@ type MessageEditRepository interface {
 	ListByMessageID(ctx context.Context, messageID int64, limit int32) ([]*MessageEdit, error)
 }
 
+type AssistantMessageRegenerationRepository interface {
+	Create(ctx context.Context, regen *AssistantMessageRegeneration) error
+
+	ListByMessageID(ctx context.Context, messageID int64, limit int32) ([]*AssistantMessageRegeneration, error)
+}
+
 type FileRepository interface {
 	Create(ctx context.Context, file *File) error
 

@@ -10,6 +10,7 @@ import 'package:gen/domain/entities/assistant_message_regeneration.dart';
 import 'package:gen/domain/entities/user_message_edit.dart';
 import 'package:gen/domain/entities/session.dart';
 import 'package:gen/domain/entities/session_file_download.dart';
+import 'package:gen/domain/entities/session_messages_page.dart';
 import 'package:gen/domain/entities/spreadsheet_apply_result.dart';
 import 'package:gen/domain/repositories/chat_repository.dart';
 
@@ -30,10 +31,10 @@ class ChatRepositoryImpl implements ChatRepository {
   @override
   Stream<ChatStreamChunk> sendMessage(
     int sessionId,
-    List<Message> messages,
+    Message message,
   ) {
     try {
-      return dataSource.sendChatMessage(sessionId, messages);
+      return dataSource.sendChatMessage(sessionId, message);
     } catch (e) {
       throw ApiFailure('Ошибка создания потока сообщений: $e');
     }
@@ -51,6 +52,21 @@ class ChatRepositoryImpl implements ChatRepository {
       );
     } catch (e) {
       throw ApiFailure('Ошибка перегенерации: $e');
+    }
+  }
+
+  @override
+  Stream<ChatStreamChunk> continueAssistantResponse(
+    int sessionId,
+    int assistantMessageId,
+  ) {
+    try {
+      return dataSource.continueAssistantResponse(
+        sessionId,
+        assistantMessageId,
+      );
+    } catch (e) {
+      throw ApiFailure('Ошибка продолжения ответа: $e');
     }
   }
 
@@ -163,13 +179,17 @@ class ChatRepositoryImpl implements ChatRepository {
   }
 
   @override
-  Future<List<Message>> getSessionMessages(
-    int sessionId,
-    int page,
-    int pageSize,
-  ) async {
+  Future<SessionMessagesPage> getSessionMessagesPage({
+    required int sessionId,
+    int beforeMessageId = 0,
+    int pageSize = 40,
+  }) async {
     try {
-      return await dataSource.getSessionMessages(sessionId, page, pageSize);
+      return await dataSource.getSessionMessagesPage(
+        sessionId: sessionId,
+        beforeMessageId: beforeMessageId,
+        pageSize: pageSize,
+      );
     } catch (e) {
       throw ApiFailure('Ошибка получения сообщений сессии: $e');
     }

@@ -36,6 +36,9 @@ class ChatState extends Equatable {
   final Map<int, List<AssistantMessageRegeneration>> regenerationsByMessageId;
   final Map<int, int> regenerationCursorByMessageId;
   final Map<int, int> pendingRegenerationNavDeltaByMessageId;
+  final bool hasMoreOlderMessages;
+  final bool isLoadingOlderMessages;
+  final int? partialAssistantMessageId;
 
   const ChatState({
     this.isConnected = false,
@@ -65,6 +68,9 @@ class ChatState extends Equatable {
     this.regenerationsByMessageId = const {},
     this.regenerationCursorByMessageId = const {},
     this.pendingRegenerationNavDeltaByMessageId = const {},
+    this.hasMoreOlderMessages = false,
+    this.isLoadingOlderMessages = false,
+    this.partialAssistantMessageId,
   });
 
   ChatState copyWith({
@@ -97,6 +103,10 @@ class ChatState extends Equatable {
     Map<int, List<AssistantMessageRegeneration>>? regenerationsByMessageId,
     Map<int, int>? regenerationCursorByMessageId,
     Map<int, int>? pendingRegenerationNavDeltaByMessageId,
+    bool? hasMoreOlderMessages,
+    bool? isLoadingOlderMessages,
+    int? partialAssistantMessageId,
+    bool clearPartialAssistant = false,
   }) {
     return ChatState(
       isConnected: isConnected ?? this.isConnected,
@@ -138,6 +148,11 @@ class ChatState extends Equatable {
       regenerationsByMessageId: regenerationsByMessageId ?? this.regenerationsByMessageId,
       regenerationCursorByMessageId: regenerationCursorByMessageId ?? this.regenerationCursorByMessageId,
       pendingRegenerationNavDeltaByMessageId: pendingRegenerationNavDeltaByMessageId ?? this.pendingRegenerationNavDeltaByMessageId,
+      hasMoreOlderMessages: hasMoreOlderMessages ?? this.hasMoreOlderMessages,
+      isLoadingOlderMessages: isLoadingOlderMessages ?? this.isLoadingOlderMessages,
+      partialAssistantMessageId: clearPartialAssistant
+          ? null
+          : (partialAssistantMessageId ?? this.partialAssistantMessageId),
     );
   }
 
@@ -170,5 +185,8 @@ class ChatState extends Equatable {
     regenerationsByMessageId,
     regenerationCursorByMessageId,
     pendingRegenerationNavDeltaByMessageId,
+    hasMoreOlderMessages,
+    isLoadingOlderMessages,
+    partialAssistantMessageId,
   ];
 }

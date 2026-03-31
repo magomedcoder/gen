@@ -17,29 +17,26 @@ import 'package:gen/domain/entities/assistant_message_regeneration.dart';
 import 'package:gen/domain/entities/user_message_edit.dart';
 import 'package:gen/domain/entities/session_file_download.dart';
 import 'package:gen/domain/entities/session.dart';
+import 'package:gen/domain/entities/session_messages_page.dart';
 import 'package:gen/domain/entities/spreadsheet_apply_result.dart';
 import 'package:gen/generated/grpc_pb/chat.pb.dart' as chat_pb;
 import 'package:gen/generated/grpc_pb/common.pb.dart' as common;
 import 'package:gen/generated/grpc_pb/chat.pbgrpc.dart' as grpc;
-
-Message? _lastUserMessage(List<Message> messages) {
-  for (var i = messages.length - 1; i >= 0; i--) {
-    if (messages[i].role == MessageRole.user) {
-      return messages[i];
-    }
-  }
-  return null;
-}
 
 abstract class IChatRemoteDataSource {
   Future<bool> checkConnection();
 
   Stream<ChatStreamChunk> sendChatMessage(
     int sessionId,
-    List<Message> messages,
+    Message message,
   );
 
   Stream<ChatStreamChunk> regenerateAssistantResponse(
+    int sessionId,
+    int assistantMessageId,
+  );
+
+  Stream<ChatStreamChunk> continueAssistantResponse(
     int sessionId,
     int assistantMessageId,
   );
@@ -78,11 +75,11 @@ abstract class IChatRemoteDataSource {
 
   Future<List<ChatSession>> getSessions(int page, int pageSize);
 
-  Future<List<Message>> getSessionMessages(
-    int sessionId,
-    int page,
-    int pageSize,
-  );
+  Future<SessionMessagesPage> getSessionMessagesPage({
+    required int sessionId,
+    int beforeMessageId = 0,
+    int pageSize = 40,
+  });
 
   Future<void> deleteSession(int sessionId);
 
@@ -166,7 +163,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
   @override
   Stream<ChatStreamChunk> sendChatMessage(
     int sessionId,
-    List<Message> messages,
+    Message message,
   ) {
     Logs().d('ChatRemote: sendMessage sessionId=$sessionId');
     final controller = StreamController<ChatStreamChunk>();
@@ -183,17 +180,24 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
 
     () async {
       try {
-        final lastUser = _lastUserMessage(messages);
-        if (lastUser == null) {
-          Logs().w('ChatRemote: sendMessage нет сообщения с role=user');
-          throw ApiFailure('Нет пользовательского сообщения для отправки');
+        if (message.role != MessageRole.user) {
+          throw ApiFailure('Последнее сообщение должно быть role=user');
         }
 
-        final chatMessages = MessageMapper.listToProto([lastUser]);
-
+        final fid = message.attachmentFileId;
+        if (message.attachmentContent != null &&
+            message.attachmentContent!.isNotEmpty) {
+          throw ApiFailure(
+            'Вложение должно быть загружено через PutSessionFile; '
+            'в SendMessage передаётся только attachment_file_id.',
+          );
+        }
         final request = grpc.SendMessageRequest()
           ..sessionId = Int64(sessionId)
-          ..messages.addAll(chatMessages);
+          ..text = message.content;
+        if (fid != null && fid > 0) {
+          request.attachmentFileId = Int64(fid);
+        }
         final responseStream = _client.sendMessage(request);
         streamSubscription = responseStream.listen(
           (response) {
@@ -446,6 +450,159 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
 
     controller.onCancel = () async {
       Logs().d('ChatRemote: regenerateAssistantResponse отменён клиентом');
+      await streamSubscription?.cancel();
+      streamSubscription = null;
+    };
+
+    return controller.stream;
+  }
+
+  @override
+  Stream<ChatStreamChunk> continueAssistantResponse(
+    int sessionId,
+    int assistantMessageId,
+  ) {
+    Logs().d(
+      'ChatRemote: continueAssistantResponse sessionId=$sessionId msgId=$assistantMessageId',
+    );
+    final controller = StreamController<ChatStreamChunk>();
+    StreamSubscription<grpc.ChatResponse>? streamSubscription;
+
+    Future<void> closeWithError(Object error, [StackTrace? st]) async {
+      if (!controller.isClosed) {
+        controller.addError(error, st);
+      }
+      if (!controller.isClosed) {
+        await controller.close();
+      }
+    }
+
+    () async {
+      try {
+        if (assistantMessageId <= 0) {
+          throw ApiFailure('Некорректный идентификатор сообщения');
+        }
+        final request = grpc.ContinueAssistantRequest()
+          ..sessionId = Int64(sessionId)
+          ..assistantMessageId = Int64(assistantMessageId);
+        final responseStream = _client.continueAssistantResponse(request);
+        streamSubscription = responseStream.listen(
+          (response) {
+            if (controller.isClosed) {
+              return;
+            }
+            if (response.done) {
+              Logs().i('ChatRemote: continueAssistantResponse завершён');
+              controller.close();
+              return;
+            }
+            final mid = response.id.toInt();
+            if (response.chunkKind ==
+                chat_pb.StreamChunkKind.STREAM_CHUNK_KIND_TOOL_STATUS) {
+              controller.add(
+                ChatStreamChunk(
+                  kind: ChatStreamChunkKind.toolStatus,
+                  text: response.content,
+                  toolName:
+                      response.hasToolName() ? response.toolName : null,
+                  messageId: mid,
+                ),
+              );
+              return;
+            }
+            if (response.content.isNotEmpty) {
+              controller.add(
+                ChatStreamChunk(
+                  kind: ChatStreamChunkKind.text,
+                  text: response.content,
+                  messageId: mid,
+                ),
+              );
+            }
+          },
+          onError: (Object e, StackTrace st) async {
+            if (e is GrpcError && e.code == StatusCode.deadlineExceeded) {
+              await closeWithError(NetworkFailure('Таймаут запроса gRPC'), st);
+              return;
+            }
+            if (e is GrpcError) {
+              Logs().e('ChatRemote: continueAssistantResponse', exception: e);
+              if (e.code == StatusCode.unauthenticated) {
+                await closeWithError(UnauthorizedFailure(kSessionExpiredMessage), st);
+              } else if (e.code == StatusCode.invalidArgument) {
+                final detail = e.message?.trim();
+                await closeWithError(
+                  ApiFailure(
+                    detail != null && detail.isNotEmpty
+                        ? detail
+                        : 'Некорректные данные запроса',
+                  ),
+                  st,
+                );
+              } else if (e.code == StatusCode.failedPrecondition) {
+                final detail = e.message?.trim();
+                await closeWithError(
+                  ApiFailure(
+                    detail != null && detail.isNotEmpty
+                        ? detail
+                        : 'Операция недоступна в текущем состоянии',
+                  ),
+                  st,
+                );
+              } else {
+                await closeWithError(NetworkFailure('Ошибка gRPC'), st);
+              }
+              return;
+            }
+            await closeWithError(ApiFailure('Ошибка продолжения ответа'), st);
+          },
+          onDone: () async {
+            if (!controller.isClosed) {
+              Logs().i('ChatRemote: continueAssistantResponse завершён');
+              await controller.close();
+            }
+          },
+          cancelOnError: true,
+        );
+      } on GrpcError catch (e) {
+        if (e.code == StatusCode.deadlineExceeded) {
+          await closeWithError(NetworkFailure('Таймаут запроса gRPC'));
+          return;
+        }
+        Logs().e('ChatRemote: continueAssistantResponse', exception: e);
+        if (e.code == StatusCode.unauthenticated) {
+          await closeWithError(UnauthorizedFailure(kSessionExpiredMessage));
+        } else if (e.code == StatusCode.invalidArgument) {
+          final detail = e.message?.trim();
+          await closeWithError(
+            ApiFailure(
+              detail != null && detail.isNotEmpty
+                  ? detail
+                  : 'Некорректные данные запроса',
+            ),
+          );
+        } else if (e.code == StatusCode.failedPrecondition) {
+          final detail = e.message?.trim();
+          await closeWithError(
+            ApiFailure(
+              detail != null && detail.isNotEmpty
+                  ? detail
+                  : 'Операция недоступна в текущем состоянии',
+            ),
+          );
+        } else {
+          await closeWithError(NetworkFailure('Ошибка gRPC'));
+        }
+      } on Failure catch (e, st) {
+        await closeWithError(e, st);
+      } catch (e, st) {
+        Logs().e('ChatRemote: continueAssistantResponse', exception: e);
+        await closeWithError(ApiFailure('Ошибка продолжения ответа'), st);
+      }
+    }();
+
+    controller.onCancel = () async {
+      Logs().d('ChatRemote: continueAssistantResponse отменён клиентом');
       await streamSubscription?.cancel();
       streamSubscription = null;
     };
@@ -807,23 +964,27 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
   }
 
   @override
-  Future<List<Message>> getSessionMessages(
-    int sessionId,
-    int page,
-    int pageSize,
-  ) async {
+  Future<SessionMessagesPage> getSessionMessagesPage({
+    required int sessionId,
+    int beforeMessageId = 0,
+    int pageSize = 40,
+  }) async {
     try {
       final request = grpc.GetSessionMessagesRequest(
         sessionId: Int64(sessionId),
-        page: page,
+        page: 1,
         pageSize: pageSize,
+        beforeMessageId: Int64(beforeMessageId),
       );
 
       final response = await _authGuard.execute(
         () => _client.getSessionMessages(request),
       );
 
-      return MessageMapper.listFromProto(response.messages);
+      return SessionMessagesPage(
+        messages: MessageMapper.listFromProto(response.messages),
+        hasMoreOlder: response.hasMoreOlder,
+      );
     } on GrpcError catch (e) {
       throwGrpcError(e, 'Ошибка gRPC при получении сообщений: ${e.message}');
     } catch (e) {

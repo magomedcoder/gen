@@ -5,6 +5,7 @@ import 'package:gen/domain/usecases/auth/refresh_token_usecase.dart';
 import 'package:gen/domain/usecases/chat/apply_markdown_patch_usecase.dart';
 import 'package:gen/domain/usecases/chat/apply_spreadsheet_usecase.dart';
 import 'package:gen/domain/usecases/chat/build_docx_usecase.dart';
+import 'package:gen/domain/usecases/chat/continue_assistant_usecase.dart';
 import 'package:gen/domain/usecases/chat/connect_usecase.dart';
 import 'package:gen/domain/usecases/chat/create_session_usecase.dart';
 import 'package:gen/domain/usecases/chat/delete_session_usecase.dart';
@@ -40,6 +41,7 @@ void registerUseCasesModule(GetIt sl) {
   sl.registerFactory(() => ConnectUseCase(sl()));
   sl.registerFactory(() => SendMessageUseCase(sl()));
   sl.registerFactory(() => RegenerateAssistantUseCase(sl()));
+  sl.registerFactory(() => ContinueAssistantUseCase(sl()));
   sl.registerFactory(() => EditUserMessageAndContinueUseCase(sl()));
   sl.registerFactory(() => GetUserMessageEditsUseCase(sl()));
   sl.registerFactory(() => CreateSessionUseCase(sl()));

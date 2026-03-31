@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -31,12 +33,48 @@ class _ChatScreenState extends State<ChatScreen> {
   double get _sidebarWidth => Breakpoints.sidebarDefaultWidth;
 
   static const double _scrollThreshold = 80.0;
+  static const Duration _loadOlderDebounce = Duration(milliseconds: 320);
+
+  Timer? _loadOlderDebounceTimer;
+  ChatState? _prevStateForScroll;
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onChatScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ChatBloc>().add(ChatStarted());
+    });
+  }
+
+  void _onChatScroll() {
+    if (!_scrollController.hasClients) {
+      return;
+    }
+    final bloc = context.read<ChatBloc>();
+    final s = bloc.state;
+    if (s.currentSessionId == null ||
+        !s.hasMoreOlderMessages ||
+        s.isLoadingOlderMessages ||
+        s.messages.isEmpty) {
+      return;
+    }
+    if (_scrollController.position.pixels > 120) {
+      return;
+    }
+    _loadOlderDebounceTimer?.cancel();
+    _loadOlderDebounceTimer = Timer(_loadOlderDebounce, () {
+      if (!mounted) {
+        return;
+      }
+      final cur = context.read<ChatBloc>().state;
+      if (cur.currentSessionId == null ||
+          !cur.hasMoreOlderMessages ||
+          cur.isLoadingOlderMessages ||
+          cur.messages.isEmpty) {
+        return;
+      }
+      context.read<ChatBloc>().add(const ChatLoadOlderMessages());
     });
   }
 
@@ -128,8 +166,63 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  void _preserveScrollAfterPrepend() {
+    if (!_scrollController.hasClients) {
+      return;
+    }
+    final pos = _scrollController.position;
+    final oldMax = pos.maxScrollExtent;
+    final oldPixels = pos.pixels;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) {
+        return;
+      }
+      final newMax = _scrollController.position.maxScrollExtent;
+      final delta = newMax - oldMax;
+      _scrollController.jumpTo((oldPixels + delta).clamp(0.0, newMax));
+    });
+  }
+
+  void _handleScrollOnStateChange(ChatState prev, ChatState curr) {
+    final prepended = prev.messages.isNotEmpty && curr.messages.length > prev.messages.length && curr.messages.isNotEmpty && curr.messages.first.id != prev.messages.first.id;
+    if (prepended) {
+      _preserveScrollAfterPrepend();
+      return;
+    }
+
+    void tryScrollToBottom() {
+      if (!mounted || !_scrollController.hasClients) {
+        return;
+      }
+      if (curr.messages.isEmpty && !curr.isStreaming) {
+        return;
+      }
+      _scrollToBottom();
+    }
+
+    if (curr.isStreaming &&
+        (prev.currentStreamingText != curr.currentStreamingText ||
+            (!prev.isStreaming && curr.isStreaming))) {
+      tryScrollToBottom();
+      return;
+    }
+
+    if (curr.messages.length > prev.messages.length) {
+      if (prev.messages.isEmpty && curr.messages.isNotEmpty && !curr.isLoading) {
+        tryScrollToBottom();
+        return;
+      }
+      if (prev.messages.isNotEmpty &&
+          curr.messages.last.id != prev.messages.last.id &&
+          curr.messages.first.id == prev.messages.first.id) {
+        tryScrollToBottom();
+      }
+    }
+  }
+
   @override
   void dispose() {
+    _loadOlderDebounceTimer?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
@@ -145,17 +238,23 @@ class _ChatScreenState extends State<ChatScreen> {
             return;
           }
           _inputBarKey.currentState?.resetComposer();
+          _prevStateForScroll = null;
+          _loadOlderDebounceTimer?.cancel();
         });
       },
       child: BlocListener<ChatBloc, ChatState>(
+        listenWhen: (previous, current) => previous != current,
         listener: (context, state) {
+          final prev = _prevStateForScroll ?? state;
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (state.messages.isNotEmpty) {
-              _scrollToBottom();
+            if (!mounted) {
+              return;
             }
+            _handleScrollOnStateChange(prev, state);
           });
+          _prevStateForScroll = state;
 
-          if (state.error != null) {
+          if (state.error != null && state.error != prev.error) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (!mounted) {
                 return;

@@ -56,12 +56,26 @@ class ChatMessageList extends StatelessWidget {
         vertical: 16,
         horizontal: horizontalPadding,
       ),
-      itemCount: state.messages.length + (state.isStreaming ? 1 : 0),
+      itemCount: state.messages.length + (state.isStreaming ? 1 : 0) + (state.isLoadingOlderMessages ? 1 : 0),
       itemBuilder: (context, index) {
-        if (index < state.messages.length) {
-          final msg = state.messages[index];
+        if (state.isLoadingOlderMessages && index == 0) {
+          return const Padding(
+            padding: EdgeInsets.only(bottom: 8),
+            child: Center(
+              child: SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          );
+        }
+        final offset = state.isLoadingOlderMessages ? 1 : 0;
+        final msgIndex = index - offset;
+        if (msgIndex < state.messages.length) {
+          final msg = state.messages[msgIndex];
           final canRegenerate = !state.isStreaming &&
-              index == state.messages.length - 1 &&
+              msgIndex == state.messages.length - 1 &&
               msg.role == MessageRole.assistant &&
               msg.id > 0;
           final canEdit = !state.isStreaming && msg.role == MessageRole.user && msg.id > 0;
@@ -106,11 +120,15 @@ class ChatMessageList extends StatelessWidget {
             : displayMsg;
           final showAssistantNav = msg.role == MessageRole.assistant && (state.regeneratedAssistantMessageIds.contains(msg.id) || hasRegens);
 
+          final isLastInList = msgIndex == state.messages.length - 1;
+          final showContinuePartial = !state.isStreaming && isLastInList && msg.role == MessageRole.assistant && msg.id > 0 && state.partialAssistantMessageId != null && state.partialAssistantMessageId == msg.id;
+
           return Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: ChatBubble(
               message: displayAssistantMsg,
               sessionId: state.currentSessionId,
+              showContinuePartial: showContinuePartial,
               showEditNav: isEdited || showAssistantNav,
               onRegenerate: canRegenerate
                 ? () => context.read<ChatBloc>().add(
@@ -149,21 +167,24 @@ class ChatMessageList extends StatelessWidget {
             ),
           );
         }
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: ChatBubble(
-            message: Message(
-              id: -1,
-              content: state.currentStreamingText ?? '',
-              role: MessageRole.assistant,
-              createdAt: DateTime.now(),
+        if (state.isStreaming && msgIndex == state.messages.length) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: ChatBubble(
+              message: Message(
+                id: -1,
+                content: state.currentStreamingText ?? '',
+                role: MessageRole.assistant,
+                createdAt: DateTime.now(),
+              ),
+              sessionId: state.currentSessionId,
+              showEditNav: false,
+              isStreaming: true,
+              streamingStatus: state.toolProgressLabel,
             ),
-            sessionId: state.currentSessionId,
-            showEditNav: false,
-            isStreaming: true,
-            streamingStatus: state.toolProgressLabel,
-          ),
-        );
+          );
+        }
+        return const SizedBox.shrink();
       },
     );
   }

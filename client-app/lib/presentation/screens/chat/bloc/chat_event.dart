@@ -39,19 +39,11 @@ class ChatSelectSession extends ChatEvent {
   List<Object?> get props => [sessionId];
 }
 
-class ChatLoadSessionMessages extends ChatEvent {
-  final int sessionId;
-  final int page;
-  final int pageSize;
-
-  const ChatLoadSessionMessages(
-    this.sessionId, {
-    this.page = 1,
-    this.pageSize = 50,
-  });
+class ChatLoadOlderMessages extends ChatEvent {
+  const ChatLoadOlderMessages();
 
   @override
-  List<Object?> get props => [sessionId, page, pageSize];
+  List<Object?> get props => [];
 }
 
 class ChatSendMessage extends ChatEvent {
@@ -87,6 +79,15 @@ class ChatRegenerateAssistant extends ChatEvent {
   final int assistantMessageId;
 
   const ChatRegenerateAssistant(this.assistantMessageId);
+
+  @override
+  List<Object?> get props => [assistantMessageId];
+}
+
+class ChatContinueAssistant extends ChatEvent {
+  final int assistantMessageId;
+
+  const ChatContinueAssistant(this.assistantMessageId);
 
   @override
   List<Object?> get props => [assistantMessageId];

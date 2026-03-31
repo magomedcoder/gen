@@ -9,8 +9,8 @@ class SendMessageUseCase {
 
   Stream<ChatStreamChunk> call(
     int sessionId,
-    List<Message> messages,
+    Message message,
   ) {
-    return repository.sendMessage(sessionId, messages);
+    return repository.sendMessage(sessionId, message);
   }
 }
