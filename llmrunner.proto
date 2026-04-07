@@ -28,6 +28,8 @@ service LLMRunnerService {
   rpc GetLoadedModel(Empty) returns (GetLoadedModelResponse);
 
   rpc UnloadModel(Empty) returns (Empty);
+
+  rpc ResetMemory(Empty) returns (Empty);
 }
 
 message Empty {}

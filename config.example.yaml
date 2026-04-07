@@ -12,8 +12,6 @@ log_level: "debug"
 
 model_path: "./models"
 
-default_model: ""
-
 max_context_tokens: 4096
 
 gpu_layers: 0 # 0 - только CPU - -1 - все слои в VRAM (make build-gpu + libllama с GGML_CUDA)

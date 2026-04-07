@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"os/signal"
 	"strings"
@@ -17,7 +16,6 @@ import (
 	"github.com/magomedcoder/llm-runner/provider"
 	"github.com/urfave/cli/v3"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 func cmdServe() *cli.Command {
@@ -50,16 +48,11 @@ func runServe(ctx context.Context, _ *cli.Command) error {
 		return err
 	}
 
-	warmCtx, warmCancel := context.WithTimeout(ctx, 30*time.Minute)
-	defer warmCancel()
-	warmModel := strings.TrimSpace(cfg.DefaultModel)
-
-	if err := textProvider.WarmDefaultModel(warmCtx, warmModel); err != nil {
-		logger.E("Предзагрузка модели %q: %v", warmModel, err)
-		return fmt.Errorf("не удалось загрузить модель при старте: %w", err)
+	if dm := strings.TrimSpace(cfg.DefaultModel); dm != "" {
+		logger.I("Подсказка: default_model=%q используется только как fallback, если в запросе не указан model; в VRAM при старте ничего не загружается", dm)
+	} else {
+		logger.I("Старт без модели в памяти: загрузите модель через gen/админку или укажите model в RPC")
 	}
-
-	logger.I("Модель по умолчанию загружена: %s", warmModel)
 
 	gpuCollector := gpu.NewCollector()
 
@@ -84,17 +77,6 @@ func runServe(ctx context.Context, _ *cli.Command) error {
 		errCh <- grpcServer.Serve(lis)
 	}()
 
-	coreAddr := cfg.CoreAddr()
-	registered := false
-	if coreAddr != "" && listenAddr != "" {
-		if err := registerWithCore(coreAddr, listenAddr, cfg.RegistrationToken, cfg); err != nil {
-			logger.W("Регистрация в ядре не удалась: %v", err)
-		} else {
-			logger.I("Зарегистрирован в ядре %s как %s", coreAddr, listenAddr)
-			registered = true
-		}
-	}
-
 	select {
 	case <-ctx.Done():
 	case err := <-errCh:
@@ -106,10 +88,6 @@ func runServe(ctx context.Context, _ *cli.Command) error {
 	}
 
 	logger.I("Остановка раннера...")
-
-	if registered {
-		unregisterFromCore(coreAddr, listenAddr, cfg.RegistrationToken)
-	}
 
 	const shutdownTimeout = 15 * time.Second
 	done := make(chan struct{})
@@ -133,55 +111,4 @@ func runServe(ctx context.Context, _ *cli.Command) error {
 
 	logger.I("Раннер остановлен")
 	return nil
-}
-
-func registerHintsProto(cfg *config.Config) *llmrunnerpb.RunnerRegisterHints {
-	return &llmrunnerpb.RunnerRegisterHints{
-		MaxContextTokens:                     int32(cfg.MaxContextTokens),
-		LlmHistoryMaxMessages:                int32(cfg.LLMHistoryMaxMessages),
-		LlmHistorySummarizeDropped:           cfg.LLMHistorySummarizeDropped,
-		LlmHistorySummaryMaxInputRunes:       int32(cfg.LLMHistorySummaryMaxInputRunes),
-		LlmHistorySummaryModel:               strings.TrimSpace(cfg.LLMHistorySummaryModel),
-		LlmHistorySummaryRunnerListenAddress: strings.TrimSpace(cfg.LLMHistorySummaryRunnerListen),
-		LlmHistorySummaryCacheEntries:        int32(cfg.LLMHistorySummaryCacheEntries),
-		MaxToolInvocationRounds:              int32(cfg.MaxToolInvocationRounds),
-	}
-}
-
-func registerWithCore(coreAddr, registerAddress, registrationToken string, cfg *config.Config) error {
-	conn, err := grpc.NewClient(coreAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		return fmt.Errorf("подключение к ядру: %w", err)
-	}
-	defer conn.Close()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	client := llmrunnerpb.NewLLMRunnerServiceClient(conn)
-	_, err = client.RegisterRunnerWithToken(ctx, &llmrunnerpb.RunnerRegisterRequest{
-		ListenAddress:     registerAddress,
-		RegistrationToken: registrationToken,
-		Hints:             registerHintsProto(cfg),
-	})
-
-	return err
-}
-
-func unregisterFromCore(coreAddr, registerAddress, registrationToken string) {
-	conn, err := grpc.NewClient(coreAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		logger.W("Unregister: подключение к ядру: %v", err)
-		return
-	}
-	defer conn.Close()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	client := llmrunnerpb.NewLLMRunnerServiceClient(conn)
-	_, _ = client.UnregisterRunnerWithToken(ctx, &llmrunnerpb.RunnerUnregisterRequest{
-		ListenAddress:     registerAddress,
-		RegistrationToken: registrationToken,
-	})
 }

@@ -186,6 +186,9 @@ func (s *Server) SendMessage(req *llmrunnerpb.SendMessageRequest, stream llmrunn
 	if model == "" {
 		model = s.defaultModel
 	}
+	if model == "" {
+		return status.Error(codes.InvalidArgument, "укажите model в запросе или default_model в config.yaml")
+	}
 
 	logger.V("SendMessage: session_id=%d trace_id=%q model=%q sem_in_use=%d/%d", sessionID, traceID, model, semInUse, semCap)
 	messages := domain.AIMessagesFromProto(req.Messages, sessionID)
@@ -280,6 +283,9 @@ func (s *Server) Embed(ctx context.Context, req *llmrunnerpb.EmbedRequest) (*llm
 	if model == "" {
 		model = s.defaultModel
 	}
+	if model == "" {
+		return nil, status.Error(codes.InvalidArgument, "укажите model в запросе или default_model в config.yaml")
+	}
 
 	logger.V("Embed: trace_id=%q model=%q", incomingTraceID(ctx), model)
 
@@ -325,6 +331,9 @@ func (s *Server) EmbedBatch(ctx context.Context, req *llmrunnerpb.EmbedBatchRequ
 	model := strings.TrimSpace(req.GetModel())
 	if model == "" {
 		model = s.defaultModel
+	}
+	if model == "" {
+		return nil, status.Error(codes.InvalidArgument, "укажите model в запросе или default_model в config.yaml")
 	}
 
 	logger.V("EmbedBatch: trace_id=%q model=%q n=%d", incomingTraceID(ctx), model, len(texts))
@@ -409,14 +418,23 @@ func (s *Server) GetLoadedModel(ctx context.Context, _ *llmrunnerpb.Empty) (*llm
 	}, nil
 }
 
-func (s *Server) UnloadModel(ctx context.Context, _ *llmrunnerpb.Empty) (*llmrunnerpb.Empty, error) {
+func (s *Server) unloadProviderModel(ctx context.Context, op string) (*llmrunnerpb.Empty, error) {
 	if s.textProvider == nil {
 		return &llmrunnerpb.Empty{}, nil
 	}
 
 	if err := s.textProvider.UnloadModel(ctx); err != nil {
-		return nil, status.Errorf(codes.Internal, "UnloadModel: %v", err)
+		return nil, status.Errorf(codes.Internal, "%s: %v", op, err)
 	}
 
 	return &llmrunnerpb.Empty{}, nil
+}
+
+func (s *Server) UnloadModel(ctx context.Context, _ *llmrunnerpb.Empty) (*llmrunnerpb.Empty, error) {
+	return s.unloadProviderModel(ctx, "UnloadModel")
+}
+
+// ResetMemory полностью выгружает текущую модель и освобождает VRAM/RAM процесса (тот же эффект, что UnloadModel).
+func (s *Server) ResetMemory(ctx context.Context, _ *llmrunnerpb.Empty) (*llmrunnerpb.Empty, error) {
+	return s.unloadProviderModel(ctx, "ResetMemory")
 }

@@ -17,7 +17,6 @@ listen:
   port: 50052
 log_level: "info"
 model_path: "./models"
-default_model: "test-model"
 `
 	if err := os.WriteFile(configPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("запись тестового конфига: %v", err)
@@ -44,8 +43,8 @@ default_model: "test-model"
 		t.Errorf("ListenAddr: ожидалось 127.0.0.1:50052, получено %q", cfg.ListenAddr())
 	}
 
-	if cfg.DefaultModel != "test-model" {
-		t.Errorf("default_model: ожидалось test-model, получено %q", cfg.DefaultModel)
+	if cfg.DefaultModel != "" {
+		t.Errorf("default_model без ключа в yaml: ожидалось пусто, получено %q", cfg.DefaultModel)
 	}
 }
 
@@ -59,7 +58,6 @@ listen:
   host: "127.0.0.1"
   port: 50052
 model_path: "./models"
-default_model: "test-model"
 chat_api_enabled: true
 chat_stream_buffer_size: 256
 chat_reasoning_format: "deepseek"

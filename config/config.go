@@ -148,10 +148,6 @@ func (c *Config) validate() error {
 		return fmt.Errorf("listen.port: укажите порт от 1 до 65535")
 	}
 
-	if strings.TrimSpace(c.DefaultModel) == "" {
-		return fmt.Errorf("default_model: укажите модель по умолчанию (имя из каталога model_path)")
-	}
-
 	if c.KVCacheType != "" {
 		switch strings.ToLower(strings.TrimSpace(c.KVCacheType)) {
 		case "f16", "q8_0", "q4_0":
