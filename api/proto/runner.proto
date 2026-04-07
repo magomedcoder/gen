@@ -35,6 +35,7 @@ message CreateRunnerRequest {
   string host = 2;
   int32 port = 3;
   bool enabled = 4;
+  string selected_model = 5;
 }
 
 message UpdateRunnerRequest {
@@ -43,6 +44,7 @@ message UpdateRunnerRequest {
   string host = 3;
   int32 port = 4;
   bool enabled = 5;
+  string selected_model = 6;
 }
 
 message DeleteRunnerRequest {
@@ -83,6 +85,7 @@ message RunnerInfo {
   int64 id = 8;
   string host = 9;
   int32 port = 10;
+  string selected_model = 11;
 }
 
 message GetRunnersResponse {
@@ -92,6 +95,7 @@ message GetRunnersResponse {
 message UserRunnerInfo {
   string address = 1;
   string name = 2;
+  string selected_model = 3;
 }
 
 message GetUserRunnersResponse {

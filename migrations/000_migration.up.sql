@@ -25,13 +25,14 @@ CREATE TABLE IF NOT EXISTS user_sessions
 
 CREATE TABLE IF NOT EXISTS runners
 (
-    id         SERIAL PRIMARY KEY,
-    name       VARCHAR(255) NOT NULL DEFAULT '',
-    host       VARCHAR(255) NOT NULL,
-    port       INTEGER      NOT NULL CHECK (port > 0 AND port <= 65535),
-    enabled    BOOLEAN      NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMP    NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP    NOT NULL DEFAULT NOW(),
+    id              SERIAL PRIMARY KEY,
+    name            VARCHAR(255) NOT NULL DEFAULT '',
+    host            VARCHAR(255) NOT NULL,
+    port            INTEGER      NOT NULL CHECK (port > 0 AND port <= 65535),
+    enabled         BOOLEAN      NOT NULL DEFAULT TRUE,
+    selected_model  VARCHAR(512) NOT NULL DEFAULT '',
+    created_at      TIMESTAMP    NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMP    NOT NULL DEFAULT NOW(),
     UNIQUE (host, port)
 );
 

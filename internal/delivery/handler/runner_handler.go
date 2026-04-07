@@ -100,8 +100,9 @@ func (h *RunnerHandler) GetUserRunners(ctx context.Context, _ *commonpb.Empty) (
 		}
 
 		out = append(out, &runnerpb.UserRunnerInfo{
-			Address: strings.TrimSpace(r.Address),
-			Name:    strings.TrimSpace(r.Name),
+			Address:       strings.TrimSpace(r.Address),
+			Name:          strings.TrimSpace(r.Name),
+			SelectedModel: strings.TrimSpace(r.SelectedModel),
 		})
 	}
 
@@ -119,7 +120,7 @@ func (h *RunnerHandler) CreateRunner(ctx context.Context, req *runnerpb.CreateRu
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
-	if _, err := h.runnerRepo.Create(ctx, req.GetName(), host, port, req.GetEnabled()); err != nil {
+	if _, err := h.runnerRepo.Create(ctx, req.GetName(), host, port, req.GetEnabled(), req.GetSelectedModel()); err != nil {
 		return nil, ToStatusError(codes.Internal, err)
 	}
 	if err := h.syncRegistry(ctx); err != nil {
@@ -148,7 +149,7 @@ func (h *RunnerHandler) UpdateRunner(ctx context.Context, req *runnerpb.UpdateRu
 		return nil, ToStatusError(codes.Internal, err)
 	}
 	oldAddr := domain.RunnerListenAddress(prev.Host, prev.Port)
-	_, err = h.runnerRepo.Update(ctx, req.GetId(), req.GetName(), host, port, req.GetEnabled())
+	_, err = h.runnerRepo.Update(ctx, req.GetId(), req.GetName(), host, port, req.GetEnabled(), req.GetSelectedModel())
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
 			return nil, status.Error(codes.NotFound, "раннер не найден")

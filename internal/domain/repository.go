@@ -158,6 +158,28 @@ type LLMRepository interface {
 		genParams *GenerationParams,
 	) (textChunks chan string, runnerToolJSON func() string, err error)
 
+	SendMessageOnRunner(
+		ctx context.Context,
+		runnerListenAddr string,
+		sessionID int64,
+		model string,
+		messages []*Message,
+		stopSequences []string,
+		timeoutSeconds int32,
+		genParams *GenerationParams,
+	) (chan string, error)
+
+	SendMessageWithRunnerToolActionOnRunner(
+		ctx context.Context,
+		runnerListenAddr string,
+		sessionID int64,
+		model string,
+		messages []*Message,
+		stopSequences []string,
+		timeoutSeconds int32,
+		genParams *GenerationParams,
+	) (textChunks chan string, runnerToolJSON func() string, err error)
+
 	Embed(ctx context.Context, model string, text string) ([]float32, error)
 
 	EmbedBatch(ctx context.Context, model string, texts []string) ([][]float32, error)
@@ -191,9 +213,11 @@ type RunnerRepository interface {
 
 	GetByID(ctx context.Context, id int64) (*Runner, error)
 
-	Create(ctx context.Context, name, host string, port int32, enabled bool) (*Runner, error)
+	FirstEnabled(ctx context.Context) (*Runner, error)
 
-	Update(ctx context.Context, id int64, name, host string, port int32, enabled bool) (*Runner, error)
+	Create(ctx context.Context, name, host string, port int32, enabled bool, selectedModel string) (*Runner, error)
+
+	Update(ctx context.Context, id int64, name, host string, port int32, enabled bool, selectedModel string) (*Runner, error)
 
 	SetEnabled(ctx context.Context, id int64, enabled bool) error
 

@@ -585,6 +585,14 @@ func (c *ChatHandler) CreateSession(ctx context.Context, req *chatpb.CreateSessi
 	session, err := c.chatUseCase.CreateSession(ctx, userID, req.GetTitle())
 	if err != nil {
 		logger.E("CreateSession: %v", err)
+		if errors.Is(err, domain.ErrNoRunners) {
+			return nil, status.Error(codes.FailedPrecondition, err.Error())
+		}
+
+		if errors.Is(err, domain.ErrRunnerChatModelNotConfigured) {
+			return nil, status.Error(codes.FailedPrecondition, err.Error())
+		}
+
 		return nil, ToStatusError(codes.Internal, err)
 	}
 	logger.I("CreateSession: создана сессия id=%d", session.Id)

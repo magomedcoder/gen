@@ -93,7 +93,7 @@ func New(ctx context.Context, cfg *config.Config) (*Container, error) {
 	runnerPool := service.NewPool(runnerReg)
 	llmRepo := runnerPool
 
-	chatUseCase := usecase.NewChatUseCase(chatTxRunner, sessionRepo, chatPreferenceRepo, chatSessionSettingsRepo, messageRepo, messageEditRepo, assistantRegenRepo, fileRepo, llmRepo, runnerPool, runnerReg, cfg.UploadDir, cfg.DefaultRunnerAddress(), cfg.AttachmentHydrateParallelism)
+	chatUseCase := usecase.NewChatUseCase(chatTxRunner, sessionRepo, chatPreferenceRepo, chatSessionSettingsRepo, messageRepo, messageEditRepo, assistantRegenRepo, fileRepo, runnerRepo, llmRepo, runnerPool, runnerReg, cfg.UploadDir, cfg.DefaultRunnerAddress(), cfg.AttachmentHydrateParallelism)
 	editorUseCase := usecase.NewEditorUseCase(llmRepo, editorHistoryRepo, runnerRepo)
 	userUseCase := usecase.NewUserUseCase(userRepo, tokenRepo, jwtService)
 

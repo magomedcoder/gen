@@ -406,6 +406,7 @@ func (c *ChatUseCase) sendMessageWithToolLoop(
 	ctx context.Context,
 	userID int,
 	sessionID int64,
+	runnerAddr string,
 	resolvedModel string,
 	messagesForLLM []*domain.Message,
 	stopSequences []string,
@@ -418,7 +419,7 @@ func (c *ChatUseCase) sendMessageWithToolLoop(
 	}
 
 	out := make(chan ChatStreamChunk, 64)
-	go c.runChatToolLoop(ctx, userID, sessionID, resolvedModel, messagesForLLM, stopSequences, timeoutSeconds, genParams, historyInitiallyTrimmed, out)
+	go c.runChatToolLoop(ctx, userID, sessionID, runnerAddr, resolvedModel, messagesForLLM, stopSequences, timeoutSeconds, genParams, historyInitiallyTrimmed, out)
 
 	return out, nil
 }
@@ -427,6 +428,7 @@ func (c *ChatUseCase) runChatToolLoop(
 	ctx context.Context,
 	userID int,
 	sessionID int64,
+	runnerAddr string,
 	resolvedModel string,
 	messagesForLLM []*domain.Message,
 	stopSequences []string,
@@ -473,7 +475,7 @@ func (c *ChatUseCase) runChatToolLoop(
 	}
 
 	for round := 0; round < maxToolRounds; round++ {
-		ch, runnerToolFn, err := c.llmRepo.SendMessageWithRunnerToolAction(ctx, sessionID, resolvedModel, history, stopSequences, timeoutSeconds, gp)
+		ch, runnerToolFn, err := c.llmRepo.SendMessageWithRunnerToolActionOnRunner(ctx, runnerAddr, sessionID, resolvedModel, history, stopSequences, timeoutSeconds, gp)
 		if err != nil {
 			sendErr(err)
 			return
@@ -624,7 +626,7 @@ func (c *ChatUseCase) runChatToolLoop(
 		history = append(history, assist)
 		history = append(history, toolMsgs...)
 		var loopTrimmed bool
-		history, loopTrimmed = c.capLLMHistoryTokens(ctx, history, 1+len(toolMsgs), sessionID, resolvedModel, false)
+		history, loopTrimmed = c.capLLMHistoryTokens(ctx, history, 1+len(toolMsgs), sessionID, resolvedModel, runnerAddr, false)
 		if loopTrimmed {
 			_ = send(ChatStreamChunk{Kind: StreamChunkKindNotice, Text: HistoryTruncatedClientNotice})
 		}

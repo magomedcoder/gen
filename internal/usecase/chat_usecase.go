@@ -58,6 +58,7 @@ type ChatUseCase struct {
 	messageEditRepo              domain.MessageEditRepository
 	assistantRegenRepo           domain.AssistantMessageRegenerationRepository
 	fileRepo                     domain.FileRepository
+	runnerRepo                   domain.RunnerRepository
 	llmRepo                      domain.LLMRepository
 	runnerPool                   *service.Pool
 	runnerReg                    *service.Registry
@@ -76,6 +77,7 @@ func NewChatUseCase(
 	messageEditRepo domain.MessageEditRepository,
 	assistantRegenRepo domain.AssistantMessageRegenerationRepository,
 	fileRepo domain.FileRepository,
+	runnerRepo domain.RunnerRepository,
 	llmRepo domain.LLMRepository,
 	runnerPool *service.Pool,
 	runnerReg *service.Registry,
@@ -92,6 +94,7 @@ func NewChatUseCase(
 		messageEditRepo:              messageEditRepo,
 		assistantRegenRepo:           assistantRegenRepo,
 		fileRepo:                     fileRepo,
+		runnerRepo:                   runnerRepo,
 		llmRepo:                      llmRepo,
 		runnerPool:                   runnerPool,
 		runnerReg:                    runnerReg,
@@ -134,6 +137,28 @@ func (c *ChatUseCase) verifySessionOwnership(ctx context.Context, userId int, se
 	}
 
 	return session, nil
+}
+
+func (c *ChatUseCase) chatRunnerAddrAndModel(ctx context.Context, session *domain.ChatSession) (addr string, model string, err error) {
+	if session == nil || session.SelectedRunnerID == nil || *session.SelectedRunnerID <= 0 {
+		return "", "", fmt.Errorf("сессии не назначен раннер")
+	}
+	ru, err := c.runnerRepo.GetByID(ctx, *session.SelectedRunnerID)
+	if err != nil {
+		return "", "", err
+	}
+	if !ru.Enabled {
+		return "", "", fmt.Errorf("раннер для этого чата отключён")
+	}
+	model = strings.TrimSpace(ru.SelectedModel)
+	if model == "" {
+		return "", "", fmt.Errorf("у раннера чата не задана модель")
+	}
+	addr = domain.RunnerListenAddress(ru.Host, ru.Port)
+	if addr == "" {
+		return "", "", fmt.Errorf("некорректный адрес раннера")
+	}
+	return addr, model, nil
 }
 
 func (c *ChatUseCase) GetModels(ctx context.Context) ([]string, error) {
@@ -193,14 +218,15 @@ func genParamsFromSessionSettings(settings *domain.ChatSessionSettings) (stopSeq
 
 func (c *ChatUseCase) SendMessage(ctx context.Context, userId int, sessionId int64, userMessage string, attachmentFileID *int64) (chan ChatStreamChunk, error) {
 	logger.D("SendMessage: session=%d user=%d", sessionId, userId)
-	if _, err := c.verifySessionOwnership(ctx, userId, sessionId); err != nil {
+	session, err := c.verifySessionOwnership(ctx, userId, sessionId)
+	if err != nil {
 		logger.W("SendMessage: сессия не принадлежит пользователю: %v", err)
 		return nil, err
 	}
 
-	resolvedModel, err := resolveModelForUser(ctx, c.llmRepo, "", "")
+	runnerAddr, resolvedModel, err := c.chatRunnerAddrAndModel(ctx, session)
 	if err != nil {
-		logger.W("SendMessage: выбор модели: %v", err)
+		logger.W("SendMessage: раннер/модель: %v", err)
 		return nil, err
 	}
 
@@ -259,10 +285,10 @@ func (c *ChatUseCase) SendMessage(ctx context.Context, userId int, sessionId int
 		return nil, err
 	}
 	var historyNotice bool
-	messagesForLLM, historyNotice = c.capLLMHistoryTokens(ctx, messagesForLLM, 1, sessionId, resolvedModel, true)
+	messagesForLLM, historyNotice = c.capLLMHistoryTokens(ctx, messagesForLLM, 1, sessionId, resolvedModel, runnerAddr, true)
 
 	if genParams != nil && len(genParams.Tools) > 0 {
-		return c.sendMessageWithToolLoop(ctx, userId, sessionId, resolvedModel, messagesForLLM, stopSequences, timeoutSeconds, genParams, historyNotice)
+		return c.sendMessageWithToolLoop(ctx, userId, sessionId, runnerAddr, resolvedModel, messagesForLLM, stopSequences, timeoutSeconds, genParams, historyNotice)
 	}
 
 	assistantMsg := domain.NewMessage(sessionId, "", domain.MessageRoleAssistant)
@@ -272,7 +298,7 @@ func (c *ChatUseCase) SendMessage(ctx context.Context, userId int, sessionId int
 	}
 	messageID := assistantMsg.Id
 
-	responseChan, err := c.llmRepo.SendMessage(ctx, sessionId, resolvedModel, messagesForLLM, stopSequences, timeoutSeconds, genParams)
+	responseChan, err := c.llmRepo.SendMessageOnRunner(ctx, runnerAddr, sessionId, resolvedModel, messagesForLLM, stopSequences, timeoutSeconds, genParams)
 	if err != nil {
 		logger.E("SendMessage: вызов LLM: %v", err)
 		return nil, err
@@ -314,8 +340,13 @@ func (c *ChatUseCase) RegenerateAssistantResponse(ctx context.Context, userId in
 		return nil, fmt.Errorf("некорректный assistant_message_id")
 	}
 
-	if _, err := c.verifySessionOwnership(ctx, userId, sessionId); err != nil {
+	session, err := c.verifySessionOwnership(ctx, userId, sessionId)
+	if err != nil {
 		logger.W("RegenerateAssistantResponse: сессия: %v", err)
+		return nil, err
+	}
+	runnerAddr, resolvedModel, err := c.chatRunnerAddrAndModel(ctx, session)
+	if err != nil {
 		return nil, err
 	}
 
@@ -341,11 +372,6 @@ func (c *ChatUseCase) RegenerateAssistantResponse(ctx context.Context, userId in
 		return nil, fmt.Errorf("перегенерировать можно только последнее сообщение в чате")
 	}
 
-	resolvedModel, err := resolveModelForUser(ctx, c.llmRepo, "", "")
-	if err != nil {
-		return nil, err
-	}
-
 	settings, _ := c.sessionSettingsRepo.GetBySessionID(ctx, sessionId)
 	stopSequences, timeoutSeconds, genParams := genParamsFromSessionSettings(settings)
 	if genParams != nil && len(genParams.Tools) > 0 {
@@ -368,7 +394,7 @@ func (c *ChatUseCase) RegenerateAssistantResponse(ctx context.Context, userId in
 		return nil, err
 	}
 	var regenHistoryNotice bool
-	messagesForLLM, regenHistoryNotice = c.capLLMHistoryTokens(ctx, messagesForLLM, 1, sessionId, resolvedModel, true)
+	messagesForLLM, regenHistoryNotice = c.capLLMHistoryTokens(ctx, messagesForLLM, 1, sessionId, resolvedModel, runnerAddr, true)
 
 	if err := c.messageRepo.ResetAssistantForRegenerate(ctx, sessionId, assistantMessageID); err != nil {
 		logger.E("RegenerateAssistantResponse: сброс черновика: %v", err)
@@ -377,7 +403,7 @@ func (c *ChatUseCase) RegenerateAssistantResponse(ctx context.Context, userId in
 
 	messageID := assistantMessageID
 
-	responseChan, err := c.llmRepo.SendMessage(ctx, sessionId, resolvedModel, messagesForLLM, stopSequences, timeoutSeconds, genParams)
+	responseChan, err := c.llmRepo.SendMessageOnRunner(ctx, runnerAddr, sessionId, resolvedModel, messagesForLLM, stopSequences, timeoutSeconds, genParams)
 	if err != nil {
 		logger.E("RegenerateAssistantResponse: LLM: %v", err)
 		return nil, err
@@ -429,8 +455,13 @@ func (c *ChatUseCase) ContinueAssistantResponse(ctx context.Context, userId int,
 		return nil, fmt.Errorf("некорректный assistant_message_id")
 	}
 
-	if _, err := c.verifySessionOwnership(ctx, userId, sessionId); err != nil {
+	session, err := c.verifySessionOwnership(ctx, userId, sessionId)
+	if err != nil {
 		logger.W("ContinueAssistantResponse: сессия: %v", err)
+		return nil, err
+	}
+	runnerAddr, resolvedModel, err := c.chatRunnerAddrAndModel(ctx, session)
+	if err != nil {
 		return nil, err
 	}
 
@@ -457,11 +488,6 @@ func (c *ChatUseCase) ContinueAssistantResponse(ctx context.Context, userId int,
 	}
 	if maxID != assistantMessageID {
 		return nil, fmt.Errorf("продолжить можно только последнее сообщение в чате")
-	}
-
-	resolvedModel, err := resolveModelForUser(ctx, c.llmRepo, "", "")
-	if err != nil {
-		return nil, err
 	}
 
 	settings, _ := c.sessionSettingsRepo.GetBySessionID(ctx, sessionId)
@@ -491,11 +517,11 @@ func (c *ChatUseCase) ContinueAssistantResponse(ctx context.Context, userId int,
 		return nil, err
 	}
 	var contHistoryNotice bool
-	messagesForLLM, contHistoryNotice = c.capLLMHistoryTokens(ctx, messagesForLLM, 2, sessionId, resolvedModel, true)
+	messagesForLLM, contHistoryNotice = c.capLLMHistoryTokens(ctx, messagesForLLM, 2, sessionId, resolvedModel, runnerAddr, true)
 
 	messageID := assistantMessageID
 
-	responseChan, err := c.llmRepo.SendMessage(ctx, sessionId, resolvedModel, messagesForLLM, stopSequences, timeoutSeconds, genParams)
+	responseChan, err := c.llmRepo.SendMessageOnRunner(ctx, runnerAddr, sessionId, resolvedModel, messagesForLLM, stopSequences, timeoutSeconds, genParams)
 	if err != nil {
 		logger.E("ContinueAssistantResponse: LLM: %v", err)
 		return nil, err
@@ -540,7 +566,12 @@ func (c *ChatUseCase) EditUserMessageAndContinue(ctx context.Context, userId int
 		return nil, fmt.Errorf("new_content не может быть пустым")
 	}
 
-	if _, err := c.verifySessionOwnership(ctx, userId, sessionId); err != nil {
+	session, err := c.verifySessionOwnership(ctx, userId, sessionId)
+	if err != nil {
+		return nil, err
+	}
+	runnerAddr, resolvedModel, err := c.chatRunnerAddrAndModel(ctx, session)
+	if err != nil {
 		return nil, err
 	}
 
@@ -585,11 +616,6 @@ func (c *ChatUseCase) EditUserMessageAndContinue(ctx context.Context, userId int
 		return nil, err
 	}
 
-	resolvedModel, err := resolveModelForUser(ctx, c.llmRepo, "", "")
-	if err != nil {
-		return nil, err
-	}
-
 	rawPrefix, err := c.messageRepo.ListMessagesUpToID(ctx, sessionId, userMessageID)
 	if err != nil {
 		return nil, err
@@ -607,10 +633,10 @@ func (c *ChatUseCase) EditUserMessageAndContinue(ctx context.Context, userId int
 		return nil, err
 	}
 	var editHistoryNotice bool
-	messagesForLLM, editHistoryNotice = c.capLLMHistoryTokens(ctx, messagesForLLM, 1, sessionId, resolvedModel, true)
+	messagesForLLM, editHistoryNotice = c.capLLMHistoryTokens(ctx, messagesForLLM, 1, sessionId, resolvedModel, runnerAddr, true)
 
 	if genParams != nil && len(genParams.Tools) > 0 {
-		return c.sendMessageWithToolLoop(ctx, userId, sessionId, resolvedModel, messagesForLLM, stopSequences, timeoutSeconds, genParams, editHistoryNotice)
+		return c.sendMessageWithToolLoop(ctx, userId, sessionId, runnerAddr, resolvedModel, messagesForLLM, stopSequences, timeoutSeconds, genParams, editHistoryNotice)
 	}
 
 	assistantMsg := domain.NewMessage(sessionId, "", domain.MessageRoleAssistant)
@@ -619,7 +645,7 @@ func (c *ChatUseCase) EditUserMessageAndContinue(ctx context.Context, userId int
 	}
 	messageID := assistantMsg.Id
 
-	responseChan, err := c.llmRepo.SendMessage(ctx, sessionId, resolvedModel, messagesForLLM, stopSequences, timeoutSeconds, genParams)
+	responseChan, err := c.llmRepo.SendMessageOnRunner(ctx, runnerAddr, sessionId, resolvedModel, messagesForLLM, stopSequences, timeoutSeconds, genParams)
 	if err != nil {
 		return nil, err
 	}
@@ -929,7 +955,20 @@ func (c *ChatUseCase) CreateSession(ctx context.Context, userId int, title strin
 		title = "Чат от " + time.Now().Format("15:04:05 02.01.2006")
 	}
 
+	first, err := c.runnerRepo.FirstEnabled(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if first == nil {
+		return nil, domain.ErrNoRunners
+	}
+	if strings.TrimSpace(first.SelectedModel) == "" {
+		return nil, domain.ErrRunnerChatModelNotConfigured
+	}
+
+	rid := first.ID
 	session := domain.NewChatSession(userId, title)
+	session.SelectedRunnerID = &rid
 	if err := c.sessionRepo.Create(ctx, session); err != nil {
 		return nil, err
 	}
@@ -1226,7 +1265,7 @@ func (c *ChatUseCase) historyMessagesForLLM(ctx context.Context, sessionId int64
 	return filterHistoryForLLM(raw), nil
 }
 
-func (c *ChatUseCase) capLLMHistoryTokens(ctx context.Context, msgs []*domain.Message, tailPreserve int, sessionID int64, resolvedModel string, allowSummarize bool) ([]*domain.Message, bool) {
+func (c *ChatUseCase) capLLMHistoryTokens(ctx context.Context, msgs []*domain.Message, tailPreserve int, sessionID int64, resolvedModel string, chatRunnerAddr string, allowSummarize bool) ([]*domain.Message, bool) {
 	maxTok := 0
 	if c.runnerReg != nil {
 		maxTok = c.runnerReg.AggregateChatHints().MaxContextTokens
@@ -1247,7 +1286,7 @@ func (c *ChatUseCase) capLLMHistoryTokens(ctx context.Context, msgs []*domain.Me
 
 	logger.I("ChatUseCase: session=%d промпт усечён по оценке токенов (~лимит %d): сообщений %d -> %d", sessionID, maxTok, len(msgs), len(out))
 	if allowSummarize && summarizeDropped && len(dropped) > 0 {
-		if sum := strings.TrimSpace(c.summarizeDroppedMessages(ctx, sessionID, resolvedModel, dropped)); sum != "" {
+		if sum := strings.TrimSpace(c.summarizeDroppedMessages(ctx, sessionID, resolvedModel, chatRunnerAddr, dropped)); sum != "" {
 			out = injectSummaryAfterSystem(out, sum)
 			out2, trimmedAgain, _ := trimLLMMessagesByApproxTokensWithDropped(out, maxTok, tailPreserve)
 			if trimmedAgain {
