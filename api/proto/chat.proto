@@ -13,10 +13,6 @@ service ChatService {
 
   rpc SetSelectedRunner(SetSelectedRunnerRequest) returns (common.Empty);
 
-  rpc GetDefaultRunnerModel(GetDefaultRunnerModelRequest) returns (DefaultRunnerModelResponse);
-
-  rpc SetDefaultRunnerModel(SetDefaultRunnerModelRequest) returns (common.Empty);
-
   rpc SendMessage(SendMessageRequest) returns (stream ChatResponse);
 
   rpc RegenerateAssistantResponse(RegenerateAssistantRequest) returns (stream ChatResponse);
@@ -255,19 +251,6 @@ message SelectedRunnerResponse {
 
 message SetSelectedRunnerRequest {
   string runner = 1;
-}
-
-message GetDefaultRunnerModelRequest {
-  string runner = 1;
-}
-
-message DefaultRunnerModelResponse {
-  string model = 1;
-}
-
-message SetDefaultRunnerModelRequest {
-  string runner = 1;
-  string model = 2;
 }
 
 message EmbedRequest {

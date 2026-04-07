@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
 
 	"github.com/magomedcoder/gen"
 	"github.com/magomedcoder/gen/api/pb/authpb"
@@ -62,8 +61,9 @@ func New(ctx context.Context, cfg *config.Config) (*Container, error) {
 
 	userRepo := postgres.NewUserRepository(gormDB)
 	tokenRepo := postgres.NewUserSessionRepository(gormDB)
+	runnerRepo := postgres.NewRunnerRepository(gormDB)
 	sessionRepo := postgres.NewChatSessionRepository(gormDB)
-	chatPreferenceRepo := postgres.NewChatPreferenceRepository(gormDB)
+	chatPreferenceRepo := postgres.NewChatPreferenceRepository(gormDB, runnerRepo)
 	chatSessionSettingsRepo := postgres.NewChatSessionSettingsRepository(gormDB)
 	editorHistoryRepo := postgres.NewEditorHistoryRepository(gormDB)
 	messageRepo := postgres.NewMessageRepository(gormDB)
@@ -80,21 +80,21 @@ func New(ctx context.Context, cfg *config.Config) (*Container, error) {
 	logger.D("Первый пользователь проверен/создан")
 
 	authTxRunner := postgres.NewAuthTransactionRunner(gormDB)
-	chatTxRunner := postgres.NewChatTransactionRunner(gormDB)
+	chatTxRunner := postgres.NewChatTransactionRunner(gormDB, runnerRepo)
 
 	authUseCase := usecase.NewAuthUseCase(authTxRunner, userRepo, tokenRepo, jwtService)
 
-	initialRunners := parseRunnerEntries(cfg)
-	if len(initialRunners) == 0 {
-		logger.I("Раннеры только по саморегистрации (токены из runners)")
+	runnerRows, err := runnerRepo.List(ctx)
+	if err != nil {
+		_ = sqlDB.Close()
+		return nil, fmt.Errorf("загрузка раннеров: %w", err)
 	}
-
-	runnerReg := service.NewRegistry(initialRunners)
+	runnerReg := service.NewRegistry(service.RunnerStatesFromDomain(runnerRows))
 	runnerPool := service.NewPool(runnerReg)
 	llmRepo := runnerPool
 
 	chatUseCase := usecase.NewChatUseCase(chatTxRunner, sessionRepo, chatPreferenceRepo, chatSessionSettingsRepo, messageRepo, messageEditRepo, assistantRegenRepo, fileRepo, llmRepo, runnerPool, runnerReg, cfg.UploadDir, cfg.DefaultRunnerAddress(), cfg.AttachmentHydrateParallelism)
-	editorUseCase := usecase.NewEditorUseCase(llmRepo, chatPreferenceRepo, editorHistoryRepo, cfg.DefaultRunnerAddress())
+	editorUseCase := usecase.NewEditorUseCase(llmRepo, editorHistoryRepo, runnerRepo)
 	userUseCase := usecase.NewUserUseCase(userRepo, tokenRepo, jwtService)
 
 	return &Container{
@@ -105,22 +105,8 @@ func New(ctx context.Context, cfg *config.Config) (*Container, error) {
 		chatHandler:   handler.NewChatHandler(chatUseCase, authUseCase),
 		editorHandler: handler.NewEditorHandler(editorUseCase, authUseCase),
 		userHandler:   handler.NewUserHandler(userUseCase, authUseCase),
-		runnerHandler: handler.NewRunnerHandler(runnerReg, runnerPool, authUseCase, cfg),
+		runnerHandler: handler.NewRunnerHandler(runnerReg, runnerPool, authUseCase, cfg, runnerRepo),
 	}, nil
-}
-
-func parseRunnerEntries(cfg *config.Config) []service.RunnerState {
-	var out []service.RunnerState
-	for _, e := range cfg.Runners.Entries {
-		if a := strings.TrimSpace(e.Address); a != "" {
-			out = append(out, service.RunnerState{
-				Address: a,
-				Name:    strings.TrimSpace(e.Name),
-				Enabled: true,
-			})
-		}
-	}
-	return out
 }
 
 func (c *Container) RegisterGRPC(s *grpc.Server) {

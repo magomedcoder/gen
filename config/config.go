@@ -250,23 +250,19 @@ func LoadFrom(path string) (*Config, error) {
 }
 
 func (c *Config) validate() error {
-	if len(c.Runners.Entries) == 0 {
-		return fmt.Errorf("нужна хотя бы одна запись в runners в конфигурационном файле")
-	}
 	seenTok := make(map[string]struct{})
-	for i, e := range c.Runners.Entries {
+	for _, e := range c.Runners.Entries {
 		tok := e.EffectiveToken()
-		addr := strings.TrimSpace(e.Address)
-		if tok == "" && addr == "" {
-			return fmt.Errorf("runners[%d]: укажите token (саморегистрация) или address (статический раннер)", i)
+		if tok == "" {
+			continue
 		}
-		if tok != "" {
-			if _, dup := seenTok[tok]; dup {
-				return fmt.Errorf("runners: повторяется token")
-			}
-			seenTok[tok] = struct{}{}
+
+		if _, dup := seenTok[tok]; dup {
+			return fmt.Errorf("runners: повторяется token")
 		}
+		seenTok[tok] = struct{}{}
 	}
+
 	return nil
 }
 
@@ -360,14 +356,14 @@ func mergeRunnersFromYAML(dst *Config, block *runnersBlockYAML) error {
 		return nil
 	}
 	entries := make([]RunnerEntry, 0, len(block.Entries))
-	for i, e := range block.Entries {
+	for _, e := range block.Entries {
 		tok := strings.TrimSpace(e.Token)
 		if tok == "" {
 			tok = strings.TrimSpace(e.RegistrationToken)
 		}
 		addr := strings.TrimSpace(e.Address)
 		if addr == "" && tok == "" {
-			return fmt.Errorf("runners[%d]: пустая запись (нужен token и/или address)", i)
+			continue
 		}
 		entries = append(entries, RunnerEntry{
 			Name:              strings.TrimSpace(e.Name),

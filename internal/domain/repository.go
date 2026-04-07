@@ -45,10 +45,6 @@ type ChatPreferenceRepository interface {
 	GetSelectedRunner(ctx context.Context, userID int) (string, error)
 
 	SetSelectedRunner(ctx context.Context, userID int, runner string) error
-
-	GetDefaultRunnerModel(ctx context.Context, userID int, runner string) (string, error)
-
-	SetDefaultRunnerModel(ctx context.Context, userID int, runner string, model string) error
 }
 
 type ChatSessionSettingsRepository interface {
@@ -114,7 +110,7 @@ type FileRepository interface {
 }
 
 type EditorHistoryRepository interface {
-	Save(ctx context.Context, userID int, runner string, text string) error
+	Save(ctx context.Context, userID int, runnerID *int64, text string) error
 }
 
 type ResponseFormat struct {
@@ -188,4 +184,20 @@ type AuthRepos struct {
 
 type AuthTransactionRunner interface {
 	WithinTx(ctx context.Context, fn func(ctx context.Context, r AuthRepos) error) error
+}
+
+type RunnerRepository interface {
+	List(ctx context.Context) ([]Runner, error)
+
+	GetByID(ctx context.Context, id int64) (*Runner, error)
+
+	Create(ctx context.Context, name, host string, port int32, enabled bool) (*Runner, error)
+
+	Update(ctx context.Context, id int64, name, host string, port int32, enabled bool) (*Runner, error)
+
+	SetEnabled(ctx context.Context, id int64, enabled bool) error
+
+	Delete(ctx context.Context, id int64) error
+
+	FindIDByListenAddress(ctx context.Context, listenAddr string) (id int64, ok bool, err error)
 }

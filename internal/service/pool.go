@@ -23,6 +23,7 @@ const (
 	runnerProbeBackoffBase  = time.Second
 	runnerProbeBackoffMax   = 30 * time.Second
 	runnerProbeBackoffShift = 5
+	runnerUnloadWait        = 2 * time.Minute
 )
 
 type runnerProbeEntry struct {
@@ -389,11 +390,19 @@ func (p *Pool) WaitRunnerIdle(ctx context.Context, address string) error {
 	}
 }
 
+func (p *Pool) waitRunnerIdleForUnload(ctx context.Context, address string) {
+	waitCtx, cancel := context.WithTimeout(ctx, runnerUnloadWait)
+	defer cancel()
+	_ = p.WaitRunnerIdle(waitCtx, address)
+}
+
 func (p *Pool) UnloadModelOnRunner(ctx context.Context, address string) error {
 	address = strings.TrimSpace(address)
 	if address == "" {
 		return fmt.Errorf("пустой адрес раннера")
 	}
+
+	p.waitRunnerIdleForUnload(ctx, address)
 
 	c, err := p.getClient(address)
 	if err != nil {
@@ -401,6 +410,46 @@ func (p *Pool) UnloadModelOnRunner(ctx context.Context, address string) error {
 	}
 
 	return c.UnloadModel(ctx)
+}
+
+func (p *Pool) ResetMemoryOnRunner(ctx context.Context, address string) error {
+	address = strings.TrimSpace(address)
+	if address == "" {
+		return fmt.Errorf("пустой адрес раннера")
+	}
+
+	p.waitRunnerIdleForUnload(ctx, address)
+
+	c, err := p.getClient(address)
+	if err != nil {
+		return err
+	}
+
+	return c.ResetMemory(ctx)
+}
+
+func (p *Pool) GetModelsOnRunner(ctx context.Context, address string) ([]string, error) {
+	address = strings.TrimSpace(address)
+	if address == "" {
+		return nil, fmt.Errorf("пустой адрес раннера")
+	}
+
+	c, err := p.getClient(address)
+	if err != nil {
+		return nil, err
+	}
+
+	ok, err := c.CheckConnection(ctx)
+	if err != nil || !ok {
+		return nil, fmt.Errorf("раннер недоступен")
+	}
+
+	models, err := c.GetModels(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return models, nil
 }
 
 func (p *Pool) WarmModelOnRunner(ctx context.Context, address string, model string) error {

@@ -8,16 +8,17 @@ import (
 )
 
 type chatTransactionRunner struct {
-	db *gorm.DB
+	db      *gorm.DB
+	runners domain.RunnerRepository
 }
 
-func NewChatTransactionRunner(db *gorm.DB) domain.ChatTransactionRunner {
-	return &chatTransactionRunner{db: db}
+func NewChatTransactionRunner(db *gorm.DB, runners domain.RunnerRepository) domain.ChatTransactionRunner {
+	return &chatTransactionRunner{db: db, runners: runners}
 }
 
 func (t *chatTransactionRunner) WithinTx(ctx context.Context, fn func(ctx context.Context, r domain.ChatRepos) error) error {
 	return t.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		return fn(ctx, NewChatRepos(tx))
+		return fn(ctx, NewChatRepos(tx, t.runners))
 	})
 }
 
