@@ -13,19 +13,40 @@ service RunnerService {
 
   rpc SetRunnerEnabled(SetRunnerEnabledRequest) returns (common.Empty);
 
-  rpc RegisterRunner(RegisterRunnerRequest) returns (common.Empty);
+  rpc CreateRunner(CreateRunnerRequest) returns (common.Empty);
 
-  rpc UnregisterRunner(UnregisterRunnerRequest) returns (common.Empty);
+  rpc UpdateRunner(UpdateRunnerRequest) returns (common.Empty);
+
+  rpc DeleteRunner(DeleteRunnerRequest) returns (common.Empty);
 
   rpc GetRunnersStatus(common.Empty) returns (GetRunnersStatusResponse);
+
+  rpc GetRunnerModels(GetRunnerModelsRequest) returns (GetRunnerModelsResponse);
+
+  rpc RunnerLoadModel(RunnerLoadModelRequest) returns (common.Empty);
+
+  rpc RunnerUnloadModel(RunnerUnloadModelRequest) returns (common.Empty);
+
+  rpc RunnerResetMemory(RunnerResetMemoryRequest) returns (common.Empty);
 }
 
-message RegisterRunnerRequest {
-  string address = 1;
+message CreateRunnerRequest {
+  string name = 1;
+  string host = 2;
+  int32 port = 3;
+  bool enabled = 4;
 }
 
-message UnregisterRunnerRequest {
-  string address = 1;
+message UpdateRunnerRequest {
+  int64 id = 1;
+  string name = 2;
+  string host = 3;
+  int32 port = 4;
+  bool enabled = 5;
+}
+
+message DeleteRunnerRequest {
+  int64 id = 1;
 }
 
 message GpuInfo {
@@ -59,6 +80,9 @@ message RunnerInfo {
   ServerInfo server_info = 5;
   string name = 6;
   LoadedModelStatus loaded_model = 7;
+  int64 id = 8;
+  string host = 9;
+  int32 port = 10;
 }
 
 message GetRunnersResponse {
@@ -75,10 +99,31 @@ message GetUserRunnersResponse {
 }
 
 message SetRunnerEnabledRequest {
-  string address = 1;
+  int64 id = 1;
   bool enabled = 2;
 }
 
 message GetRunnersStatusResponse {
   bool has_active_runners = 1;
+}
+
+message GetRunnerModelsRequest {
+  int64 runner_id = 1;
+}
+
+message GetRunnerModelsResponse {
+  repeated string models = 1;
+}
+
+message RunnerLoadModelRequest {
+  int64 runner_id = 1;
+  string model = 2;
+}
+
+message RunnerUnloadModelRequest {
+  int64 runner_id = 1;
+}
+
+message RunnerResetMemoryRequest {
+  int64 runner_id = 1;
 }

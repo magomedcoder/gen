@@ -19,23 +19,22 @@ func NewChatSessionRepository(db *gorm.DB) domain.ChatSessionRepository {
 }
 
 func (r *chatSessionRepository) Create(ctx context.Context, session *domain.ChatSession) error {
-	selectedRunner := ""
+	var selectedRunnerID *int64
 	var prev model.Chat
 	if err := r.db.WithContext(ctx).
 		Where("user_id = ?", session.UserId).
 		Order("updated_at DESC").
 		First(&prev).Error; err == nil {
-		selectedRunner = prev.SelectedRunner
+		selectedRunnerID = prev.SelectedRunnerID
 	}
 
 	row := model.Chat{
-		UserID:         session.UserId,
-		Title:          session.Title,
-		Model:          session.Model,
-		SelectedRunner: selectedRunner,
-		StopSequences:  pq.StringArray{},
-		CreatedAt:      session.CreatedAt,
-		UpdatedAt:      session.UpdatedAt,
+		UserID:           session.UserId,
+		Title:            session.Title,
+		SelectedRunnerID: selectedRunnerID,
+		StopSequences:    pq.StringArray{},
+		CreatedAt:        session.CreatedAt,
+		UpdatedAt:        session.UpdatedAt,
 	}
 	if err := r.db.WithContext(ctx).Create(&row).Error; err != nil {
 		return err
@@ -88,7 +87,6 @@ func (r *chatSessionRepository) Update(ctx context.Context, session *domain.Chat
 		Where("id = ?", session.Id).
 		Updates(map[string]any{
 			"title":      session.Title,
-			"model":      session.Model,
 			"updated_at": session.UpdatedAt,
 		}).Error
 }
@@ -104,7 +102,6 @@ func chatToDomain(m *model.Chat) *domain.ChatSession {
 		Id:        m.ID,
 		UserId:    m.UserID,
 		Title:     m.Title,
-		Model:     m.Model,
 		CreatedAt: m.CreatedAt,
 		UpdatedAt: m.UpdatedAt,
 		DeletedAt: gormDeletedAtToPtr(m.DeletedAt),

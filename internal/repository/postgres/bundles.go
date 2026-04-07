@@ -5,10 +5,10 @@ import (
 	"gorm.io/gorm"
 )
 
-func NewChatRepos(db *gorm.DB) domain.ChatRepos {
+func NewChatRepos(db *gorm.DB, runners domain.RunnerRepository) domain.ChatRepos {
 	return domain.ChatRepos{
 		Session:         NewChatSessionRepository(db),
-		Preference:      NewChatPreferenceRepository(db),
+		Preference:      NewChatPreferenceRepository(db, runners),
 		SessionSettings: NewChatSessionSettingsRepository(db),
 		Message:         NewMessageRepository(db),
 		MessageEdit:     NewMessageEditRepository(db),

@@ -2,13 +2,15 @@ package handler
 
 import (
 	"context"
-	"github.com/magomedcoder/gen/internal/service"
+	"errors"
 	"strings"
 
 	"github.com/magomedcoder/gen/api/pb/commonpb"
 	"github.com/magomedcoder/gen/api/pb/llmrunnerpb"
 	"github.com/magomedcoder/gen/api/pb/runnerpb"
 	"github.com/magomedcoder/gen/config"
+	"github.com/magomedcoder/gen/internal/domain"
+	"github.com/magomedcoder/gen/internal/service"
 	"github.com/magomedcoder/gen/internal/usecase"
 	"github.com/magomedcoder/gen/pkg/logger"
 	"google.golang.org/grpc/codes"
@@ -25,15 +27,32 @@ type RunnerHandler struct {
 	pool        *service.Pool
 	authUseCase *usecase.AuthUseCase
 	cfg         *config.Config
+	runnerRepo  domain.RunnerRepository
 }
 
-func NewRunnerHandler(registry *service.Registry, pool *service.Pool, authUseCase *usecase.AuthUseCase, cfg *config.Config) *RunnerHandler {
+func NewRunnerHandler(
+	registry *service.Registry,
+	pool *service.Pool,
+	authUseCase *usecase.AuthUseCase,
+	cfg *config.Config,
+	runnerRepo domain.RunnerRepository,
+) *RunnerHandler {
 	return &RunnerHandler{
 		registry:    registry,
 		pool:        pool,
 		authUseCase: authUseCase,
 		cfg:         cfg,
+		runnerRepo:  runnerRepo,
 	}
+}
+
+func (h *RunnerHandler) syncRegistry(ctx context.Context) error {
+	list, err := h.runnerRepo.List(ctx)
+	if err != nil {
+		return err
+	}
+	h.registry.ReplaceAll(service.RunnerStatesFromDomain(list))
+	return nil
 }
 
 func (h *RunnerHandler) GetRunners(ctx context.Context, _ *commonpb.Empty) (*runnerpb.GetRunnersResponse, error) {
@@ -89,18 +108,121 @@ func (h *RunnerHandler) GetUserRunners(ctx context.Context, _ *commonpb.Empty) (
 	return &runnerpb.GetUserRunnersResponse{Runners: out}, nil
 }
 
+func (h *RunnerHandler) CreateRunner(ctx context.Context, req *runnerpb.CreateRunnerRequest) (*commonpb.Empty, error) {
+	if err := RequireAdmin(ctx, h.authUseCase); err != nil {
+		return nil, err
+	}
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "пустой запрос")
+	}
+	host, port, err := domain.ParseRunnerHostOrHostPort(req.GetHost(), req.GetPort())
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+	if _, err := h.runnerRepo.Create(ctx, req.GetName(), host, port, req.GetEnabled()); err != nil {
+		return nil, ToStatusError(codes.Internal, err)
+	}
+	if err := h.syncRegistry(ctx); err != nil {
+		return nil, ToStatusError(codes.Internal, err)
+	}
+	logger.I("CreateRunner: %s:%d", host, port)
+	return &commonpb.Empty{}, nil
+}
+
+func (h *RunnerHandler) UpdateRunner(ctx context.Context, req *runnerpb.UpdateRunnerRequest) (*commonpb.Empty, error) {
+	if err := RequireAdmin(ctx, h.authUseCase); err != nil {
+		return nil, err
+	}
+	if req == nil || req.GetId() <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "нужен положительный id")
+	}
+	host, port, err := domain.ParseRunnerHostOrHostPort(req.GetHost(), req.GetPort())
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+	prev, err := h.runnerRepo.GetByID(ctx, req.GetId())
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			return nil, status.Error(codes.NotFound, "раннер не найден")
+		}
+		return nil, ToStatusError(codes.Internal, err)
+	}
+	oldAddr := domain.RunnerListenAddress(prev.Host, prev.Port)
+	_, err = h.runnerRepo.Update(ctx, req.GetId(), req.GetName(), host, port, req.GetEnabled())
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			return nil, status.Error(codes.NotFound, "раннер не найден")
+		}
+		return nil, ToStatusError(codes.Internal, err)
+	}
+	newAddr := domain.RunnerListenAddress(host, port)
+	if oldAddr != "" && newAddr != "" && oldAddr != newAddr {
+		h.pool.CloseAddrForget(oldAddr)
+	}
+	if prev.Enabled && !req.GetEnabled() && oldAddr != "" {
+		h.pool.CloseAddr(oldAddr)
+	}
+	if err := h.syncRegistry(ctx); err != nil {
+		return nil, ToStatusError(codes.Internal, err)
+	}
+	logger.I("UpdateRunner: id=%d", req.GetId())
+	return &commonpb.Empty{}, nil
+}
+
+func (h *RunnerHandler) DeleteRunner(ctx context.Context, req *runnerpb.DeleteRunnerRequest) (*commonpb.Empty, error) {
+	if err := RequireAdmin(ctx, h.authUseCase); err != nil {
+		return nil, err
+	}
+	if req == nil || req.GetId() <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "нужен положительный id")
+	}
+	prev, err := h.runnerRepo.GetByID(ctx, req.GetId())
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			return nil, status.Error(codes.NotFound, "раннер не найден")
+		}
+		return nil, ToStatusError(codes.Internal, err)
+	}
+	addr := domain.RunnerListenAddress(prev.Host, prev.Port)
+	h.pool.CloseAddrForget(addr)
+	if err := h.runnerRepo.Delete(ctx, req.GetId()); err != nil {
+		return nil, ToStatusError(codes.Internal, err)
+	}
+	if err := h.syncRegistry(ctx); err != nil {
+		return nil, ToStatusError(codes.Internal, err)
+	}
+	logger.I("DeleteRunner: id=%d", req.GetId())
+	return &commonpb.Empty{}, nil
+}
+
 func (h *RunnerHandler) SetRunnerEnabled(ctx context.Context, req *runnerpb.SetRunnerEnabledRequest) (*commonpb.Empty, error) {
 	if err := RequireAdmin(ctx, h.authUseCase); err != nil {
 		return nil, err
 	}
-	if req != nil {
-		h.registry.SetEnabled(req.Address, req.Enabled)
-		if !req.Enabled {
-			h.pool.CloseAddr(req.Address)
-		}
-		logger.I("SetRunnerEnabled: адрес=%s enabled=%v", req.Address, req.Enabled)
+	if req == nil || req.GetId() <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "нужен положительный id")
 	}
-
+	before, err := h.runnerRepo.GetByID(ctx, req.GetId())
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			return nil, status.Error(codes.NotFound, "раннер не найден")
+		}
+		return nil, ToStatusError(codes.Internal, err)
+	}
+	if err := h.runnerRepo.SetEnabled(ctx, req.GetId(), req.GetEnabled()); err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			return nil, status.Error(codes.NotFound, "раннер не найден")
+		}
+		return nil, ToStatusError(codes.Internal, err)
+	}
+	addr := domain.RunnerListenAddress(before.Host, before.Port)
+	if !req.GetEnabled() && addr != "" {
+		h.pool.CloseAddr(addr)
+	}
+	if err := h.syncRegistry(ctx); err != nil {
+		return nil, ToStatusError(codes.Internal, err)
+	}
+	logger.I("SetRunnerEnabled: id=%d enabled=%v", req.GetId(), req.GetEnabled())
 	return &commonpb.Empty{}, nil
 }
 
@@ -110,30 +232,84 @@ func (h *RunnerHandler) GetRunnersStatus(ctx context.Context, _ *commonpb.Empty)
 	}, nil
 }
 
-func (h *RunnerHandler) RegisterRunner(ctx context.Context, req *runnerpb.RegisterRunnerRequest) (*commonpb.Empty, error) {
+func (h *RunnerHandler) GetRunnerModels(ctx context.Context, req *runnerpb.GetRunnerModelsRequest) (*runnerpb.GetRunnerModelsResponse, error) {
 	if err := RequireAdmin(ctx, h.authUseCase); err != nil {
 		return nil, err
 	}
-	if req == nil || strings.TrimSpace(req.GetAddress()) == "" {
-		return nil, status.Error(codes.InvalidArgument, "address обязателен")
+	if req == nil || req.GetRunnerId() <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "нужен положительный id")
 	}
-	addr := strings.TrimSpace(req.GetAddress())
-	h.registry.Register(addr)
-	logger.I("RegisterRunner: %s", addr)
+	st, ok := h.registry.GetByID(req.GetRunnerId())
+	if !ok || strings.TrimSpace(st.Address) == "" {
+		return nil, status.Error(codes.NotFound, "раннер не найден")
+	}
+	models, err := h.pool.GetModelsOnRunner(ctx, st.Address)
+	if err != nil {
+		return nil, ToStatusError(codes.Internal, err)
+	}
+	return &runnerpb.GetRunnerModelsResponse{Models: models}, nil
+}
+
+func (h *RunnerHandler) RunnerLoadModel(ctx context.Context, req *runnerpb.RunnerLoadModelRequest) (*commonpb.Empty, error) {
+	if err := RequireAdmin(ctx, h.authUseCase); err != nil {
+		return nil, err
+	}
+	if req == nil || req.GetRunnerId() <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "нужен положительный id")
+	}
+	model := strings.TrimSpace(req.GetModel())
+	if model == "" {
+		return nil, status.Error(codes.InvalidArgument, "укажите модель")
+	}
+	st, ok := h.registry.GetByID(req.GetRunnerId())
+	if !ok || strings.TrimSpace(st.Address) == "" {
+		return nil, status.Error(codes.NotFound, "раннер не найден")
+	}
+	if !st.Enabled {
+		return nil, status.Error(codes.FailedPrecondition, "включите раннер")
+	}
+	if err := h.pool.WarmModelOnRunner(ctx, st.Address, model); err != nil {
+		return nil, ToStatusError(codes.Internal, err)
+	}
+	logger.I("RunnerLoadModel: id=%d model=%s", req.GetRunnerId(), model)
 	return &commonpb.Empty{}, nil
 }
 
-func (h *RunnerHandler) UnregisterRunner(ctx context.Context, req *runnerpb.UnregisterRunnerRequest) (*commonpb.Empty, error) {
+func (h *RunnerHandler) RunnerUnloadModel(ctx context.Context, req *runnerpb.RunnerUnloadModelRequest) (*commonpb.Empty, error) {
 	if err := RequireAdmin(ctx, h.authUseCase); err != nil {
 		return nil, err
 	}
-	if req == nil || strings.TrimSpace(req.GetAddress()) == "" {
-		return nil, status.Error(codes.InvalidArgument, "address обязателен")
+	if req == nil || req.GetRunnerId() <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "нужен положительный id")
 	}
-	addr := strings.TrimSpace(req.GetAddress())
-	h.pool.CloseAddrForget(addr)
-	h.registry.Unregister(addr)
-	logger.I("UnregisterRunner: %s", addr)
+	st, ok := h.registry.GetByID(req.GetRunnerId())
+	if !ok || strings.TrimSpace(st.Address) == "" {
+		return nil, status.Error(codes.NotFound, "раннер не найден")
+	}
+	if err := h.pool.UnloadModelOnRunner(ctx, st.Address); err != nil {
+		return nil, ToStatusError(codes.Internal, err)
+	}
+	logger.I("RunnerUnloadModel: id=%d", req.GetRunnerId())
+	return &commonpb.Empty{}, nil
+}
+
+func (h *RunnerHandler) RunnerResetMemory(ctx context.Context, req *runnerpb.RunnerResetMemoryRequest) (*commonpb.Empty, error) {
+	if err := RequireAdmin(ctx, h.authUseCase); err != nil {
+		return nil, err
+	}
+	if req == nil || req.GetRunnerId() <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "нужен положительный id")
+	}
+	st, ok := h.registry.GetByID(req.GetRunnerId())
+	if !ok || strings.TrimSpace(st.Address) == "" {
+		return nil, status.Error(codes.NotFound, "раннер не найден")
+	}
+	addr := strings.TrimSpace(st.Address)
+	if err := h.pool.ResetMemoryOnRunner(ctx, addr); err != nil {
+		logger.W("RunnerResetMemory: llm-runner: %v", err)
+	}
+	h.pool.CloseAddr(addr)
+	logger.I("RunnerResetMemory: id=%d addr=%s", req.GetRunnerId(), addr)
 	return &commonpb.Empty{}, nil
 }
 
@@ -171,70 +347,10 @@ func (h *RunnerHandler) CheckConnection(ctx context.Context, _ *llmrunnerpb.Empt
 	}, nil
 }
 
-func (h *RunnerHandler) validateRegistrationToken(provided string) error {
-	if h.cfg == nil || len(h.cfg.Runners.Entries) == 0 {
-		return status.Error(codes.FailedPrecondition, "саморегистрация отключена: нет записей runners в конфигурации")
-	}
-
-	given := strings.TrimSpace(provided)
-	if given == "" {
-		return status.Error(codes.PermissionDenied, "неверный registration_token")
-	}
-
-	if h.cfg.EntryMatchingRegistrationToken(given) == nil {
-		return status.Error(codes.PermissionDenied, "неверный registration_token")
-	}
-
-	return nil
+func (h *RunnerHandler) RegisterRunnerWithToken(ctx context.Context, _ *llmrunnerpb.RunnerRegisterRequest) (*llmrunnerpb.Empty, error) {
+	return nil, status.Error(codes.FailedPrecondition, "саморегистрация отключена: добавьте раннер в админке (имя, IP, порт)")
 }
 
-func (h *RunnerHandler) RegisterRunnerWithToken(ctx context.Context, req *llmrunnerpb.RunnerRegisterRequest) (*llmrunnerpb.Empty, error) {
-	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "пустой запрос")
-	}
-
-	addr := strings.TrimSpace(req.GetListenAddress())
-	if addr == "" {
-		return nil, status.Error(codes.InvalidArgument, "listen_address обязателен")
-	}
-
-	if err := h.validateRegistrationToken(req.GetRegistrationToken()); err != nil {
-		return nil, err
-	}
-
-	entry := h.cfg.EntryMatchingRegistrationToken(req.GetRegistrationToken())
-	if entry == nil {
-		return nil, status.Error(codes.PermissionDenied, "неверный registration_token")
-	}
-
-	pbHints := req.GetHints()
-	if pbHints == nil {
-		return nil, status.Error(codes.InvalidArgument, "hints обязательны: llm-runner должен передать RunnerRegisterHints при регистрации")
-	}
-	hints := service.HintsFromRunnerRegisterProto(pbHints)
-	h.registry.RegisterWithNameAndHints(addr, entry.Name, hints)
-	logger.I("RegisterRunnerWithToken: %s", addr)
-
-	return &llmrunnerpb.Empty{}, nil
-}
-
-func (h *RunnerHandler) UnregisterRunnerWithToken(ctx context.Context, req *llmrunnerpb.RunnerUnregisterRequest) (*llmrunnerpb.Empty, error) {
-	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "пустой запрос")
-	}
-
-	addr := strings.TrimSpace(req.GetListenAddress())
-	if addr == "" {
-		return nil, status.Error(codes.InvalidArgument, "listen_address обязателен")
-	}
-
-	if err := h.validateRegistrationToken(req.GetRegistrationToken()); err != nil {
-		return nil, err
-	}
-
-	h.pool.CloseAddrForget(addr)
-	h.registry.Unregister(addr)
-	logger.I("UnregisterRunnerWithToken: %s", addr)
-
-	return &llmrunnerpb.Empty{}, nil
+func (h *RunnerHandler) UnregisterRunnerWithToken(ctx context.Context, _ *llmrunnerpb.RunnerUnregisterRequest) (*llmrunnerpb.Empty, error) {
+	return nil, status.Error(codes.FailedPrecondition, "саморегистрация отключена: удалите раннер в админке")
 }

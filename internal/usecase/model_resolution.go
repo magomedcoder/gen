@@ -32,11 +32,8 @@ func normalizedAvailableModels(raw []string) []string {
 func resolveModelForUser(
 	ctx context.Context,
 	llmRepo domain.LLMRepository,
-	preferenceRepo domain.ChatPreferenceRepository,
-	userID int,
 	requestedModel string,
 	sessionModel string,
-	configDefaultRunner string,
 ) (string, error) {
 	availableRaw, err := llmRepo.GetModels(ctx)
 	if err != nil {
@@ -59,25 +56,6 @@ func resolveModelForUser(
 	fromSession := strings.TrimSpace(sessionModel)
 	if fromSession != "" && slices.Contains(available, fromSession) {
 		return fromSession, nil
-	}
-
-	selectedRunner, err := preferenceRepo.GetSelectedRunner(ctx, userID)
-	if err != nil {
-		return "", err
-	}
-	selectedRunner = strings.TrimSpace(selectedRunner)
-	if selectedRunner == "" {
-		selectedRunner = strings.TrimSpace(configDefaultRunner)
-	}
-
-	if selectedRunner != "" {
-		defaultModel, err := preferenceRepo.GetDefaultRunnerModel(ctx, userID, selectedRunner)
-		if err == nil {
-			defaultModel = strings.TrimSpace(defaultModel)
-			if defaultModel != "" && slices.Contains(available, defaultModel) {
-				return defaultModel, nil
-			}
-		}
 	}
 
 	return available[0], nil

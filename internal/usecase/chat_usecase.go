@@ -111,53 +111,16 @@ func (c *ChatUseCase) GetSelectedRunner(ctx context.Context, userID int) (string
 	if s != "" {
 		return s, nil
 	}
+	if c.runnerReg != nil {
+		if a := c.runnerReg.DefaultRunnerListenAddress(); a != "" {
+			return a, nil
+		}
+	}
 	return c.defaultRunnerAddr, nil
 }
 
 func (c *ChatUseCase) SetSelectedRunner(ctx context.Context, userID int, runner string) error {
 	return c.preferenceRepo.SetSelectedRunner(ctx, userID, runner)
-}
-
-func (c *ChatUseCase) GetDefaultRunnerModel(ctx context.Context, userID int, runner string) (string, error) {
-	return c.preferenceRepo.GetDefaultRunnerModel(ctx, userID, runner)
-}
-
-func (c *ChatUseCase) SetDefaultRunnerModel(ctx context.Context, userID int, runner string, model string) error {
-	if err := c.preferenceRepo.SetDefaultRunnerModel(ctx, userID, runner, model); err != nil {
-		return err
-	}
-
-	if c.runnerPool == nil {
-		return nil
-	}
-
-	runnerAddr := strings.TrimSpace(runner)
-	modelName := strings.TrimSpace(model)
-	if runnerAddr == "" {
-		return nil
-	}
-
-	go func() {
-		warmCtx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
-		defer cancel()
-
-		if err := c.runnerPool.WaitRunnerIdle(warmCtx, runnerAddr); err != nil {
-			logger.W("SetDefaultRunnerModel: wait idle runner=%s: %v", runnerAddr, err)
-			return
-		}
-
-		if err := c.runnerPool.UnloadModelOnRunner(warmCtx, runnerAddr); err != nil {
-			logger.W("SetDefaultRunnerModel: unload model runner=%s: %v", runnerAddr, err)
-		}
-
-		if modelName != "" {
-			if err := c.runnerPool.WarmModelOnRunner(warmCtx, runnerAddr, modelName); err != nil {
-				logger.W("SetDefaultRunnerModel: warm model runner=%s model=%q: %v", runnerAddr, modelName, err)
-			}
-		}
-	}()
-
-	return nil
 }
 
 func (c *ChatUseCase) verifySessionOwnership(ctx context.Context, userId int, sessionID int64) (*domain.ChatSession, error) {
@@ -178,7 +141,7 @@ func (c *ChatUseCase) GetModels(ctx context.Context) ([]string, error) {
 }
 
 func (c *ChatUseCase) Embed(ctx context.Context, userID int, requestedModel string, text string) ([]float32, error) {
-	model, err := resolveModelForUser(ctx, c.llmRepo, c.preferenceRepo, userID, strings.TrimSpace(requestedModel), "", c.defaultRunnerAddr)
+	model, err := resolveModelForUser(ctx, c.llmRepo, strings.TrimSpace(requestedModel), "")
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +150,7 @@ func (c *ChatUseCase) Embed(ctx context.Context, userID int, requestedModel stri
 }
 
 func (c *ChatUseCase) EmbedBatch(ctx context.Context, userID int, requestedModel string, texts []string) ([][]float32, error) {
-	model, err := resolveModelForUser(ctx, c.llmRepo, c.preferenceRepo, userID, strings.TrimSpace(requestedModel), "", c.defaultRunnerAddr)
+	model, err := resolveModelForUser(ctx, c.llmRepo, strings.TrimSpace(requestedModel), "")
 	if err != nil {
 		return nil, err
 	}
@@ -230,13 +193,12 @@ func genParamsFromSessionSettings(settings *domain.ChatSessionSettings) (stopSeq
 
 func (c *ChatUseCase) SendMessage(ctx context.Context, userId int, sessionId int64, userMessage string, attachmentFileID *int64) (chan ChatStreamChunk, error) {
 	logger.D("SendMessage: session=%d user=%d", sessionId, userId)
-	session, err := c.verifySessionOwnership(ctx, userId, sessionId)
-	if err != nil {
+	if _, err := c.verifySessionOwnership(ctx, userId, sessionId); err != nil {
 		logger.W("SendMessage: сессия не принадлежит пользователю: %v", err)
 		return nil, err
 	}
 
-	resolvedModel, err := resolveModelForUser(ctx, c.llmRepo, c.preferenceRepo, userId, "", session.Model, c.defaultRunnerAddr)
+	resolvedModel, err := resolveModelForUser(ctx, c.llmRepo, "", "")
 	if err != nil {
 		logger.W("SendMessage: выбор модели: %v", err)
 		return nil, err
@@ -352,8 +314,7 @@ func (c *ChatUseCase) RegenerateAssistantResponse(ctx context.Context, userId in
 		return nil, fmt.Errorf("некорректный assistant_message_id")
 	}
 
-	session, err := c.verifySessionOwnership(ctx, userId, sessionId)
-	if err != nil {
+	if _, err := c.verifySessionOwnership(ctx, userId, sessionId); err != nil {
 		logger.W("RegenerateAssistantResponse: сессия: %v", err)
 		return nil, err
 	}
@@ -380,7 +341,7 @@ func (c *ChatUseCase) RegenerateAssistantResponse(ctx context.Context, userId in
 		return nil, fmt.Errorf("перегенерировать можно только последнее сообщение в чате")
 	}
 
-	resolvedModel, err := resolveModelForUser(ctx, c.llmRepo, c.preferenceRepo, userId, "", session.Model, c.defaultRunnerAddr)
+	resolvedModel, err := resolveModelForUser(ctx, c.llmRepo, "", "")
 	if err != nil {
 		return nil, err
 	}
@@ -468,8 +429,7 @@ func (c *ChatUseCase) ContinueAssistantResponse(ctx context.Context, userId int,
 		return nil, fmt.Errorf("некорректный assistant_message_id")
 	}
 
-	session, err := c.verifySessionOwnership(ctx, userId, sessionId)
-	if err != nil {
+	if _, err := c.verifySessionOwnership(ctx, userId, sessionId); err != nil {
 		logger.W("ContinueAssistantResponse: сессия: %v", err)
 		return nil, err
 	}
@@ -499,7 +459,7 @@ func (c *ChatUseCase) ContinueAssistantResponse(ctx context.Context, userId int,
 		return nil, fmt.Errorf("продолжить можно только последнее сообщение в чате")
 	}
 
-	resolvedModel, err := resolveModelForUser(ctx, c.llmRepo, c.preferenceRepo, userId, "", session.Model, c.defaultRunnerAddr)
+	resolvedModel, err := resolveModelForUser(ctx, c.llmRepo, "", "")
 	if err != nil {
 		return nil, err
 	}
@@ -580,8 +540,7 @@ func (c *ChatUseCase) EditUserMessageAndContinue(ctx context.Context, userId int
 		return nil, fmt.Errorf("new_content не может быть пустым")
 	}
 
-	session, err := c.verifySessionOwnership(ctx, userId, sessionId)
-	if err != nil {
+	if _, err := c.verifySessionOwnership(ctx, userId, sessionId); err != nil {
 		return nil, err
 	}
 
@@ -626,7 +585,7 @@ func (c *ChatUseCase) EditUserMessageAndContinue(ctx context.Context, userId int
 		return nil, err
 	}
 
-	resolvedModel, err := resolveModelForUser(ctx, c.llmRepo, c.preferenceRepo, userId, "", session.Model, c.defaultRunnerAddr)
+	resolvedModel, err := resolveModelForUser(ctx, c.llmRepo, "", "")
 	if err != nil {
 		return nil, err
 	}
@@ -970,11 +929,7 @@ func (c *ChatUseCase) CreateSession(ctx context.Context, userId int, title strin
 		title = "Чат от " + time.Now().Format("15:04:05 02.01.2006")
 	}
 
-	resolvedModel, err := resolveModelForUser(ctx, c.llmRepo, c.preferenceRepo, userId, "", "", c.defaultRunnerAddr)
-	if err != nil {
-		return nil, err
-	}
-	session := domain.NewChatSession(userId, title, resolvedModel)
+	session := domain.NewChatSession(userId, title)
 	if err := c.sessionRepo.Create(ctx, session); err != nil {
 		return nil, err
 	}

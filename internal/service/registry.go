@@ -1,15 +1,20 @@
 package service
 
 import (
+	"sort"
 	"strings"
 	"sync"
 
 	"github.com/magomedcoder/gen/api/pb/runnerpb"
+	"github.com/magomedcoder/gen/internal/domain"
 	"github.com/magomedcoder/gen/pkg/logger"
 )
 
 type RunnerState struct {
+	ID      int64
 	Address string
+	Host    string
+	Port    int32
 	Name    string
 	Enabled bool
 	Hints   *RunnerCoreHints
@@ -20,19 +25,44 @@ type Registry struct {
 	runners map[string]RunnerState
 }
 
-func NewRegistry(initial []RunnerState) *Registry {
-	runners := make(map[string]RunnerState)
-	for _, r := range initial {
-		addr := strings.TrimSpace(r.Address)
-		if addr != "" {
-			runners[addr] = RunnerState{
-				Address: addr,
-				Name:    strings.TrimSpace(r.Name),
-				Enabled: true,
-			}
+func RunnerStatesFromDomain(rows []domain.Runner) []RunnerState {
+	out := make([]RunnerState, 0, len(rows))
+	for _, r := range rows {
+		addr := domain.RunnerListenAddress(r.Host, r.Port)
+		if addr == "" {
+			continue
 		}
+		out = append(out, RunnerState{
+			ID:      r.ID,
+			Address: addr,
+			Host:    strings.TrimSpace(r.Host),
+			Port:    r.Port,
+			Name:    strings.TrimSpace(r.Name),
+			Enabled: r.Enabled,
+		})
 	}
-	return &Registry{runners: runners}
+	return out
+}
+
+func NewRegistry(initial []RunnerState) *Registry {
+	r := &Registry{runners: make(map[string]RunnerState)}
+	r.ReplaceAll(initial)
+	return r
+}
+
+func (r *Registry) ReplaceAll(states []RunnerState) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	next := make(map[string]RunnerState, len(states))
+	for _, st := range states {
+		addr := strings.TrimSpace(st.Address)
+		if addr == "" {
+			continue
+		}
+		st.Address = addr
+		next[addr] = st
+	}
+	r.runners = next
 }
 
 func (r *Registry) Register(addr string) {
@@ -88,19 +118,48 @@ func (r *Registry) GetRunners() []*runnerpb.RunnerInfo {
 	for _, state := range r.runners {
 		out = append(out, &runnerpb.RunnerInfo{
 			Address: state.Address,
-			Name:    state.Name,
 			Enabled: state.Enabled,
+			Name:    state.Name,
+			Id:      state.ID,
+			Host:    state.Host,
+			Port:    state.Port,
 		})
 	}
 	return out
 }
 
+func (r *Registry) DefaultRunnerListenAddress() string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	type pair struct {
+		id   int64
+		addr string
+	}
+	var list []pair
+	for _, st := range r.runners {
+		if !st.Enabled {
+			continue
+		}
+		a := strings.TrimSpace(st.Address)
+		if a == "" {
+			continue
+		}
+		list = append(list, pair{st.ID, a})
+	}
+	if len(list) == 0 {
+		return ""
+	}
+	sort.Slice(list, func(i, j int) bool { return list[i].id < list[j].id })
+	return list[0].addr
+}
+
 func (r *Registry) SetEnabled(addr string, enabled bool) {
+	a := strings.TrimSpace(addr)
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if state, ok := r.runners[addr]; ok {
+	if state, ok := r.runners[a]; ok {
 		state.Enabled = enabled
-		r.runners[addr] = state
+		r.runners[a] = state
 	}
 }
 
@@ -138,4 +197,19 @@ func (r *Registry) IsEnabledRunner(addr string) bool {
 	st, ok := r.runners[a]
 
 	return ok && st.Enabled
+}
+
+func (r *Registry) GetByID(id int64) (RunnerState, bool) {
+	if id <= 0 {
+		return RunnerState{}, false
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, st := range r.runners {
+		if st.ID == id {
+			return st, true
+		}
+	}
+	return RunnerState{}, false
 }
