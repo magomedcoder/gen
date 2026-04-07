@@ -1,10 +1,16 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gen/core/attachment_settings.dart';
+import 'package:gen/core/injector.dart';
+import 'package:gen/core/speech/local_vosk_dictation_service.dart';
+import 'package:gen/core/speech/vosk_model_sync_service.dart';
+import 'package:grpc/grpc.dart';
 import 'package:gen/core/ui/app_top_notice.dart';
 import 'package:gen/core/layout/responsive.dart';
 import 'package:gen/presentation/screens/chat/bloc/chat_bloc.dart';
@@ -54,6 +60,11 @@ class ChatInputBarState extends State<ChatInputBar> {
   final _focusNode = FocusNode();
   bool _isComposing = false;
   PlatformFile? _selectedFile;
+
+  bool _dictating = false;
+  bool _voskModelLoading = false;
+  String _dictationPrefix = '';
+  String _dictationSuffix = '';
 
   @override
   void initState() {
@@ -247,8 +258,172 @@ class ChatInputBarState extends State<ChatInputBar> {
     context.read<ChatBloc>().add(const ChatStopGeneration());
   }
 
+  Future<void> _toggleVoskDictation() async {
+    if (!widget.isEnabled) {
+      return;
+    }
+    if (kIsWeb) {
+      showAppTopNotice(
+        'Голосовой ввод недоступен в веб-версии.',
+        error: true,
+      );
+      return;
+    }
+
+    final dictation = sl<LocalVoskDictationService>();
+    if (!dictation.isPlatformSupported) {
+      showAppTopNotice(
+        'Локальное распознавание речи в этой сборке недоступно.',
+        error: true,
+      );
+      return;
+    }
+
+    if (_dictating) {
+      try {
+        final value = await dictation.stop(
+          prefix: _dictationPrefix,
+          suffix: _dictationSuffix,
+        );
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _dictating = false;
+          _textController.value = value;
+        });
+      } catch (e) {
+        if (mounted) {
+          setState(() => _dictating = false);
+          showAppTopNotice('Голосовой ввод: $e', error: true);
+        }
+      }
+      return;
+    }
+
+    if (_voskModelLoading) {
+      return;
+    }
+
+    var showedVoskLoader = false;
+    try {
+      setState(() => _voskModelLoading = true);
+
+      final sync = sl<VoskModelSyncService>();
+      if (await sync.shouldDownloadFromServer()) {
+        if (!mounted) {
+          return;
+        }
+        showedVoskLoader = true;
+        showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) {
+            final scheme = Theme.of(ctx).colorScheme;
+            return PopScope(
+              canPop: false,
+              child: Center(
+                child: Card(
+                  margin: const EdgeInsets.all(32),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const SizedBox(
+                          width: 40,
+                          height: 40,
+                          child: CircularProgressIndicator(),
+                        ),
+                        const SizedBox(height: 20),
+                        Text(
+                          'Первоначальная подготовка голосового ввода...',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 15,
+                            color: scheme.onSurface,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      }
+
+      var modelPath = await sync.ensureModelPath();
+      if (modelPath == null || modelPath.isEmpty) {
+        final dir = await FilePicker.platform.getDirectoryPath(
+          dialogTitle: 'Папка для голосового ввода (вручную, если нет автозагрузки)',
+        );
+        if (dir == null || !mounted) {
+          return;
+        }
+        await dictation.saveModelPath(dir);
+        modelPath = dir;
+      }
+
+      final v = _textController.value;
+      final text = v.text;
+      final sel = v.selection;
+      final start = sel.isValid ? sel.start : text.length;
+      final end = sel.isValid ? sel.end : text.length;
+      _dictationPrefix = text.substring(0, start.clamp(0, text.length));
+      _dictationSuffix = text.substring(end.clamp(0, text.length));
+
+      await dictation.start(
+        prefix: _dictationPrefix,
+        suffix: _dictationSuffix,
+        modelPath: modelPath,
+        onLive: (fullText, caret) {
+          if (!mounted) {
+            return;
+          }
+          setState(() {
+            _textController.value = TextEditingValue(
+              text: fullText,
+              selection: TextSelection.collapsed(
+                offset: caret.clamp(0, fullText.length),
+              ),
+            );
+          });
+        },
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() => _dictating = true);
+    } on GrpcError catch (e) {
+      if (mounted) {
+        setState(() => _dictating = false);
+        showAppTopNotice(e.message ?? e.toString(), error: true);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _dictating = false);
+        showAppTopNotice('Голосовой ввод: $e', error: true);
+      }
+    } finally {
+      if (showedVoskLoader && mounted) {
+        final nav = Navigator.of(context, rootNavigator: true);
+        if (nav.canPop()) {
+          nav.pop();
+        }
+      }
+      if (mounted) {
+        setState(() => _voskModelLoading = false);
+      }
+    }
+  }
+
   @override
   void dispose() {
+    if (_dictating) {
+      unawaited(sl<LocalVoskDictationService>().cancel());
+    }
     _textController.dispose();
     _focusNode.dispose();
     super.dispose();
@@ -350,6 +525,16 @@ class ChatInputBarState extends State<ChatInputBar> {
     );
   }
 
+  Color _brightReasoningOnColor(ThemeData theme) {
+    final scheme = theme.colorScheme;
+    final vivid = Color.lerp(scheme.tertiary, scheme.primary, 0.35) ?? scheme.tertiary;
+    if (theme.brightness == Brightness.light) {
+      return Color.lerp(vivid, Colors.white, 0.14) ?? vivid;
+    }
+
+    return Color.lerp(vivid, scheme.onSurface, 0.12) ?? vivid;
+  }
+
   Widget _buildBottomActionsBar(ChatState state, ThemeData theme) {
     final canSend = (_isComposing || _selectedFile != null) && widget.isEnabled;
 
@@ -376,6 +561,48 @@ class ChatInputBarState extends State<ChatInputBar> {
                     : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
                 ),
               ),
+            Builder(
+              builder: (context) {
+                final reasoningOn = state.currentSessionId == null
+                  ? state.draftModelReasoningEnabled
+                    : (state.sessionSettings?.modelReasoningEnabled ?? false);
+                final canToggleReasoning = widget.isEnabled && (state.currentSessionId == null || state.sessionSettings != null);
+                final Color reasoningIconColor;
+
+                if (!canToggleReasoning) {
+                  reasoningIconColor = theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.38);
+                } else if (reasoningOn) {
+                  final bright = _brightReasoningOnColor(theme);
+                  reasoningIconColor = widget.isEnabled
+                    ? bright
+                    : bright.withValues(alpha: 0.52);
+                } else {
+                  reasoningIconColor = widget.isEnabled
+                    ? theme.colorScheme.outline
+                    : theme.colorScheme.outline.withValues(alpha: 0.55);
+                }
+                return IconButton(
+                  tooltip: reasoningOn
+                    ? 'Размышление модели: включено'
+                    : 'Размышление модели: выключено',
+                  style: IconButton.styleFrom(
+                    foregroundColor: reasoningIconColor,
+                    disabledForegroundColor: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.38),
+                  ),
+                  onPressed: canToggleReasoning
+                    ? () {
+                      context.read<ChatBloc>().add(ChatSetModelReasoning(!reasoningOn));
+                    }
+                    : null,
+                  icon: Icon(
+                    Icons.psychology_outlined,
+                    color: reasoningOn
+                      ? theme.colorScheme.onSurfaceVariant
+                      : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+                  ),
+                );
+              },
+            ),
             if (widget.showRetry &&
                 state.retryText != null &&
                 !state.isStreamingInCurrentSession) ...[
@@ -398,72 +625,105 @@ class ChatInputBarState extends State<ChatInputBar> {
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
+                  final action = (state.isStreamingInCurrentSession && widget.showStop)
+                    ? FilledButton.tonal(
+                        onPressed: _stopGeneration,
+                        style: FilledButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          backgroundColor: theme.colorScheme.errorContainer,
+                          foregroundColor: theme.colorScheme.onErrorContainer,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.stop_rounded, size: 20),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                'Стоп',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                  color: theme.colorScheme.onErrorContainer,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : FilledButton(
+                        onPressed: canSend ? _sendMessage : null,
+                        style: FilledButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(widget.submitIcon, size: 20),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                widget.submitLabel,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
                   return Align(
                     alignment: Alignment.centerRight,
                     child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxWidth: constraints.maxWidth,
+                      constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          if (!kIsWeb) ...[
+                            IconButton(
+                              tooltip: _dictating
+                                ? 'Остановить диктовку'
+                                : (_voskModelLoading
+                                    ? 'Первоначальная подготовка голосового ввода...'
+                                    : 'Голосовой ввод'),
+                              onPressed: widget.isEnabled && !_voskModelLoading
+                                ? _toggleVoskDictation
+                                : null,
+                              icon: _voskModelLoading
+                                ? SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                  )
+                                : Icon(
+                                    _dictating ? Icons.mic_rounded : Icons.mic_none_rounded,
+                                    color: _dictating
+                                      ? theme.colorScheme.error
+                                      : (widget.isEnabled
+                                          ? theme.colorScheme.onSurfaceVariant
+                                          : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4)),
+                                  ),
+                            ),
+                            const SizedBox(width: 4),
+                          ],
+                          Flexible(child: action),
+                        ],
                       ),
-                      child: (state.isStreamingInCurrentSession && widget.showStop)
-                        ? FilledButton.tonal(
-                          onPressed: _stopGeneration,
-                          style: FilledButton.styleFrom(
-                            visualDensity: VisualDensity.compact,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
-                            ),
-                            backgroundColor: theme.colorScheme.errorContainer,
-                            foregroundColor: theme.colorScheme.onErrorContainer,
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.stop_rounded, size: 20),
-                              const SizedBox(width: 8),
-                              Flexible(
-                                child: Text(
-                                  'Стоп',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w500,
-                                    color: theme
-                                        .colorScheme.onErrorContainer,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                        : FilledButton(
-                          onPressed: canSend ? _sendMessage : null,
-                          style: FilledButton.styleFrom(
-                            visualDensity: VisualDensity.compact,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(widget.submitIcon, size: 20),
-                              const SizedBox(width: 8),
-                              Flexible(
-                                child: Text(
-                                  widget.submitLabel,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
                     ),
                   );
                 },
@@ -573,16 +833,20 @@ class ChatInputBarState extends State<ChatInputBar> {
                           child: TextField(
                             controller: _textController,
                             focusNode: _focusNode,
-                            enabled: widget.isEnabled,
+                            enabled: widget.isEnabled && !_dictating && !_voskModelLoading,
                             expands: true,
                             maxLines: null,
                             minLines: null,
                             textAlignVertical: TextAlignVertical.top,
                             style: inputTextStyle,
                             decoration: InputDecoration(
-                              hintText: widget.isEnabled
-                                ? (isDesktop ? 'Сообщение...  Ctrl+Enter - новая строка' : 'Сообщение...')
-                                : 'Обрабатываю...',
+                              hintText: !widget.isEnabled
+                                ? 'Обрабатываю...'
+                                : _voskModelLoading
+                                ? 'Первоначальная подготовка голосового ввода...'
+                                : _dictating
+                                ? 'Слушаю...'
+                                : (isDesktop ? 'Сообщение...  Ctrl+Enter - новая строка' : 'Сообщение...'),
                               hintStyle: TextStyle(
                                 fontSize: 14,
                                 height: 1.45,

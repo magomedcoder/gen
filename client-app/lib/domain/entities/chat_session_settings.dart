@@ -12,6 +12,7 @@ class ChatSessionSettings extends Equatable {
   final String jsonSchema;
   final String toolsJson;
   final String profile;
+  final bool modelReasoningEnabled;
 
   const ChatSessionSettings({
     required this.sessionId,
@@ -25,6 +26,7 @@ class ChatSessionSettings extends Equatable {
     this.jsonSchema = '',
     this.toolsJson = '',
     this.profile = '',
+    this.modelReasoningEnabled = false,
   });
 
   @override
@@ -40,5 +42,6 @@ class ChatSessionSettings extends Equatable {
     jsonSchema,
     toolsJson,
     profile,
+    modelReasoningEnabled,
   ];
 }

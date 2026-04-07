@@ -48,6 +48,7 @@ class ChatBubble extends StatefulWidget {
   final VoidCallback? onPrevEdit;
   final VoidCallback? onNextEdit;
   final bool showContinuePartial;
+  final String? streamingReasoning;
 
   const ChatBubble({
     super.key,
@@ -55,6 +56,7 @@ class ChatBubble extends StatefulWidget {
     this.sessionId,
     this.isStreaming = false,
     this.streamingStatus,
+    this.streamingReasoning,
     this.onRegenerate,
     this.onEditSubmit,
     this.showEditNav = false,
@@ -73,6 +75,20 @@ class _ChatBubbleState extends State<ChatBubble> {
   bool _justCopied = false;
   int? _downloadingFileId;
   bool _isEditing = false;
+
+  String _reasoningText() {
+    final live = widget.streamingReasoning;
+    if (live != null && live.trim().isNotEmpty) {
+      return live;
+    }
+
+    final stored = widget.message.reasoningContent;
+    if (stored != null && stored.trim().isNotEmpty) {
+      return stored;
+    }
+
+    return '';
+  }
 
   Future<void> _downloadSessionFile(int fileId) async {
     final sessionId = widget.sessionId;
@@ -223,6 +239,38 @@ class _ChatBubbleState extends State<ChatBubble> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  if (!isUser && _reasoningText().trim().isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Theme(
+                        data: theme.copyWith(dividerColor: Colors.transparent),
+                        child: ExpansionTile(
+                          tilePadding: EdgeInsets.zero,
+                          expandedAlignment: Alignment.centerLeft,
+                          childrenPadding: const EdgeInsets.only(top: 6),
+                          initiallyExpanded: widget.isStreaming,
+                          title: Text(
+                            'Размышление модели',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: messageTextColor.withValues(alpha: 0.78),
+                            ),
+                          ),
+                          children: [
+                            SelectableText(
+                              _reasoningText(),
+                              style: TextStyle(
+                                fontSize: 13,
+                                height: 1.45,
+                                color: messageTextColor.withValues(alpha: 0.72),
+                                fontFamily: 'monospace',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   if (attachmentLabel != null)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),

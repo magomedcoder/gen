@@ -27,8 +27,19 @@ require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelpe
 
 flutter_ios_podfile_setup
 
+if ENV['GEN_IOS_VOSK'] == '1'
+  ensure_script = File.expand_path('gen_vosk/ensure_vosk_ios.sh', __dir__)
+  unless system('bash', ensure_script)
+    abort("gen_vosk: не удалось подготовить Vosk (см. #{ensure_script})")
+  end
+end
+
 target 'Runner' do
   use_frameworks!
+
+  if ENV['GEN_IOS_VOSK'] == '1'
+    pod 'gen_vosk', :path => 'gen_vosk'
+  end
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
   target 'RunnerTests' do

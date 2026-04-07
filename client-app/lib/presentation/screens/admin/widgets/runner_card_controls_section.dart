@@ -414,7 +414,7 @@ class _RunnerCardControlsSectionState extends State<RunnerCardControlsSection> {
                 ),
               )
             : const Icon(Icons.restart_alt_outlined),
-          label: Text(_memoryResetBusy ? 'Сброс…' : 'Сбросить память'),
+          label: Text(_memoryResetBusy ? 'Сброс...' : 'Сбросить память'),
         ),
         const SizedBox(height: 8),
         Text(
@@ -447,7 +447,7 @@ class _RunnerCardControlsSectionState extends State<RunnerCardControlsSection> {
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
               SizedBox(width: 12),
-              Text('Загрузка списка…'),
+              Text('Загрузка списка...'),
             ],
           )
         else if (_modelsError != null)

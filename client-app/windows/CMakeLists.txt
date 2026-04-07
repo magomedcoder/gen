@@ -49,6 +49,57 @@ endfunction()
 set(FLUTTER_MANAGED_DIR "${CMAKE_CURRENT_SOURCE_DIR}/flutter")
 add_subdirectory(${FLUTTER_MANAGED_DIR})
 
+set(VOSK_PREBUILT_VERSION "0.3.45" CACHE STRING "Версия vosk-win64 на GitHub releases alphacep/vosk-api")
+set(VOSK_WIN_NATIVE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/native/vosk")
+set(VOSK_WIN_MARKER "${VOSK_WIN_NATIVE_DIR}/libvosk.dll")
+
+if(NOT DEFINED ENV{VOSK_WIN_DLL_DIR} AND NOT EXISTS "${VOSK_WIN_MARKER}" AND NOT "$ENV{SKIP_VOSK_FETCH}" STREQUAL "1")
+  set(_VW_NAME "vosk-win64-${VOSK_PREBUILT_VERSION}")
+  set(_VW_URL "https://github.com/alphacep/vosk-api/releases/download/v${VOSK_PREBUILT_VERSION}/${_VW_NAME}.zip")
+  set(_VW_ZIP "${CMAKE_CURRENT_BINARY_DIR}/${_VW_NAME}.zip")
+  set(_VW_EX "${CMAKE_CURRENT_BINARY_DIR}/vosk_win_extract")
+  
+  message(STATUS "Vosk Windows: загрузка ${_VW_URL}")
+  
+  file(DOWNLOAD "${_VW_URL}" "${_VW_ZIP}" STATUS _vosk_win_dl)
+  list(GET _vosk_win_dl 0 _vosk_win_code)
+  list(GET _vosk_win_dl 1 _vosk_win_msg)
+  
+  if(NOT _vosk_win_code EQUAL 0)
+    message(FATAL_ERROR "Vosk Windows: скачивание не удалось (${_vosk_win_code}): ${_vosk_win_msg}")
+  endif()
+  
+  file(REMOVE_RECURSE "${_VW_EX}")
+  file(MAKE_DIRECTORY "${_VW_EX}")
+  
+  execute_process(
+    COMMAND ${CMAKE_COMMAND} -E tar xf "${_VW_ZIP}"
+    WORKING_DIRECTORY "${_VW_EX}"
+    RESULT_VARIABLE _vosk_win_unzip
+  )
+  
+  if(NOT _vosk_win_unzip EQUAL 0)
+    message(FATAL_ERROR "Vosk Windows: распаковка ZIP не удалась (нужен CMake с поддержкой zip в cmake -E tar).")
+  endif()
+  
+  set(_VW_BUNDLE "${_VW_EX}/${_VW_NAME}")
+  
+  if(NOT EXISTS "${_VW_BUNDLE}/libvosk.dll")
+    message(FATAL_ERROR "Vosk Windows: в архиве нет ${_VW_NAME}/libvosk.dll")
+  endif()
+  
+  file(MAKE_DIRECTORY "${VOSK_WIN_NATIVE_DIR}")
+  file(GLOB _vosk_win_dlls "${_VW_BUNDLE}/*.dll")
+  file(COPY ${_vosk_win_dlls} DESTINATION "${VOSK_WIN_NATIVE_DIR}")
+  
+  if(NOT EXISTS "${VOSK_WIN_MARKER}")
+    message(FATAL_ERROR "Vosk Windows: не удалось установить libvosk.dll в ${VOSK_WIN_NATIVE_DIR}")
+  endif()
+
+  message(STATUS "Vosk Windows: установлено в ${VOSK_WIN_NATIVE_DIR}")
+
+endif()
+
 # Application build; see runner/CMakeLists.txt.
 add_subdirectory("runner")
 
@@ -85,6 +136,23 @@ if(PLUGIN_BUNDLED_LIBRARIES)
   install(FILES "${PLUGIN_BUNDLED_LIBRARIES}"
     DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
     COMPONENT Runtime)
+endif()
+
+# Vosk: libvosk.dll и зависимости MinGW рядом с .exe (или задайте VOSK_WIN_DLL_DIR с *.dll)
+if(DEFINED ENV{VOSK_WIN_DLL_DIR})
+  file(GLOB _vosk_win_install_dlls "$ENV{VOSK_WIN_DLL_DIR}/*.dll")
+  if(_vosk_win_install_dlls)
+    install(FILES ${_vosk_win_install_dlls}
+      DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+      COMPONENT Runtime)
+  endif()
+elseif(EXISTS "${VOSK_WIN_MARKER}")
+  file(GLOB _vosk_win_install_dlls "${VOSK_WIN_NATIVE_DIR}/*.dll")
+  if(_vosk_win_install_dlls)
+    install(FILES ${_vosk_win_install_dlls}
+      DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+      COMPONENT Runtime)
+  endif()
 endif()
 
 # Copy the native assets provided by the build.dart from all packages.

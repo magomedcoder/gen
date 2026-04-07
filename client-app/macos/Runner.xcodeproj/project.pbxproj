@@ -234,6 +234,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 33CC10FB2044A3C60003C045 /* Build configuration list for PBXNativeTarget "Runner" */;
 			buildPhases = (
+				B8E4F1D02A3947561B7E0001 /* Fetch libvosk */,
 				90EFB73CE55D9DA52D4214A2 /* [CP] Check Pods Manifest.lock */,
 				33CC10E92044A3C60003C045 /* Sources */,
 				33CC10EA2044A3C60003C045 /* Frameworks */,
@@ -323,6 +324,28 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		B8E4F1D02A3947561B7E0001 /* Fetch libvosk */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${SRCROOT}/fetch_libvosk.sh",
+			);
+			name = "Fetch libvosk";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"${SRCROOT}/Frameworks/libvosk.dylib",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\ncd \"${SRCROOT}\"\nchmod +x fetch_libvosk.sh 2>/dev/null || true\n./fetch_libvosk.sh\nmkdir -p \"${BUILT_PRODUCTS_DIR}/${FRAMEWORKS_FOLDER_PATH}\"\nif [ -f \"${SRCROOT}/Frameworks/libvosk.dylib\" ]; then\n  cp -f \"${SRCROOT}/Frameworks/libvosk.dylib\" \"${BUILT_PRODUCTS_DIR}/${FRAMEWORKS_FOLDER_PATH}/\"\nfi\n";
+			showEnvVarsInLog = 0;
+		};
 		2CB08B73621D275E9769607B /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;

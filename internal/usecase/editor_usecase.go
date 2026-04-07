@@ -11,23 +11,20 @@ import (
 )
 
 type EditorUseCase struct {
-	llmRepo           domain.LLMRepository
-	preferenceRepo    domain.ChatPreferenceRepository
-	historyRepo       domain.EditorHistoryRepository
-	defaultRunnerAddr string
+	llmRepo     domain.LLMRepository
+	historyRepo domain.EditorHistoryRepository
+	runners     domain.RunnerRepository
 }
 
 func NewEditorUseCase(
 	llmRepo domain.LLMRepository,
-	preferenceRepo domain.ChatPreferenceRepository,
 	historyRepo domain.EditorHistoryRepository,
-	defaultRunnerAddr string,
+	runners domain.RunnerRepository,
 ) *EditorUseCase {
 	return &EditorUseCase{
-		llmRepo:           llmRepo,
-		preferenceRepo:    preferenceRepo,
-		historyRepo:       historyRepo,
-		defaultRunnerAddr: strings.TrimSpace(defaultRunnerAddr),
+		llmRepo:     llmRepo,
+		historyRepo: historyRepo,
+		runners:     runners,
 	}
 }
 
@@ -41,7 +38,7 @@ func (e *EditorUseCase) Transform(
 	if strings.TrimSpace(text) == "" {
 		return "", fmt.Errorf("пустой текст")
 	}
-	resolvedModel, err := resolveModelForUser(ctx, e.llmRepo, e.preferenceRepo, userID, "", "", e.defaultRunnerAddr)
+	resolvedModel, err := resolveModelForUser(ctx, e.llmRepo, "", "")
 	if err != nil {
 		return "", err
 	}
@@ -68,7 +65,17 @@ func (e *EditorUseCase) Transform(
 }
 
 func (e *EditorUseCase) SaveHistory(ctx context.Context, userID int, runner string, text string) error {
-	return e.historyRepo.Save(ctx, userID, runner, text)
+	var runnerID *int64
+	if strings.TrimSpace(runner) != "" {
+		rid, ok, err := e.runners.FindIDByListenAddress(ctx, runner)
+		if err != nil {
+			return err
+		}
+		if ok {
+			runnerID = &rid
+		}
+	}
+	return e.historyRepo.Save(ctx, userID, runnerID, text)
 }
 
 func wrapUserText(text string) string {

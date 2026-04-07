@@ -197,6 +197,7 @@ class ChatUpdateSessionSettings extends ChatEvent {
   final String jsonSchema;
   final String toolsJson;
   final String profile;
+  final bool modelReasoningEnabled;
 
   const ChatUpdateSessionSettings({
     required this.systemPrompt,
@@ -209,6 +210,7 @@ class ChatUpdateSessionSettings extends ChatEvent {
     required this.jsonSchema,
     required this.toolsJson,
     required this.profile,
+    this.modelReasoningEnabled = false,
   });
 
   @override
@@ -223,5 +225,15 @@ class ChatUpdateSessionSettings extends ChatEvent {
     jsonSchema,
     toolsJson,
     profile,
+    modelReasoningEnabled,
   ];
+}
+
+class ChatSetModelReasoning extends ChatEvent {
+  final bool enabled;
+
+  const ChatSetModelReasoning(this.enabled);
+
+  @override
+  List<Object?> get props => [enabled];
 }

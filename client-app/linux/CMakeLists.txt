@@ -54,6 +54,68 @@ add_subdirectory(${FLUTTER_MANAGED_DIR})
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GTK REQUIRED IMPORTED_TARGET gtk+-3.0)
 
+set(VOSK_BUNDLED_SO "${CMAKE_CURRENT_SOURCE_DIR}/native/vosk/libvosk.so")
+set(VOSK_PREBUILT_VERSION "0.3.45" CACHE STRING "Версия ZIP vosk-linux-* на GitHub releases")
+
+if(NOT DEFINED ENV{VOSK_LIB_FILE} AND NOT EXISTS "${VOSK_BUNDLED_SO}" AND NOT "$ENV{SKIP_VOSK_FETCH}" STREQUAL "1" AND NOT FLUTTER_TARGET_PLATFORM_SYSROOT)
+  if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64)$")
+    set(_VOSK_ARCH "x86_64")
+  elseif(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "^(aarch64|ARM64)$")
+    set(_VOSK_ARCH "aarch64")
+  elseif(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "^(armv7l|armv6l)$")
+    set(_VOSK_ARCH "armv7l")
+  elseif(CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "riscv64")
+    set(_VOSK_ARCH "riscv64")
+  elseif(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "^(i.86|i686|x86)$")
+    set(_VOSK_ARCH "x86")
+  else()
+    message(FATAL_ERROR
+      "Vosk: неизвестная CMAKE_HOST_SYSTEM_PROCESSOR=${CMAKE_HOST_SYSTEM_PROCESSOR}. "
+      "Положите libvosk.so в linux/native/vosk/ или задайте VOSK_LIB_FILE.")
+  endif()
+
+  set(_VOSK_NAME "vosk-linux-${_VOSK_ARCH}-${VOSK_PREBUILT_VERSION}")
+  set(_VOSK_URL "https://github.com/alphacep/vosk-api/releases/download/v${VOSK_PREBUILT_VERSION}/${_VOSK_NAME}.zip")
+  set(_VOSK_ZIP "${CMAKE_CURRENT_BINARY_DIR}/${_VOSK_NAME}.zip")
+  set(_VOSK_EXTRACT "${CMAKE_CURRENT_BINARY_DIR}/vosk_prebuilt_extract")
+  message(STATUS "Vosk: загрузка ${_VOSK_URL}")
+  execute_process(
+    COMMAND curl -fsSL -o "${_VOSK_ZIP}" "${_VOSK_URL}"
+    RESULT_VARIABLE _VOSK_CURL
+  )
+
+  if(NOT _VOSK_CURL EQUAL 0)
+    message(FATAL_ERROR "Vosk: curl не смог скачать архив")
+  endif()
+
+  file(REMOVE_RECURSE "${_VOSK_EXTRACT}")
+  file(MAKE_DIRECTORY "${_VOSK_EXTRACT}")
+
+  execute_process(
+    COMMAND unzip -q -o "${_VOSK_ZIP}" -d "${_VOSK_EXTRACT}"
+    RESULT_VARIABLE _VOSK_UNZIP
+  )
+
+  if(NOT _VOSK_UNZIP EQUAL 0)
+    message(FATAL_ERROR "Vosk: unzip не смог распаковать архив.")
+  endif()
+
+  set(_VOSK_SO_SRC "${_VOSK_EXTRACT}/${_VOSK_NAME}/libvosk.so")
+
+  if(NOT EXISTS "${_VOSK_SO_SRC}")
+    message(FATAL_ERROR "Vosk: в архиве нет ${_VOSK_SO_SRC}")
+  endif()
+
+  file(MAKE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/native/vosk")
+  file(COPY "${_VOSK_SO_SRC}" DESTINATION "${CMAKE_CURRENT_SOURCE_DIR}/native/vosk")
+
+  if(NOT EXISTS "${VOSK_BUNDLED_SO}")
+    message(FATAL_ERROR "Vosk: не удалось установить ${VOSK_BUNDLED_SO}")
+  endif()
+
+  message(STATUS "Vosk: установлено ${VOSK_BUNDLED_SO}")
+endif()
+
 # Application build; see runner/CMakeLists.txt.
 add_subdirectory("runner")
 
@@ -105,6 +167,17 @@ foreach(bundled_library ${PLUGIN_BUNDLED_LIBRARIES})
     DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
     COMPONENT Runtime)
 endforeach(bundled_library)
+
+# libvosk в bundle: VOSK_LIB_FILE или linux/native/vosk/libvosk.so (в т.ч. после авто-скачивания выше)
+if(DEFINED ENV{VOSK_LIB_FILE})
+  install(FILES "$ENV{VOSK_LIB_FILE}"
+    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+    COMPONENT Runtime)
+elseif(EXISTS "${VOSK_BUNDLED_SO}")
+  install(FILES "${VOSK_BUNDLED_SO}"
+    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+    COMPONENT Runtime)
+endif()
 
 # Copy the native assets provided by the build.dart from all packages.
 set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/linux/")

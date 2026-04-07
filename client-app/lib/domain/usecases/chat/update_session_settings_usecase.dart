@@ -18,6 +18,7 @@ class UpdateSessionSettingsUseCase {
     required String jsonSchema,
     required String toolsJson,
     required String profile,
+    required bool modelReasoningEnabled,
   }) {
     return repository.updateSessionSettings(
       sessionId: sessionId,
@@ -31,6 +32,7 @@ class UpdateSessionSettingsUseCase {
       jsonSchema: jsonSchema,
       toolsJson: toolsJson,
       profile: profile,
+      modelReasoningEnabled: modelReasoningEnabled,
     );
   }
 }

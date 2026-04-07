@@ -293,6 +293,7 @@ class ChatRepositoryImpl implements ChatRepository {
     required String jsonSchema,
     required String toolsJson,
     required String profile,
+    required bool modelReasoningEnabled,
   }) async {
     try {
       return await dataSource.updateSessionSettings(
@@ -307,6 +308,7 @@ class ChatRepositoryImpl implements ChatRepository {
         jsonSchema: jsonSchema,
         toolsJson: toolsJson,
         profile: profile,
+        modelReasoningEnabled: modelReasoningEnabled,
       );
     } catch (e, st) {
       if (e is Failure) rethrow;

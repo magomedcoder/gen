@@ -20,6 +20,7 @@ class ChatState extends Equatable {
   final List<ChatSession> sessions;
   final List<Message> messages;
   final String? currentStreamingText;
+  final String? currentStreamingReasoning;
   final String? toolProgressLabel;
   final String? error;
   final String? streamNotice;
@@ -44,6 +45,7 @@ class ChatState extends Equatable {
   final bool hasMoreOlderMessages;
   final bool isLoadingOlderMessages;
   final int? partialAssistantMessageId;
+  final bool draftModelReasoningEnabled;
 
   bool get isStreamingInCurrentSession =>
       isStreaming &&
@@ -63,6 +65,7 @@ class ChatState extends Equatable {
     this.sessions = const [],
     this.messages = const [],
     this.currentStreamingText,
+    this.currentStreamingReasoning,
     this.toolProgressLabel,
     this.error,
     this.streamNotice,
@@ -87,6 +90,7 @@ class ChatState extends Equatable {
     this.hasMoreOlderMessages = false,
     this.isLoadingOlderMessages = false,
     this.partialAssistantMessageId,
+    this.draftModelReasoningEnabled = false,
   });
 
   ChatState copyWith({
@@ -102,6 +106,7 @@ class ChatState extends Equatable {
     List<ChatSession>? sessions,
     List<Message>? messages,
     String? currentStreamingText,
+    String? currentStreamingReasoning,
     Object? toolProgressLabel = _kKeepToolProgress,
     String? error,
     Object? streamNotice = _kKeepStreamNotice,
@@ -130,6 +135,7 @@ class ChatState extends Equatable {
     bool? isLoadingOlderMessages,
     int? partialAssistantMessageId,
     bool clearPartialAssistant = false,
+    bool? draftModelReasoningEnabled,
   }) {
     return ChatState(
       isConnected: isConnected ?? this.isConnected,
@@ -148,6 +154,7 @@ class ChatState extends Equatable {
       sessions: sessions ?? this.sessions,
       messages: messages ?? this.messages,
       currentStreamingText: currentStreamingText,
+      currentStreamingReasoning: currentStreamingReasoning,
       toolProgressLabel: clearToolProgress
           ? null
           : (identical(toolProgressLabel, _kKeepToolProgress)
@@ -188,6 +195,8 @@ class ChatState extends Equatable {
       partialAssistantMessageId: clearPartialAssistant
           ? null
           : (partialAssistantMessageId ?? this.partialAssistantMessageId),
+      draftModelReasoningEnabled:
+          draftModelReasoningEnabled ?? this.draftModelReasoningEnabled,
     );
   }
 
@@ -203,6 +212,7 @@ class ChatState extends Equatable {
     sessions,
     messages,
     currentStreamingText,
+    currentStreamingReasoning,
     toolProgressLabel,
     error,
     streamNotice,
@@ -227,5 +237,6 @@ class ChatState extends Equatable {
     hasMoreOlderMessages,
     isLoadingOlderMessages,
     partialAssistantMessageId,
+    draftModelReasoningEnabled,
   ];
 }

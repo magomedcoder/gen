@@ -17,14 +17,14 @@ func NewEditorHistoryRepository(db *gorm.DB) domain.EditorHistoryRepository {
 	return &editorHistoryRepository{db: db}
 }
 
-func (r *editorHistoryRepository) Save(ctx context.Context, userID int, runner string, text string) error {
+func (r *editorHistoryRepository) Save(ctx context.Context, userID int, runnerID *int64, text string) error {
 	if strings.TrimSpace(text) == "" {
 		return nil
 	}
 	row := model.EditorTextHistory{
-		UserID: userID,
-		Runner: strings.TrimSpace(runner),
-		Text:   text,
+		UserID:   userID,
+		RunnerID: runnerID,
+		Text:     text,
 	}
 	return r.db.WithContext(ctx).Omit("ID", "CreatedAt").Create(&row).Error
 }

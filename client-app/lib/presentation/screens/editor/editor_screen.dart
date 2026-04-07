@@ -565,7 +565,7 @@ class _EditorScreenState extends State<EditorScreen> {
             ),
             const SizedBox(width: 10),
             Text(
-              'Раннеры…',
+              'Раннеры...',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),

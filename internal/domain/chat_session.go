@@ -6,7 +6,6 @@ type ChatSession struct {
 	Id        int64
 	UserId    int
 	Title     string
-	Model     string
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	DeletedAt *time.Time
@@ -51,11 +50,10 @@ type AssistantMessageRegeneration struct {
 	CreatedAt   time.Time
 }
 
-func NewChatSession(userId int, title string, model string) *ChatSession {
+func NewChatSession(userId int, title string) *ChatSession {
 	return &ChatSession{
 		UserId:    userId,
 		Title:     title,
-		Model:     model,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}

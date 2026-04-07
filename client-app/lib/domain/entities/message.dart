@@ -13,6 +13,7 @@ class Message extends Equatable {
   final String? attachmentFileName;
   final Uint8List? attachmentContent;
   final int? attachmentFileId;
+  final String? reasoningContent;
 
   const Message({
     required this.id,
@@ -23,6 +24,7 @@ class Message extends Equatable {
     this.attachmentFileName,
     this.attachmentContent,
     this.attachmentFileId,
+    this.reasoningContent,
   });
 
   Map<String, dynamic> toJson() => {
@@ -39,5 +41,6 @@ class Message extends Equatable {
     updatedAt,
     attachmentFileName,
     attachmentFileId,
+    reasoningContent,
   ];
 }

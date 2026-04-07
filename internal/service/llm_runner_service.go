@@ -162,6 +162,15 @@ func (s *LLMRunnerService) UnloadModel(ctx context.Context) error {
 	return nil
 }
 
+func (s *LLMRunnerService) ResetMemory(ctx context.Context) error {
+	_, err := s.client.ResetMemory(s.rpcCtx(ctx), &llmrunnerpb.Empty{})
+	if err != nil {
+		return fmt.Errorf("llm-runner ResetMemory: %w", err)
+	}
+
+	return nil
+}
+
 func (s *LLMRunnerService) SendMessageStream(ctx context.Context, req *llmrunnerpb.SendMessageRequest) (llmrunnerpb.LLMRunnerService_SendMessageClient, error) {
 	stream, err := s.client.SendMessage(s.rpcCtx(ctx), req)
 	if err != nil {

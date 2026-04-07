@@ -106,6 +106,7 @@ abstract class IChatRemoteDataSource {
     required String jsonSchema,
     required String toolsJson,
     required String profile,
+    required bool modelReasoningEnabled,
   });
   Future<String?> getSelectedRunner();
   Future<void> setSelectedRunner(String? runner);
@@ -240,6 +241,20 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
                   messageId: mid,
                 ),
               );
+              return;
+            }
+            if (response.chunkKind ==
+                chat_pb.StreamChunkKind.STREAM_CHUNK_KIND_REASONING) {
+              final t = response.content;
+              if (t.isNotEmpty) {
+                controller.add(
+                  ChatStreamChunk(
+                    kind: ChatStreamChunkKind.reasoning,
+                    text: t,
+                    messageId: mid,
+                  ),
+                );
+              }
               return;
             }
             if (response.content.isNotEmpty) {
@@ -380,6 +395,20 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
                   messageId: mid,
                 ),
               );
+              return;
+            }
+            if (response.chunkKind ==
+                chat_pb.StreamChunkKind.STREAM_CHUNK_KIND_REASONING) {
+              final t = response.content;
+              if (t.isNotEmpty) {
+                controller.add(
+                  ChatStreamChunk(
+                    kind: ChatStreamChunkKind.reasoning,
+                    text: t,
+                    messageId: mid,
+                  ),
+                );
+              }
               return;
             }
             if (response.content.isNotEmpty) {
@@ -531,6 +560,20 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
                   messageId: mid,
                 ),
               );
+              return;
+            }
+            if (response.chunkKind ==
+                chat_pb.StreamChunkKind.STREAM_CHUNK_KIND_REASONING) {
+              final t = response.content;
+              if (t.isNotEmpty) {
+                controller.add(
+                  ChatStreamChunk(
+                    kind: ChatStreamChunkKind.reasoning,
+                    text: t,
+                    messageId: mid,
+                  ),
+                );
+              }
               return;
             }
             if (response.content.isNotEmpty) {
@@ -689,6 +732,20 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
                   messageId: mid,
                 ),
               );
+              return;
+            }
+            if (response.chunkKind ==
+                chat_pb.StreamChunkKind.STREAM_CHUNK_KIND_REASONING) {
+              final t = response.content;
+              if (t.isNotEmpty) {
+                controller.add(
+                  ChatStreamChunk(
+                    kind: ChatStreamChunkKind.reasoning,
+                    text: t,
+                    messageId: mid,
+                  ),
+                );
+              }
               return;
             }
 
@@ -1087,6 +1144,9 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
       jsonSchema: response.jsonSchema,
       toolsJson: response.toolsJson,
       profile: response.profile,
+      modelReasoningEnabled: response.hasModelReasoningEnabled()
+          ? response.modelReasoningEnabled
+          : false,
     );
   }
 
@@ -1103,6 +1163,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
     required String jsonSchema,
     required String toolsJson,
     required String profile,
+    required bool modelReasoningEnabled,
   }) async {
     final request = grpc.UpdateSessionSettingsRequest(
       sessionId: Int64(sessionId),
@@ -1113,6 +1174,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
       jsonSchema: jsonSchema,
       toolsJson: toolsJson,
       profile: profile,
+      modelReasoningEnabled: modelReasoningEnabled,
     );
     if (temperature != null) {
       request.temperature = temperature;
@@ -1138,6 +1200,9 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
       jsonSchema: response.jsonSchema,
       toolsJson: response.toolsJson,
       profile: response.profile,
+      modelReasoningEnabled: response.hasModelReasoningEnabled()
+          ? response.modelReasoningEnabled
+          : false,
     );
   }
 

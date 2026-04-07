@@ -189,6 +189,7 @@ class ChatMessageList extends StatelessWidget {
               showEditNav: false,
               isStreaming: true,
               streamingStatus: state.toolProgressLabel,
+              streamingReasoning: state.currentStreamingReasoning,
             ),
           );
         }

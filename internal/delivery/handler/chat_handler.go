@@ -784,33 +784,6 @@ func (c *ChatHandler) SetSelectedRunner(ctx context.Context, req *chatpb.SetSele
 	return &commonpb.Empty{}, nil
 }
 
-func (c *ChatHandler) GetDefaultRunnerModel(ctx context.Context, req *chatpb.GetDefaultRunnerModelRequest) (*chatpb.DefaultRunnerModelResponse, error) {
-	userID, err := c.getUserID(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	model, err := c.chatUseCase.GetDefaultRunnerModel(ctx, userID, req.GetRunner())
-	if err != nil {
-		return nil, ToStatusError(codes.Internal, err)
-	}
-
-	return &chatpb.DefaultRunnerModelResponse{Model: model}, nil
-}
-
-func (c *ChatHandler) SetDefaultRunnerModel(ctx context.Context, req *chatpb.SetDefaultRunnerModelRequest) (*commonpb.Empty, error) {
-	userID, err := c.getUserID(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := c.chatUseCase.SetDefaultRunnerModel(ctx, userID, req.GetRunner(), req.GetModel()); err != nil {
-		return nil, ToStatusError(codes.Internal, err)
-	}
-
-	return &commonpb.Empty{}, nil
-}
-
 func (c *ChatHandler) Embed(ctx context.Context, req *chatpb.EmbedRequest) (*chatpb.EmbedResponse, error) {
 	userID, err := c.getUserID(ctx)
 	if err != nil {

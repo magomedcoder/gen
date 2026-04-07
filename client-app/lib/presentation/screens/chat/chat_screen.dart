@@ -4,7 +4,9 @@ import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:gen/core/injector.dart';
 import 'package:gen/core/layout/responsive.dart';
+import 'package:gen/core/speech/vosk_model_sync_service.dart';
 import 'package:gen/core/ui/app_top_notice.dart';
 import 'package:gen/domain/entities/session.dart';
 import 'package:gen/presentation/screens/chat/bloc/chat_bloc.dart';
@@ -45,6 +47,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollController.addListener(_onChatScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ChatBloc>().add(ChatStarted());
+      unawaited(sl<VoskModelSyncService>().prefetchIfLoggedIn());
     });
   }
 
@@ -199,7 +202,7 @@ class _ChatScreenState extends State<ChatScreen> {
       _scrollToBottom();
     }
 
-    if (curr.isStreamingInCurrentSession && (prev.currentStreamingText != curr.currentStreamingText || (!prev.isStreamingInCurrentSession && curr.isStreamingInCurrentSession))) {
+    if (curr.isStreamingInCurrentSession && (prev.currentStreamingText != curr.currentStreamingText || prev.currentStreamingReasoning != curr.currentStreamingReasoning || (!prev.isStreamingInCurrentSession && curr.isStreamingInCurrentSession))) {
       tryScrollToBottom();
       return;
     }

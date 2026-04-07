@@ -45,3 +45,9 @@ app.*.map.json
 /android/app/release
 
 /lib/generated/
+/third_party
+linux/native/vosk/libvosk.so
+windows/native/vosk/*.dll
+macos/Frameworks/libvosk.dylib
+android/app/src/main/jniLibs/**/libvosk.so
+ios/gen_vosk/Vosk.xcframework/
