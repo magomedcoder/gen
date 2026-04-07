@@ -58,6 +58,8 @@ service ChatService {
   rpc BuildDocx(DocxBuildRequest) returns (DocxBuildResponse);
 
   rpc ApplyMarkdownPatch(MarkdownPatchRequest) returns (MarkdownPatchResponse);
+
+  rpc DownloadVoskModel(VoskModelDownloadRequest) returns (stream VoskModelChunk);
 }
 
 message ConnectionResponse {
@@ -324,4 +326,12 @@ message MarkdownPatchRequest {
 
 message MarkdownPatchResponse {
   string text = 1;
+}
+
+message VoskModelDownloadRequest {
+  string model_id = 1;
+}
+
+message VoskModelChunk {
+  bytes data = 1;
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"path/filepath"
 
 	"github.com/magomedcoder/gen"
 	"github.com/magomedcoder/gen/api/pb/authpb"
@@ -93,7 +94,7 @@ func New(ctx context.Context, cfg *config.Config) (*Container, error) {
 	runnerPool := service.NewPool(runnerReg)
 	llmRepo := runnerPool
 
-	chatUseCase := usecase.NewChatUseCase(chatTxRunner, sessionRepo, chatPreferenceRepo, chatSessionSettingsRepo, messageRepo, messageEditRepo, assistantRegenRepo, fileRepo, runnerRepo, llmRepo, runnerPool, runnerReg, cfg.UploadDir, cfg.DefaultRunnerAddress(), cfg.AttachmentHydrateParallelism)
+	chatUseCase := usecase.NewChatUseCase(chatTxRunner, sessionRepo, chatPreferenceRepo, chatSessionSettingsRepo, messageRepo, messageEditRepo, assistantRegenRepo, fileRepo, runnerRepo, llmRepo, runnerPool, runnerReg, filepath.Join(cfg.DataDir, "uploads"), cfg.DefaultRunnerAddress(), cfg.AttachmentHydrateParallelism)
 	editorUseCase := usecase.NewEditorUseCase(llmRepo, editorHistoryRepo, runnerRepo)
 	userUseCase := usecase.NewUserUseCase(userRepo, tokenRepo, jwtService)
 
@@ -102,7 +103,7 @@ func New(ctx context.Context, cfg *config.Config) (*Container, error) {
 		pool:          runnerPool,
 		fileRepo:      fileRepo,
 		authHandler:   handler.NewAuthHandler(cfg, authUseCase),
-		chatHandler:   handler.NewChatHandler(chatUseCase, authUseCase),
+		chatHandler:   handler.NewChatHandler(cfg, chatUseCase, authUseCase),
 		editorHandler: handler.NewEditorHandler(editorUseCase, authUseCase),
 		userHandler:   handler.NewUserHandler(userUseCase, authUseCase),
 		runnerHandler: handler.NewRunnerHandler(runnerReg, runnerPool, authUseCase, cfg, runnerRepo),
@@ -117,7 +118,6 @@ func (c *Container) RegisterGRPC(s *grpc.Server) {
 	chatpb.RegisterChatServiceServer(s, c.chatHandler)
 	editorpb.RegisterEditorServiceServer(s, c.editorHandler)
 	userpb.RegisterUserServiceServer(s, c.userHandler)
-
 	reflection.Register(s)
 }
 
