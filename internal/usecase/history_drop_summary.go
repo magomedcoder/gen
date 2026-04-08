@@ -60,7 +60,7 @@ func (c *ChatUseCase) summarizeDroppedMessages(ctx context.Context, sessionID in
 		Temperature: &temp,
 	}
 
-	var ch chan string
+	var ch chan domain.LLMStreamChunk
 	var err error
 	if hints.SummaryRunnerListenAddress != "" && c.runnerPool != nil {
 		ch, err = c.runnerPool.SendMessageOnRunner(sumCtx, hints.SummaryRunnerListenAddress, sessionID, model, []*domain.Message{sys, usr}, nil, 90, gp)
@@ -76,8 +76,8 @@ func (c *ChatUseCase) summarizeDroppedMessages(ctx context.Context, sessionID in
 	}
 
 	var b strings.Builder
-	for s := range ch {
-		b.WriteString(s)
+	for c := range ch {
+		b.WriteString(c.Content)
 	}
 
 	out := strings.TrimSpace(b.String())

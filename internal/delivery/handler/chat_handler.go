@@ -138,7 +138,7 @@ func (c *ChatHandler) SendMessage(req *chatpb.SendMessageRequest, stream chatpb.
 	var lastMsgID int64
 
 	for chunk := range responseChan {
-		if chunk.Kind == usecase.StreamChunkKindText && chunk.MessageID != 0 {
+		if (chunk.Kind == usecase.StreamChunkKindText || chunk.Kind == usecase.StreamChunkKindReasoning) && chunk.MessageID != 0 {
 			lastMsgID = chunk.MessageID
 		}
 
@@ -152,6 +152,8 @@ func (c *ChatHandler) SendMessage(req *chatpb.SendMessageRequest, stream chatpb.
 			pbKind = chatpb.StreamChunkKind_STREAM_CHUNK_KIND_TOOL_STATUS
 		} else if chunk.Kind == usecase.StreamChunkKindNotice {
 			pbKind = chatpb.StreamChunkKind_STREAM_CHUNK_KIND_NOTICE
+		} else if chunk.Kind == usecase.StreamChunkKindReasoning {
+			pbKind = chatpb.StreamChunkKind_STREAM_CHUNK_KIND_REASONING
 		}
 		role := "assistant"
 		if chunk.Kind == usecase.StreamChunkKindNotice {
@@ -224,7 +226,7 @@ func (c *ChatHandler) RegenerateAssistantResponse(req *chatpb.RegenerateAssistan
 	var lastMsgID int64
 
 	for chunk := range responseChan {
-		if chunk.Kind == usecase.StreamChunkKindText && chunk.MessageID != 0 {
+		if (chunk.Kind == usecase.StreamChunkKindText || chunk.Kind == usecase.StreamChunkKindReasoning) && chunk.MessageID != 0 {
 			lastMsgID = chunk.MessageID
 		}
 
@@ -238,6 +240,8 @@ func (c *ChatHandler) RegenerateAssistantResponse(req *chatpb.RegenerateAssistan
 			pbKind = chatpb.StreamChunkKind_STREAM_CHUNK_KIND_TOOL_STATUS
 		} else if chunk.Kind == usecase.StreamChunkKindNotice {
 			pbKind = chatpb.StreamChunkKind_STREAM_CHUNK_KIND_NOTICE
+		} else if chunk.Kind == usecase.StreamChunkKindReasoning {
+			pbKind = chatpb.StreamChunkKind_STREAM_CHUNK_KIND_REASONING
 		}
 		role := "assistant"
 		if chunk.Kind == usecase.StreamChunkKindNotice {
@@ -313,7 +317,7 @@ func (c *ChatHandler) ContinueAssistantResponse(req *chatpb.ContinueAssistantReq
 	var lastMsgID int64
 
 	for chunk := range responseChan {
-		if chunk.Kind == usecase.StreamChunkKindText && chunk.MessageID != 0 {
+		if (chunk.Kind == usecase.StreamChunkKindText || chunk.Kind == usecase.StreamChunkKindReasoning) && chunk.MessageID != 0 {
 			lastMsgID = chunk.MessageID
 		}
 
@@ -327,6 +331,8 @@ func (c *ChatHandler) ContinueAssistantResponse(req *chatpb.ContinueAssistantReq
 			pbKind = chatpb.StreamChunkKind_STREAM_CHUNK_KIND_TOOL_STATUS
 		} else if chunk.Kind == usecase.StreamChunkKindNotice {
 			pbKind = chatpb.StreamChunkKind_STREAM_CHUNK_KIND_NOTICE
+		} else if chunk.Kind == usecase.StreamChunkKindReasoning {
+			pbKind = chatpb.StreamChunkKind_STREAM_CHUNK_KIND_REASONING
 		}
 		role := "assistant"
 		if chunk.Kind == usecase.StreamChunkKindNotice {
@@ -400,7 +406,7 @@ func (c *ChatHandler) EditUserMessageAndContinue(req *chatpb.EditUserMessageAndC
 	var lastMsgID int64
 
 	for chunk := range responseChan {
-		if chunk.Kind == usecase.StreamChunkKindText && chunk.MessageID != 0 {
+		if (chunk.Kind == usecase.StreamChunkKindText || chunk.Kind == usecase.StreamChunkKindReasoning) && chunk.MessageID != 0 {
 			lastMsgID = chunk.MessageID
 		}
 
@@ -414,6 +420,8 @@ func (c *ChatHandler) EditUserMessageAndContinue(req *chatpb.EditUserMessageAndC
 			pbKind = chatpb.StreamChunkKind_STREAM_CHUNK_KIND_TOOL_STATUS
 		} else if chunk.Kind == usecase.StreamChunkKindNotice {
 			pbKind = chatpb.StreamChunkKind_STREAM_CHUNK_KIND_NOTICE
+		} else if chunk.Kind == usecase.StreamChunkKindReasoning {
+			pbKind = chatpb.StreamChunkKind_STREAM_CHUNK_KIND_REASONING
 		}
 		role := "assistant"
 		if chunk.Kind == usecase.StreamChunkKindNotice {
@@ -752,17 +760,18 @@ func mapSessionSettings(s *domain.ChatSessionSettings) *chatpb.SessionSettings {
 	}
 
 	return &chatpb.SessionSettings{
-		SessionId:      s.SessionID,
-		SystemPrompt:   s.SystemPrompt,
-		StopSequences:  s.StopSequences,
-		TimeoutSeconds: s.TimeoutSeconds,
-		Temperature:    s.Temperature,
-		TopK:           s.TopK,
-		TopP:           s.TopP,
-		JsonMode:       s.JSONMode,
-		JsonSchema:     s.JSONSchema,
-		ToolsJson:      s.ToolsJSON,
-		Profile:        s.Profile,
+		SessionId:             s.SessionID,
+		SystemPrompt:          s.SystemPrompt,
+		StopSequences:         s.StopSequences,
+		TimeoutSeconds:        s.TimeoutSeconds,
+		Temperature:           s.Temperature,
+		TopK:                  s.TopK,
+		TopP:                  s.TopP,
+		JsonMode:              s.JSONMode,
+		JsonSchema:            s.JSONSchema,
+		ToolsJson:             s.ToolsJSON,
+		Profile:               s.Profile,
+		ModelReasoningEnabled: s.ModelReasoningEnabled,
 	}
 }
 
@@ -799,6 +808,7 @@ func (c *ChatHandler) UpdateSessionSettings(ctx context.Context, req *chatpb.Upd
 		req.GetJsonSchema(),
 		req.GetToolsJson(),
 		req.GetProfile(),
+		req.GetModelReasoningEnabled(),
 	)
 	if err != nil {
 		return nil, ToStatusError(codes.Internal, err)

@@ -84,6 +84,7 @@ enum StreamChunkKind {
   STREAM_CHUNK_KIND_TEXT = 0;
   STREAM_CHUNK_KIND_TOOL_STATUS = 1;
   STREAM_CHUNK_KIND_NOTICE = 2;
+  STREAM_CHUNK_KIND_REASONING = 3;
 }
 
 message ChatResponse {
@@ -231,6 +232,7 @@ message UpdateSessionSettingsRequest {
   string json_schema = 9;
   string tools_json = 10;
   string profile = 11;
+  bool model_reasoning_enabled = 12;
 }
 
 message SessionSettings {
@@ -245,6 +247,7 @@ message SessionSettings {
   string json_schema = 9;
   string tools_json = 10;
   string profile = 11;
+  bool model_reasoning_enabled = 12;
 }
 
 message SelectedRunnerResponse {

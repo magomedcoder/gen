@@ -129,6 +129,7 @@ type GenerationParams struct {
 	MaxTokens      *int32
 	TopK           *int32
 	TopP           *float32
+	EnableThinking *bool
 	ResponseFormat *ResponseFormat
 	Tools          []Tool
 }
@@ -146,7 +147,7 @@ type LLMRepository interface {
 		stopSequences []string,
 		timeoutSeconds int32,
 		genParams *GenerationParams,
-	) (chan string, error)
+	) (chan LLMStreamChunk, error)
 
 	SendMessageWithRunnerToolAction(
 		ctx context.Context,
@@ -156,7 +157,7 @@ type LLMRepository interface {
 		stopSequences []string,
 		timeoutSeconds int32,
 		genParams *GenerationParams,
-	) (textChunks chan string, runnerToolJSON func() string, err error)
+	) (textChunks chan LLMStreamChunk, runnerToolJSON func() string, err error)
 
 	SendMessageOnRunner(
 		ctx context.Context,
@@ -167,7 +168,7 @@ type LLMRepository interface {
 		stopSequences []string,
 		timeoutSeconds int32,
 		genParams *GenerationParams,
-	) (chan string, error)
+	) (chan LLMStreamChunk, error)
 
 	SendMessageWithRunnerToolActionOnRunner(
 		ctx context.Context,
@@ -178,7 +179,7 @@ type LLMRepository interface {
 		stopSequences []string,
 		timeoutSeconds int32,
 		genParams *GenerationParams,
-	) (textChunks chan string, runnerToolJSON func() string, err error)
+	) (textChunks chan LLMStreamChunk, runnerToolJSON func() string, err error)
 
 	Embed(ctx context.Context, model string, text string) ([]float32, error)
 

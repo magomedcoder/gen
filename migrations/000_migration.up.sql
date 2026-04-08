@@ -25,14 +25,14 @@ CREATE TABLE IF NOT EXISTS user_sessions
 
 CREATE TABLE IF NOT EXISTS runners
 (
-    id              SERIAL PRIMARY KEY,
-    name            VARCHAR(255) NOT NULL DEFAULT '',
-    host            VARCHAR(255) NOT NULL,
-    port            INTEGER      NOT NULL CHECK (port > 0 AND port <= 65535),
-    enabled         BOOLEAN      NOT NULL DEFAULT TRUE,
-    selected_model  VARCHAR(512) NOT NULL DEFAULT '',
-    created_at      TIMESTAMP    NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMP    NOT NULL DEFAULT NOW(),
+    id             SERIAL PRIMARY KEY,
+    name           VARCHAR(255) NOT NULL DEFAULT '',
+    host           VARCHAR(255) NOT NULL,
+    port           INTEGER      NOT NULL CHECK (port > 0 AND port <= 65535),
+    enabled        BOOLEAN      NOT NULL DEFAULT TRUE,
+    selected_model VARCHAR(512) NOT NULL DEFAULT '',
+    created_at     TIMESTAMP    NOT NULL DEFAULT NOW(),
+    updated_at     TIMESTAMP    NOT NULL DEFAULT NOW(),
     UNIQUE (host, port)
 );
 
@@ -40,23 +40,24 @@ CREATE INDEX IF NOT EXISTS idx_runners_enabled ON runners (enabled);
 
 CREATE TABLE IF NOT EXISTS chats
 (
-    id                   BIGSERIAL PRIMARY KEY,
-    user_id              INTEGER      NOT NULL REFERENCES users (id),
-    title                VARCHAR(500) NOT NULL,
-    selected_runner_id   BIGINT       NULL REFERENCES runners (id) ON DELETE SET NULL,
-    system_prompt        TEXT         NOT NULL DEFAULT '',
-    stop_sequences       TEXT[]       NOT NULL DEFAULT '{}',
-    timeout_seconds      INTEGER      NOT NULL DEFAULT 0,
-    temperature          REAL         NULL,
-    top_k                INTEGER      NULL,
-    top_p                REAL         NULL,
-    json_mode            BOOLEAN      NOT NULL DEFAULT FALSE,
-    json_schema          TEXT         NOT NULL DEFAULT '',
-    tools_json           TEXT         NOT NULL DEFAULT '',
-    profile              VARCHAR(64)  NOT NULL DEFAULT '',
-    created_at           TIMESTAMP    NOT NULL DEFAULT NOW(),
-    updated_at           TIMESTAMP    NOT NULL DEFAULT NOW(),
-    deleted_at           TIMESTAMP    NULL
+    id                      BIGSERIAL PRIMARY KEY,
+    user_id                 INTEGER      NOT NULL REFERENCES users (id),
+    title                   VARCHAR(500) NOT NULL,
+    selected_runner_id      BIGINT       NULL REFERENCES runners (id) ON DELETE SET NULL,
+    system_prompt           TEXT         NOT NULL DEFAULT '',
+    stop_sequences          TEXT[]       NOT NULL DEFAULT '{}',
+    timeout_seconds         INTEGER      NOT NULL DEFAULT 0,
+    temperature             REAL         NULL,
+    top_k                   INTEGER      NULL,
+    top_p                   REAL         NULL,
+    json_mode               BOOLEAN      NOT NULL DEFAULT FALSE,
+    json_schema             TEXT         NOT NULL DEFAULT '',
+    tools_json              TEXT         NOT NULL DEFAULT '',
+    profile                 VARCHAR(64)  NOT NULL DEFAULT '',
+    model_reasoning_enabled BOOLEAN      NOT NULL DEFAULT FALSE,
+    created_at              TIMESTAMP    NOT NULL DEFAULT NOW(),
+    updated_at              TIMESTAMP    NOT NULL DEFAULT NOW(),
+    deleted_at              TIMESTAMP    NULL
 );
 
 CREATE TABLE IF NOT EXISTS files
@@ -93,10 +94,10 @@ CREATE TABLE IF NOT EXISTS messages
 CREATE TABLE IF NOT EXISTS editor_text_history
 (
     id         BIGSERIAL PRIMARY KEY,
-    user_id    INTEGER      NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    runner_id  BIGINT       NULL REFERENCES runners (id) ON DELETE SET NULL,
-    text       TEXT         NOT NULL,
-    created_at TIMESTAMP    NOT NULL DEFAULT NOW()
+    user_id    INTEGER   NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    runner_id  BIGINT    NULL REFERENCES runners (id) ON DELETE SET NULL,
+    text       TEXT      NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS message_edits

@@ -101,17 +101,19 @@ func normalizeToolName(s string) string {
 	return s
 }
 
-func drainLLMStringChannelForward(ch chan string, forward func(s string) bool) (raw string, streamedNonEmpty bool) {
+func drainLLMStreamChannelForward(ch chan domain.LLMStreamChunk, forward func(c domain.LLMStreamChunk) bool) (raw string, streamedNonEmpty bool) {
 	var b strings.Builder
-	for s := range ch {
-		b.WriteString(s)
-		if s == "" {
+	for c := range ch {
+		if c.Content != "" {
+			b.WriteString(c.Content)
+		}
+		if c.Content == "" && c.ReasoningContent == "" {
 			continue
 		}
 
-		if !forward(s) {
-			for s2 := range ch {
-				b.WriteString(s2)
+		if !forward(c) {
+			for c2 := range ch {
+				b.WriteString(c2.Content)
 			}
 
 			return b.String(), true
@@ -481,8 +483,16 @@ func (c *ChatUseCase) runChatToolLoop(
 			return
 		}
 
-		raw, streamed := drainLLMStringChannelForward(ch, func(s string) bool {
-			return send(ChatStreamChunk{Kind: StreamChunkKindText, Text: s, MessageID: 0})
+		raw, streamed := drainLLMStreamChannelForward(ch, func(c domain.LLMStreamChunk) bool {
+			if c.ReasoningContent != "" {
+				if !send(ChatStreamChunk{Kind: StreamChunkKindReasoning, Text: c.ReasoningContent, MessageID: 0}) {
+					return false
+				}
+			}
+			if c.Content != "" {
+				return send(ChatStreamChunk{Kind: StreamChunkKindText, Text: c.Content, MessageID: 0})
+			}
+			return true
 		})
 		full := strings.TrimSpace(raw)
 		if full == "" {

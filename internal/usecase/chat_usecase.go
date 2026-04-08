@@ -23,6 +23,33 @@ import (
 const defaultResponseLanguagePrompt = "Язык ответа: отвечай на том же языке, что и последнее сообщение пользователя в этом запросе. Если язык нельзя определить (например, только код, числа или нейтральные символы), отвечай по-русски."
 const maxFileExtractedTextCacheBytes = 2 << 20
 
+func forwardLLMStreamChunks(
+	ctx context.Context,
+	out chan<- ChatStreamChunk,
+	messageID int64,
+	in <-chan domain.LLMStreamChunk,
+	intoContent *strings.Builder,
+) {
+	for chunk := range in {
+		if chunk.ReasoningContent != "" {
+			select {
+			case <-ctx.Done():
+				return
+			case out <- ChatStreamChunk{Kind: StreamChunkKindReasoning, Text: chunk.ReasoningContent, MessageID: messageID}:
+			}
+		}
+
+		if chunk.Content != "" {
+			intoContent.WriteString(chunk.Content)
+			select {
+			case <-ctx.Done():
+				return
+			case out <- ChatStreamChunk{Kind: StreamChunkKindText, Text: chunk.Content, MessageID: messageID}:
+			}
+		}
+	}
+}
+
 func normalizeAttachmentHydrateParallelism(n int) int {
 	if n <= 0 {
 		return 8
@@ -190,10 +217,12 @@ func genParamsFromSessionSettings(settings *domain.ChatSessionSettings) (stopSeq
 
 	stopSequences = settings.StopSequences
 	timeoutSeconds = settings.TimeoutSeconds
+	et := settings.ModelReasoningEnabled
 	genParams = &domain.GenerationParams{
-		Temperature: settings.Temperature,
-		TopK:        settings.TopK,
-		TopP:        settings.TopP,
+		Temperature:    settings.Temperature,
+		TopK:           settings.TopK,
+		TopP:           settings.TopP,
+		EnableThinking: &et,
 	}
 
 	if settings.JSONMode {
@@ -321,14 +350,7 @@ func (c *ChatUseCase) SendMessage(ctx context.Context, userId int, sessionId int
 			}
 		}
 
-		for chunk := range responseChan {
-			fullResponse.WriteString(chunk)
-			select {
-			case <-ctx.Done():
-				return
-			case clientChan <- ChatStreamChunk{Kind: StreamChunkKindText, Text: chunk, MessageID: messageID}:
-			}
-		}
+		forwardLLMStreamChunks(ctx, clientChan, messageID, responseChan, &fullResponse)
 	}()
 
 	return clientChan, nil
@@ -436,14 +458,7 @@ func (c *ChatUseCase) RegenerateAssistantResponse(ctx context.Context, userId in
 			}
 		}
 
-		for chunk := range responseChan {
-			fullResponse.WriteString(chunk)
-			select {
-			case <-ctx.Done():
-				return
-			case clientChan <- ChatStreamChunk{Kind: StreamChunkKindText, Text: chunk, MessageID: messageID}:
-			}
-		}
+		forwardLLMStreamChunks(ctx, clientChan, messageID, responseChan, &fullResponse)
 	}()
 
 	return clientChan, nil
@@ -543,14 +558,7 @@ func (c *ChatUseCase) ContinueAssistantResponse(ctx context.Context, userId int,
 			}
 		}
 
-		for chunk := range responseChan {
-			newPart.WriteString(chunk)
-			select {
-			case <-ctx.Done():
-				return
-			case clientChan <- ChatStreamChunk{Kind: StreamChunkKindText, Text: chunk, MessageID: messageID}:
-			}
-		}
+		forwardLLMStreamChunks(ctx, clientChan, messageID, responseChan, &newPart)
 	}()
 
 	return clientChan, nil
@@ -666,14 +674,7 @@ func (c *ChatUseCase) EditUserMessageAndContinue(ctx context.Context, userId int
 			}
 		}
 
-		for chunk := range responseChan {
-			fullResponse.WriteString(chunk)
-			select {
-			case <-ctx.Done():
-				return
-			case clientChan <- ChatStreamChunk{Kind: StreamChunkKindText, Text: chunk, MessageID: messageID}:
-			}
-		}
+		forwardLLMStreamChunks(ctx, clientChan, messageID, responseChan, &fullResponse)
 	}()
 
 	return clientChan, nil
@@ -911,6 +912,7 @@ func (c *ChatUseCase) UpdateSessionSettings(
 	jsonSchema string,
 	toolsJSON string,
 	profile string,
+	modelReasoningEnabled bool,
 ) (*domain.ChatSessionSettings, error) {
 	_, err := c.verifySessionOwnership(ctx, userId, sessionID)
 	if err != nil {
@@ -920,17 +922,18 @@ func (c *ChatUseCase) UpdateSessionSettings(
 		stopSequences = []string{}
 	}
 	settings := &domain.ChatSessionSettings{
-		SessionID:      sessionID,
-		SystemPrompt:   strings.TrimSpace(systemPrompt),
-		StopSequences:  stopSequences,
-		TimeoutSeconds: timeoutSeconds,
-		Temperature:    temperature,
-		TopK:           topK,
-		TopP:           topP,
-		JSONMode:       jsonMode,
-		JSONSchema:     strings.TrimSpace(jsonSchema),
-		ToolsJSON:      strings.TrimSpace(toolsJSON),
-		Profile:        strings.TrimSpace(profile),
+		SessionID:             sessionID,
+		SystemPrompt:          strings.TrimSpace(systemPrompt),
+		StopSequences:         stopSequences,
+		TimeoutSeconds:        timeoutSeconds,
+		Temperature:           temperature,
+		TopK:                  topK,
+		TopP:                  topP,
+		JSONMode:              jsonMode,
+		JSONSchema:            strings.TrimSpace(jsonSchema),
+		ToolsJSON:             strings.TrimSpace(toolsJSON),
+		Profile:               strings.TrimSpace(profile),
+		ModelReasoningEnabled: modelReasoningEnabled,
 	}
 	if err := c.sessionSettingsRepo.Upsert(ctx, settings); err != nil {
 		return nil, err
