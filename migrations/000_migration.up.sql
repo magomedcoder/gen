@@ -55,6 +55,8 @@ CREATE TABLE IF NOT EXISTS chats
     tools_json              TEXT         NOT NULL DEFAULT '',
     profile                 VARCHAR(64)  NOT NULL DEFAULT '',
     model_reasoning_enabled BOOLEAN      NOT NULL DEFAULT FALSE,
+    web_search_enabled      BOOLEAN      NOT NULL DEFAULT FALSE,
+    web_search_provider     VARCHAR(64)  NOT NULL DEFAULT '',
     created_at              TIMESTAMP    NOT NULL DEFAULT NOW(),
     updated_at              TIMESTAMP    NOT NULL DEFAULT NOW(),
     deleted_at              TIMESTAMP    NULL
@@ -114,6 +116,23 @@ CREATE TABLE IF NOT EXISTS message_edits
     created_at           TIMESTAMP   NOT NULL DEFAULT NOW(),
     reverted_at          TIMESTAMP   NULL
 );
+
+CREATE TABLE IF NOT EXISTS web_search_settings
+(
+    id                      SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+    enabled                 BOOLEAN     NOT NULL DEFAULT FALSE,
+    max_results             INTEGER     NOT NULL DEFAULT 20,
+    brave_api_key           TEXT        NOT NULL DEFAULT '',
+    google_api_key          TEXT        NOT NULL DEFAULT '',
+    google_search_engine_id TEXT        NOT NULL DEFAULT '',
+    yandex_user             TEXT        NOT NULL DEFAULT '',
+    yandex_key              TEXT        NOT NULL DEFAULT '',
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+INSERT INTO web_search_settings (id)
+VALUES (1)
+ON CONFLICT (id) DO NOTHING;
 
 CREATE INDEX IF NOT EXISTS idx_users_username ON users (username);
 CREATE INDEX IF NOT EXISTS idx_users_role ON users (role);

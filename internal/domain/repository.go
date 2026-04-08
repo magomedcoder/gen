@@ -209,6 +209,12 @@ type AuthTransactionRunner interface {
 	WithinTx(ctx context.Context, fn func(ctx context.Context, r AuthRepos) error) error
 }
 
+type WebSearchSettingsRepository interface {
+	Get(ctx context.Context) (*WebSearchSettings, error)
+
+	Upsert(ctx context.Context, s *WebSearchSettings) error
+}
+
 type RunnerRepository interface {
 	List(ctx context.Context) ([]Runner, error)
 

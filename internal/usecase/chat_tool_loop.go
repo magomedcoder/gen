@@ -646,6 +646,14 @@ func (c *ChatUseCase) runChatToolLoop(
 	sendErr(fmt.Errorf("превышено число итераций tool-calling (%d)", maxToolRounds))
 }
 
+func webSearchToolDefinition() domain.Tool {
+	return domain.Tool{
+		Name:           "web_search",
+		Description:    "Поиск актуальной информации в интернете: новости, цены, погода, документация, свежие факты. Используй, когда ответ зависит от текущих данных или знания модели могут быть устаревшими. Передай короткий точный запрос на языке пользователя или на английском.",
+		ParametersJSON: `{"type":"object","properties":{"query":{"type":"string","description":"Поисковый запрос: несколько ключевых слов или короткая фраза."}},"required":["query"]}`,
+	}
+}
+
 func (c *ChatUseCase) executeDeclaredTool(ctx context.Context, userID int, sessionID int64, nameNorm string, params json.RawMessage) (string, error) {
 	switch nameNorm {
 	case "apply_spreadsheet":
@@ -656,6 +664,8 @@ func (c *ChatUseCase) executeDeclaredTool(ctx context.Context, userID int, sessi
 		return c.toolApplyMarkdownPatch(ctx, userID, sessionID, params)
 	case "put_session_file":
 		return c.toolPutSessionFile(ctx, userID, sessionID, params)
+	case "web_search":
+		return c.toolWebSearch(ctx, userID, sessionID, params)
 	default:
 		return "", fmt.Errorf("инструмент %q пока не реализован на сервере", nameNorm)
 	}
@@ -787,6 +797,36 @@ func (c *ChatUseCase) toolApplySpreadsheet(ctx context.Context, userID int, sess
 	}
 
 	return string(b), nil
+}
+
+func (c *ChatUseCase) toolWebSearch(ctx context.Context, _ int, sessionID int64, params json.RawMessage) (string, error) {
+	settings, err := c.sessionSettingsRepo.GetBySessionID(ctx, sessionID)
+	if err != nil {
+		return "", err
+	}
+	searcher := c.webSearcherFor(ctx, settings)
+	if searcher == nil {
+		return "", fmt.Errorf("веб-поиск не настроен на сервере или выбранный источник недоступен")
+	}
+
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(params, &m); err != nil {
+		return "", fmt.Errorf("parameters web_search: %w", err)
+	}
+
+	q, err := mustStringField(m, "query")
+	if err != nil {
+		return "", err
+	}
+
+	out, err := runFnWithContext(ctx, func() (string, error) {
+		return searcher.Search(ctx, q)
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return out, nil
 }
 
 func filterExecutableToolRows(rows []cohereActionRow) []cohereActionRow {

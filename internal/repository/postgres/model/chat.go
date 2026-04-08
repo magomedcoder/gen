@@ -23,6 +23,8 @@ type Chat struct {
 	ToolsJSON             string         `gorm:"column:tools_json"`
 	Profile               string         `gorm:"column:profile"`
 	ModelReasoningEnabled bool           `gorm:"column:model_reasoning_enabled;default:false"`
+	WebSearchEnabled      bool           `gorm:"column:web_search_enabled;default:false"`
+	WebSearchProvider     string         `gorm:"column:web_search_provider;default:''"`
 	CreatedAt             time.Time      `gorm:"column:created_at"`
 	UpdatedAt             time.Time      `gorm:"column:updated_at"`
 	DeletedAt             gorm.DeletedAt `gorm:"column:deleted_at;index"`

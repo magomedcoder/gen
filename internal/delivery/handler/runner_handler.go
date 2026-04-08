@@ -23,11 +23,12 @@ const grpcMetadataRunnerAddress = "runner-address"
 type RunnerHandler struct {
 	runnerpb.UnimplementedRunnerServiceServer
 	llmrunnerpb.UnimplementedLLMRunnerServiceServer
-	registry    *service.Registry
-	pool        *service.Pool
-	authUseCase *usecase.AuthUseCase
-	cfg         *config.Config
-	runnerRepo  domain.RunnerRepository
+	registry            *service.Registry
+	pool                *service.Pool
+	authUseCase         *usecase.AuthUseCase
+	cfg                 *config.Config
+	runnerRepo          domain.RunnerRepository
+	webSearchSettingsUC *usecase.WebSearchSettingsUseCase
 }
 
 func NewRunnerHandler(
@@ -36,13 +37,15 @@ func NewRunnerHandler(
 	authUseCase *usecase.AuthUseCase,
 	cfg *config.Config,
 	runnerRepo domain.RunnerRepository,
+	webSearchSettingsUC *usecase.WebSearchSettingsUseCase,
 ) *RunnerHandler {
 	return &RunnerHandler{
-		registry:    registry,
-		pool:        pool,
-		authUseCase: authUseCase,
-		cfg:         cfg,
-		runnerRepo:  runnerRepo,
+		registry:            registry,
+		pool:                pool,
+		authUseCase:         authUseCase,
+		cfg:                 cfg,
+		runnerRepo:          runnerRepo,
+		webSearchSettingsUC: webSearchSettingsUC,
 	}
 }
 
@@ -312,6 +315,55 @@ func (h *RunnerHandler) RunnerResetMemory(ctx context.Context, req *runnerpb.Run
 	h.pool.CloseAddr(addr)
 	logger.I("RunnerResetMemory: id=%d addr=%s", req.GetRunnerId(), addr)
 	return &commonpb.Empty{}, nil
+}
+
+func (h *RunnerHandler) GetWebSearchSettings(ctx context.Context, _ *commonpb.Empty) (*runnerpb.WebSearchSettingsResponse, error) {
+	if err := RequireAdmin(ctx, h.authUseCase); err != nil {
+		return nil, err
+	}
+	if h.webSearchSettingsUC == nil {
+		return nil, status.Error(codes.Internal, "web search settings unavailable")
+	}
+	s, err := h.webSearchSettingsUC.Get(ctx)
+	if err != nil {
+		return nil, ToStatusError(codes.Internal, err)
+	}
+	return &runnerpb.WebSearchSettingsResponse{
+		Settings: &runnerpb.WebSearchSettings{
+			Enabled:              s.Enabled,
+			MaxResults:           int32(s.MaxResults),
+			BraveApiKey:          s.BraveAPIKey,
+			GoogleApiKey:         s.GoogleAPIKey,
+			GoogleSearchEngineId: s.GoogleSearchEngineID,
+			YandexUser:           s.YandexUser,
+			YandexKey:            s.YandexKey,
+		},
+	}, nil
+}
+
+func (h *RunnerHandler) UpdateWebSearchSettings(ctx context.Context, req *runnerpb.UpdateWebSearchSettingsRequest) (*runnerpb.WebSearchSettingsResponse, error) {
+	if err := RequireAdmin(ctx, h.authUseCase); err != nil {
+		return nil, err
+	}
+	if h.webSearchSettingsUC == nil {
+		return nil, status.Error(codes.Internal, "web search settings unavailable")
+	}
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "пустой запрос")
+	}
+	s := &domain.WebSearchSettings{
+		Enabled:              req.GetEnabled(),
+		MaxResults:           int(req.GetMaxResults()),
+		BraveAPIKey:          req.GetBraveApiKey(),
+		GoogleAPIKey:         req.GetGoogleApiKey(),
+		GoogleSearchEngineID: req.GetGoogleSearchEngineId(),
+		YandexUser:           req.GetYandexUser(),
+		YandexKey:            req.GetYandexKey(),
+	}
+	if err := h.webSearchSettingsUC.Update(ctx, s); err != nil {
+		return nil, ToStatusError(codes.Internal, err)
+	}
+	return h.GetWebSearchSettings(ctx, &commonpb.Empty{})
 }
 
 func runnerAddressFromMetadata(ctx context.Context) (string, error) {

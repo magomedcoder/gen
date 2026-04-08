@@ -53,6 +53,8 @@ func (r *chatSessionSettingsRepository) Upsert(ctx context.Context, settings *do
 			"tools_json":              settings.ToolsJSON,
 			"profile":                 settings.Profile,
 			"model_reasoning_enabled": settings.ModelReasoningEnabled,
+			"web_search_enabled":      settings.WebSearchEnabled,
+			"web_search_provider":     settings.WebSearchProvider,
 			"updated_at":              gorm.Expr("NOW()"),
 		}).Error
 }
@@ -75,5 +77,7 @@ func chatRowToSessionSettings(m *model.Chat) *domain.ChatSessionSettings {
 		ToolsJSON:             m.ToolsJSON,
 		Profile:               m.Profile,
 		ModelReasoningEnabled: m.ModelReasoningEnabled,
+		WebSearchEnabled:      m.WebSearchEnabled,
+		WebSearchProvider:     m.WebSearchProvider,
 	}
 }

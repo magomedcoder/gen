@@ -233,6 +233,8 @@ message UpdateSessionSettingsRequest {
   string tools_json = 10;
   string profile = 11;
   bool model_reasoning_enabled = 12;
+  bool web_search_enabled = 13;
+  string web_search_provider = 14;
 }
 
 message SessionSettings {
@@ -248,6 +250,8 @@ message SessionSettings {
   string tools_json = 10;
   string profile = 11;
   bool model_reasoning_enabled = 12;
+  bool web_search_enabled = 13;
+  string web_search_provider = 14;
 }
 
 message SelectedRunnerResponse {

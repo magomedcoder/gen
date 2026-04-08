@@ -13,4 +13,6 @@ type ChatSessionSettings struct {
 	ToolsJSON             string
 	Profile               string
 	ModelReasoningEnabled bool
+	WebSearchEnabled      bool
+	WebSearchProvider     string
 }

@@ -66,6 +66,7 @@ func New(ctx context.Context, cfg *config.Config) (*Container, error) {
 	sessionRepo := postgres.NewChatSessionRepository(gormDB)
 	chatPreferenceRepo := postgres.NewChatPreferenceRepository(gormDB, runnerRepo)
 	chatSessionSettingsRepo := postgres.NewChatSessionSettingsRepository(gormDB)
+	webSearchSettingsRepo := postgres.NewWebSearchSettingsRepository(gormDB)
 	editorHistoryRepo := postgres.NewEditorHistoryRepository(gormDB)
 	messageRepo := postgres.NewMessageRepository(gormDB)
 	messageEditRepo := postgres.NewMessageEditRepository(gormDB)
@@ -94,7 +95,9 @@ func New(ctx context.Context, cfg *config.Config) (*Container, error) {
 	runnerPool := service.NewPool(runnerReg)
 	llmRepo := runnerPool
 
-	chatUseCase := usecase.NewChatUseCase(chatTxRunner, sessionRepo, chatPreferenceRepo, chatSessionSettingsRepo, messageRepo, messageEditRepo, assistantRegenRepo, fileRepo, runnerRepo, llmRepo, runnerPool, runnerReg, filepath.Join(cfg.DataDir, "uploads"), cfg.DefaultRunnerAddress(), cfg.AttachmentHydrateParallelism)
+	webSearchSettingsUC := usecase.NewWebSearchSettingsUseCase(webSearchSettingsRepo)
+
+	chatUseCase := usecase.NewChatUseCase(chatTxRunner, sessionRepo, chatPreferenceRepo, chatSessionSettingsRepo, messageRepo, messageEditRepo, assistantRegenRepo, fileRepo, runnerRepo, llmRepo, runnerPool, runnerReg, filepath.Join(cfg.DataDir, "uploads"), cfg.DefaultRunnerAddress(), cfg.AttachmentHydrateParallelism, webSearchSettingsRepo)
 	editorUseCase := usecase.NewEditorUseCase(llmRepo, editorHistoryRepo, runnerRepo)
 	userUseCase := usecase.NewUserUseCase(userRepo, tokenRepo, jwtService)
 
@@ -106,7 +109,7 @@ func New(ctx context.Context, cfg *config.Config) (*Container, error) {
 		chatHandler:   handler.NewChatHandler(cfg, chatUseCase, authUseCase),
 		editorHandler: handler.NewEditorHandler(editorUseCase, authUseCase),
 		userHandler:   handler.NewUserHandler(userUseCase, authUseCase),
-		runnerHandler: handler.NewRunnerHandler(runnerReg, runnerPool, authUseCase, cfg, runnerRepo),
+		runnerHandler: handler.NewRunnerHandler(runnerReg, runnerPool, authUseCase, cfg, runnerRepo, webSearchSettingsUC),
 	}, nil
 }
 

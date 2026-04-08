@@ -17,6 +17,7 @@ import (
 	"github.com/magomedcoder/gen/pkg/document"
 	"github.com/magomedcoder/gen/pkg/logger"
 	"github.com/magomedcoder/gen/pkg/spreadsheet"
+	"github.com/magomedcoder/gen/pkg/websearch"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -93,6 +94,7 @@ type ChatUseCase struct {
 	defaultRunnerAddr            string
 	historySummaryCache          *historySummaryCache
 	attachmentHydrateParallelism int
+	webSearchSettingsRepo        domain.WebSearchSettingsRepository
 }
 
 func NewChatUseCase(
@@ -111,6 +113,7 @@ func NewChatUseCase(
 	attachmentsSaveDir string,
 	defaultRunnerAddr string,
 	attachmentHydrateParallelism int,
+	webSearchSettingsRepo domain.WebSearchSettingsRepository,
 ) *ChatUseCase {
 	return &ChatUseCase{
 		chatTx:                       chatTx,
@@ -128,8 +131,47 @@ func NewChatUseCase(
 		attachmentsSaveDir:           attachmentsSaveDir,
 		defaultRunnerAddr:            strings.TrimSpace(defaultRunnerAddr),
 		historySummaryCache:          newHistorySummaryCache(512),
+		webSearchSettingsRepo:        webSearchSettingsRepo,
 		attachmentHydrateParallelism: normalizeAttachmentHydrateParallelism(attachmentHydrateParallelism),
 	}
+}
+
+func normalizeWebSearchProvider(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	switch s {
+	case "", "brave", "google", "yandex", "multi":
+		return s
+	default:
+		return ""
+	}
+}
+
+func (c *ChatUseCase) webSearcherFor(ctx context.Context, settings *domain.ChatSessionSettings) websearch.Searcher {
+	g, err := c.webSearchSettingsRepo.Get(ctx)
+	if err != nil || g == nil || !g.Enabled {
+		return nil
+	}
+	p := ""
+	if settings != nil {
+		p = normalizeWebSearchProvider(settings.WebSearchProvider)
+	}
+	if p == "" {
+		return nil
+	}
+	o := websearch.Options{
+		Enabled:              true,
+		Provider:             p,
+		BraveAPIKey:          g.BraveAPIKey,
+		GoogleAPIKey:         g.GoogleAPIKey,
+		GoogleSearchEngineID: g.GoogleSearchEngineID,
+		YandexUser:           g.YandexUser,
+		YandexKey:            g.YandexKey,
+		MaxResults:           g.MaxResults,
+	}
+	if o.MaxResults <= 0 {
+		o.MaxResults = 20
+	}
+	return websearch.New(o)
 }
 
 func (c *ChatUseCase) GetSelectedRunner(ctx context.Context, userID int) (string, error) {
@@ -245,6 +287,21 @@ func genParamsFromSessionSettings(settings *domain.ChatSessionSettings) (stopSeq
 	return stopSequences, timeoutSeconds, genParams
 }
 
+func (c *ChatUseCase) maybeInjectWebSearchTool(ctx context.Context, genParams *domain.GenerationParams, settings *domain.ChatSessionSettings) {
+	if genParams == nil || settings == nil || !settings.WebSearchEnabled {
+		return
+	}
+	if c.webSearcherFor(ctx, settings) == nil {
+		return
+	}
+	for _, t := range genParams.Tools {
+		if normalizeToolName(t.Name) == "web_search" {
+			return
+		}
+	}
+	genParams.Tools = append(genParams.Tools, webSearchToolDefinition())
+}
+
 func (c *ChatUseCase) SendMessage(ctx context.Context, userId int, sessionId int64, userMessage string, attachmentFileID *int64) (chan ChatStreamChunk, error) {
 	logger.D("SendMessage: session=%d user=%d", sessionId, userId)
 	session, err := c.verifySessionOwnership(ctx, userId, sessionId)
@@ -308,6 +365,7 @@ func (c *ChatUseCase) SendMessage(ctx context.Context, userId int, sessionId int
 	}
 
 	stopSequences, timeoutSeconds, genParams := genParamsFromSessionSettings(settings)
+	c.maybeInjectWebSearchTool(ctx, genParams, settings)
 
 	if err := c.hydrateAttachmentsForRunner(ctx, messagesForLLM); err != nil {
 		logger.E("SendMessage: подгрузка вложений для раннера: %v", err)
@@ -395,10 +453,10 @@ func (c *ChatUseCase) RegenerateAssistantResponse(ctx context.Context, userId in
 	}
 
 	settings, _ := c.sessionSettingsRepo.GetBySessionID(ctx, sessionId)
-	stopSequences, timeoutSeconds, genParams := genParamsFromSessionSettings(settings)
-	if genParams != nil && len(genParams.Tools) > 0 {
+	if len(parseToolsJSON(settings.ToolsJSON)) > 0 {
 		return nil, domain.ErrRegenerateToolsNotSupported
 	}
+	stopSequences, timeoutSeconds, genParams := genParamsFromSessionSettings(settings)
 
 	rawPrefix, err := c.messageRepo.ListMessagesWithIDLessThan(ctx, sessionId, assistantMessageID)
 	if err != nil {
@@ -506,10 +564,10 @@ func (c *ChatUseCase) ContinueAssistantResponse(ctx context.Context, userId int,
 	}
 
 	settings, _ := c.sessionSettingsRepo.GetBySessionID(ctx, sessionId)
-	stopSequences, timeoutSeconds, genParams := genParamsFromSessionSettings(settings)
-	if genParams != nil && len(genParams.Tools) > 0 {
+	if len(parseToolsJSON(settings.ToolsJSON)) > 0 {
 		return nil, domain.ErrRegenerateToolsNotSupported
 	}
+	stopSequences, timeoutSeconds, genParams := genParamsFromSessionSettings(settings)
 
 	rawPrefix, err := c.messageRepo.ListMessagesWithIDLessThan(ctx, sessionId, assistantMessageID)
 	if err != nil {
@@ -632,6 +690,7 @@ func (c *ChatUseCase) EditUserMessageAndContinue(ctx context.Context, userId int
 
 	settings, _ := c.sessionSettingsRepo.GetBySessionID(ctx, sessionId)
 	stopSequences, timeoutSeconds, genParams := genParamsFromSessionSettings(settings)
+	c.maybeInjectWebSearchTool(ctx, genParams, settings)
 
 	messagesForLLM := make([]*domain.Message, 0, len(messages)+1)
 	messagesForLLM = append(messagesForLLM, chatSessionSystemMessage(sessionId, settings))
@@ -913,6 +972,8 @@ func (c *ChatUseCase) UpdateSessionSettings(
 	toolsJSON string,
 	profile string,
 	modelReasoningEnabled bool,
+	webSearchEnabled bool,
+	webSearchProvider string,
 ) (*domain.ChatSessionSettings, error) {
 	_, err := c.verifySessionOwnership(ctx, userId, sessionID)
 	if err != nil {
@@ -934,6 +995,8 @@ func (c *ChatUseCase) UpdateSessionSettings(
 		ToolsJSON:             strings.TrimSpace(toolsJSON),
 		Profile:               strings.TrimSpace(profile),
 		ModelReasoningEnabled: modelReasoningEnabled,
+		WebSearchEnabled:      webSearchEnabled,
+		WebSearchProvider:     normalizeWebSearchProvider(webSearchProvider),
 	}
 	if err := c.sessionSettingsRepo.Upsert(ctx, settings); err != nil {
 		return nil, err
