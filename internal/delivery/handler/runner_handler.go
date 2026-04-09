@@ -323,7 +323,7 @@ func (h *RunnerHandler) RunnerResetMemory(ctx context.Context, req *runnerpb.Run
 	}
 	addr := strings.TrimSpace(st.Address)
 	if err := h.pool.ResetMemoryOnRunner(ctx, addr); err != nil {
-		logger.W("RunnerResetMemory: llm-runner: %v", err)
+		logger.W("RunnerResetMemory: gen-runner: %v", err)
 	}
 	h.pool.CloseAddr(addr)
 	logger.I("RunnerResetMemory: id=%d addr=%s", req.GetRunnerId(), addr)
@@ -387,7 +387,7 @@ func runnerAddressFromMetadata(ctx context.Context) (string, error) {
 
 	vals := md.Get(grpcMetadataRunnerAddress)
 	if len(vals) == 0 || strings.TrimSpace(vals[0]) == "" {
-		return "", status.Error(codes.InvalidArgument, "метаданные runner-address обязательны (host:port llm-runner)")
+		return "", status.Error(codes.InvalidArgument, "метаданные runner-address обязательны (host:port gen-runner)")
 	}
 
 	return strings.TrimSpace(vals[0]), nil

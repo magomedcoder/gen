@@ -15,4 +15,4 @@
 ## Связанные репозитории
 
 - **[gen-app](https://github.com/magomedcoder/gen-app)** - клиенты для Linux, Windows, macOS, Android, iOS.
-- **[llm-runner](https://github.com/magomedcoder/llm-runner)** - сервис запуска и взаимодействия с LLM.
+- **[gen-runner](https://github.com/magomedcoder/gen-runner)** - сервис запуска и взаимодействия с LLM.
