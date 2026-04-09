@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/magomedcoder/llm-runner/config"
-	"github.com/magomedcoder/llm-runner/service"
+	"github.com/magomedcoder/gen-runner/config"
+	"github.com/magomedcoder/gen-runner/service"
 	"github.com/urfave/cli/v3"
 )
 
@@ -19,7 +19,7 @@ func cmdCreate() *cli.Command {
 		Description: "Пишет <каталог>/<имя>.yaml. Имя может быть с тегом: mymodel:q4 -> файл mymodel-q4.yaml.\n\n" +
 			"Директивы: FROM, SYSTEM, TEMPLATE (\"\"\"), PARAMETER (temperature, top_p, top_k, min_p, max_tokens|num_predict - 0 или не задавать = до границы контекста, num_ctx, stop, repeat_last_n, repeat_penalty, seed), MESSAGE, REQUIRES (игнор).\n" +
 			"TEMPLATE - Jinja для llama.cpp.",
-		UsageText: "llm-runner create [options] <имя>",
+		UsageText: "gen-runner create [options] <имя>",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:     "file",

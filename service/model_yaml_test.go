@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/magomedcoder/llm-runner/domain"
+	"github.com/magomedcoder/gen-runner/domain"
 )
 
 func TestMergeGenParams_yamlDefaults(t *testing.T) {

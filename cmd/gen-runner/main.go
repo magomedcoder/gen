@@ -10,8 +10,8 @@ import (
 
 func main() {
 	app := &cli.Command{
-		Name:  "llm-runner",
-		Usage: "LLM runner",
+		Name:  "gen-runner",
+		Usage: "Gen runner",
 		Commands: []*cli.Command{
 			cmdServe(),
 			cmdCreate(),

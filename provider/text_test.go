@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/magomedcoder/llm-runner/domain"
+	"github.com/magomedcoder/gen-runner/domain"
 )
 
 type mockTextBackend struct {

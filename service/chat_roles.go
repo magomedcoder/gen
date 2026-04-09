@@ -1,6 +1,6 @@
 package service
 
-import "github.com/magomedcoder/llm-runner/domain"
+import "github.com/magomedcoder/gen-runner/domain"
 
 func ChatRoleString(role domain.AIChatMessageRole) string {
 	switch role {

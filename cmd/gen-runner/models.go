@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/magomedcoder/llm-runner/config"
+	"github.com/magomedcoder/gen-runner/config"
 	"github.com/urfave/cli/v3"
 )
 

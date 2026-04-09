@@ -3,7 +3,7 @@ package domain
 import (
 	"testing"
 
-	"github.com/magomedcoder/llm-runner/pb/llmrunnerpb"
+	"github.com/magomedcoder/gen-runner/pb/llmrunnerpb"
 )
 
 func TestFromProtoRole_ToProtoRole(t *testing.T) {

@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/magomedcoder/llm-runner/service"
+	"github.com/magomedcoder/gen-runner/service"
 )
 
 type Options struct {

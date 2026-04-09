@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package llmrunner;
 
-option go_package = "github.com/magomedcoder/llm-runner/pb/llmrunnerpb;llmrunnerpb";
+option go_package = "github.com/magomedcoder/gen-runner/pb/llmrunnerpb;llmrunnerpb";
 
 service LLMRunnerService {
   rpc RegisterRunnerWithToken(RunnerRegisterRequest) returns (Empty);

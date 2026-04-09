@@ -3,15 +3,15 @@ package runner
 import (
 	"context"
 	"fmt"
-	"github.com/magomedcoder/llm-runner/pb/llmrunnerpb"
+	"github.com/magomedcoder/gen-runner/pb/llmrunnerpb"
 	"maps"
 	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/magomedcoder/llm-runner/domain"
-	"github.com/magomedcoder/llm-runner/logger"
+	"github.com/magomedcoder/gen-runner/domain"
+	"github.com/magomedcoder/gen-runner/logger"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )

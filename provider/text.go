@@ -3,7 +3,7 @@ package provider
 import (
 	"context"
 
-	"github.com/magomedcoder/llm-runner/domain"
+	"github.com/magomedcoder/gen-runner/domain"
 )
 
 type Text struct {

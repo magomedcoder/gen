@@ -1,4 +1,4 @@
-module github.com/magomedcoder/llm-runner
+module github.com/magomedcoder/gen-runner
 
 go 1.26
 

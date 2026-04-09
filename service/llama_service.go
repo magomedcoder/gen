@@ -10,10 +10,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/magomedcoder/llm-runner/domain"
-	"github.com/magomedcoder/llm-runner/llama"
-	"github.com/magomedcoder/llm-runner/logger"
-	"github.com/magomedcoder/llm-runner/template"
+	"github.com/magomedcoder/gen-runner/domain"
+	"github.com/magomedcoder/gen-runner/llama"
+	"github.com/magomedcoder/gen-runner/logger"
+	"github.com/magomedcoder/gen-runner/template"
 )
 
 type LlamaService struct {

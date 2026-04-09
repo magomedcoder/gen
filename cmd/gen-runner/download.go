@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 
-	"github.com/magomedcoder/llm-runner/config"
-	"github.com/magomedcoder/llm-runner/huggingface"
+	"github.com/magomedcoder/gen-runner/config"
+	"github.com/magomedcoder/gen-runner/huggingface"
 	"github.com/urfave/cli/v3"
 )
 

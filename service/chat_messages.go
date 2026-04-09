@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/magomedcoder/llm-runner/domain"
+	"github.com/magomedcoder/gen-runner/domain"
 )
 
 func messageHasPayload(m *domain.AIChatMessage) bool {

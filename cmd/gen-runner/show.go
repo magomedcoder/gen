@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/magomedcoder/llm-runner/config"
-	"github.com/magomedcoder/llm-runner/service"
+	"github.com/magomedcoder/gen-runner/config"
+	"github.com/magomedcoder/gen-runner/service"
 	"github.com/urfave/cli/v3"
 )
 
@@ -19,7 +19,7 @@ func cmdShow() *cli.Command {
 		Description: "Ищет stem.yaml рядом с .gguf или манифест по имени алиаса (как default_model).\n" +
 			"Флаг --modelfile конвертирует YAML в текст Modelfile.\n" +
 			"При отсутствии YAML для чистого .gguf завершается с ошибкой (см. create).",
-		UsageText: "llm-runner show [options] <имя>",
+		UsageText: "gen-runner show [options] <имя>",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:  "path-only",

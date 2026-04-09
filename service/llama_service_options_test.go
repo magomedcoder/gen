@@ -5,8 +5,8 @@ package service
 import (
 	"testing"
 
-	"github.com/magomedcoder/llm-runner/domain"
-	"github.com/magomedcoder/llm-runner/llama"
+	"github.com/magomedcoder/gen-runner/domain"
+	"github.com/magomedcoder/gen-runner/llama"
 )
 
 func TestMapChatReasoningFormat(t *testing.T) {

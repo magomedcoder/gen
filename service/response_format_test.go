@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/magomedcoder/llm-runner/domain"
+	"github.com/magomedcoder/gen-runner/domain"
 )
 
 func TestApplyResponseFormatPrompt_NoParams(t *testing.T) {

@@ -1,7 +1,7 @@
 package provider
 
 import (
-	"github.com/magomedcoder/llm-runner/config"
+	"github.com/magomedcoder/gen-runner/config"
 	"testing"
 )
 

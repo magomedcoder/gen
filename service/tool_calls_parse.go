@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/magomedcoder/llm-runner/template"
+	"github.com/magomedcoder/gen-runner/template"
 )
 
 func parseToolCallsJSON(raw string) ([]template.ToolCall, error) {

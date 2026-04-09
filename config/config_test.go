@@ -9,11 +9,7 @@ import (
 func TestLoad(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
-	content := `core:
-  host: "127.0.0.1"
-  port: 50051
-listen:
-  host: "127.0.0.1"
+	content := `host: "127.0.0.1"
   port: 50052
 log_level: "info"
 model_path: "./models"
@@ -33,12 +29,6 @@ model_path: "./models"
 		t.Fatal("конфиг не должен быть nil")
 	}
 
-	if cfg.CoreAddr() == "" || cfg.ListenAddr() == "" {
-		t.Error("адреса должны быть заданы")
-	}
-	if cfg.CoreAddr() != "127.0.0.1:50051" {
-		t.Errorf("CoreAddr: ожидалось 127.0.0.1:50051, получено %q", cfg.CoreAddr())
-	}
 	if cfg.ListenAddr() != "127.0.0.1:50052" {
 		t.Errorf("ListenAddr: ожидалось 127.0.0.1:50052, получено %q", cfg.ListenAddr())
 	}
@@ -51,12 +41,8 @@ model_path: "./models"
 func TestLoad_ChatAPIReasoningAndDebugFields(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
-	content := `core:
-  host: "127.0.0.1"
+	content := `host: "127.0.0.1"
   port: 50051
-listen:
-  host: "127.0.0.1"
-  port: 50052
 model_path: "./models"
 chat_api_enabled: true
 chat_stream_buffer_size: 256

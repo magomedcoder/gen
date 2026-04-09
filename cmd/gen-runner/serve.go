@@ -8,12 +8,12 @@ import (
 	"syscall"
 	"time"
 
-	runner "github.com/magomedcoder/llm-runner"
-	"github.com/magomedcoder/llm-runner/config"
-	"github.com/magomedcoder/llm-runner/gpu"
-	"github.com/magomedcoder/llm-runner/logger"
-	"github.com/magomedcoder/llm-runner/pb/llmrunnerpb"
-	"github.com/magomedcoder/llm-runner/provider"
+	runner "github.com/magomedcoder/gen-runner"
+	"github.com/magomedcoder/gen-runner/config"
+	"github.com/magomedcoder/gen-runner/gpu"
+	"github.com/magomedcoder/gen-runner/logger"
+	"github.com/magomedcoder/gen-runner/pb/llmrunnerpb"
+	"github.com/magomedcoder/gen-runner/provider"
 	"github.com/urfave/cli/v3"
 	"google.golang.org/grpc"
 )
@@ -50,8 +50,6 @@ func runServe(ctx context.Context, _ *cli.Command) error {
 
 	if dm := strings.TrimSpace(cfg.DefaultModel); dm != "" {
 		logger.I("Подсказка: default_model=%q используется только как fallback, если в запросе не указан model; в VRAM при старте ничего не загружается", dm)
-	} else {
-		logger.I("Старт без модели в памяти: загрузите модель через gen/админку или укажите model в RPC")
 	}
 
 	gpuCollector := gpu.NewCollector()

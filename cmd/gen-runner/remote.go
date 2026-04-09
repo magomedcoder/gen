@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/magomedcoder/llm-runner/pb/llmrunnerpb"
+	"github.com/magomedcoder/gen-runner/pb/llmrunnerpb"
 	"github.com/urfave/cli/v3"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"

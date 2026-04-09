@@ -6,7 +6,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/magomedcoder/llm-runner/domain"
+	"github.com/magomedcoder/gen-runner/domain"
 )
 
 type LlamaService struct{}

@@ -44,17 +44,17 @@ build-libs-gpu:
 
 build-cpu: build-libs-cpu
 	@mkdir -p build
-	go build -tags="llama" -o build/llm-runner ./cmd/llm-runner
+	go build -tags="llama" -o build/gen-runner ./cmd/gen-runner
 
 build-gpu: build-libs-gpu
 	@mkdir -p build
-	go build -tags="llama,nvidia" -o build/llm-runner ./cmd/llm-runner
+	go build -tags="llama,nvidia" -o build/gen-runner ./cmd/gen-runner
 
 run-cpu: build-libs-cpu
-	$(RUN_ENV) go run -tags="llama" ./cmd/llm-runner serve
+	$(RUN_ENV) go run -tags="llama" ./cmd/gen-runner serve
 
 run-gpu: build-libs-gpu
-	$(RUN_ENV) go run -tags="llama,nvidia" ./cmd/llm-runner serve
+	$(RUN_ENV) go run -tags="llama,nvidia" ./cmd/gen-runner serve
 
 clean:
 	rm -rf build

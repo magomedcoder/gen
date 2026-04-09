@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/magomedcoder/llm-runner/domain"
+	"github.com/magomedcoder/gen-runner/domain"
 )
 
 func TestSendMessage_VisionAttachmentUnsupported_FastFail(t *testing.T) {

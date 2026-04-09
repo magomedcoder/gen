@@ -1,4 +1,6 @@
-# LLM Runner
+# Gen Runner
+
+Cервис запуска и взаимодействия с LLM
 
 ## Быстрый старт (сборка и запуск)
 
@@ -33,31 +35,31 @@ make build-gpu
 ## Скачивание модели (Hugging Face)
 
 ```bash
-./build/llm-runner download --repo <org/model> --list
-./build/llm-runner download --repo <org/model> --file ....gguf
+./build/gen-runner download --repo <org/model> --list
+./build/gen-runner download --repo <org/model> --file ....gguf
 ```
 
 ## Клиент к запущенному раннеру
 
 ```bash
-./build/llm-runner remote ping
-./build/llm-runner remote models
-./build/llm-runner remote run --model mymodel --prompt "привет"
+./build/gen-runner remote ping
+./build/gen-runner remote models
+./build/gen-runner remote run --model mymodel --prompt "привет"
 ```
 
 ---
 
 ```bash
 # Собрать yaml из Modelfile
-./build/llm-runner create myalias -f ./Modelfile [--force]
+./build/gen-runner create myalias -f ./Modelfile [--force]
 
 # Показать yaml манифеста или экспорт в Modelfile
-./build/llm-runner show myalias
-./build/llm-runner show myalias --modelfile # или -m
+./build/gen-runner show myalias
+./build/gen-runner show myalias --modelfile # или -m
 
 # Только путь к .yaml (для скриптов)
-./build/llm-runner show myalias --path-only
+./build/gen-runner show myalias --path-only
 
 # Список локальных .gguf в каталоге model_path
-./build/llm-runner models
+./build/gen-runner models
 ```

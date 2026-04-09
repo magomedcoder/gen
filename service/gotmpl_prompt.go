@@ -7,8 +7,8 @@ import (
 	"io"
 	"strings"
 
-	"github.com/magomedcoder/llm-runner/domain"
-	"github.com/magomedcoder/llm-runner/template"
+	"github.com/magomedcoder/gen-runner/domain"
+	"github.com/magomedcoder/gen-runner/template"
 )
 
 func domainToolsToTemplate(tools []domain.Tool) template.Tools {

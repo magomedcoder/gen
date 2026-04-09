@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/magomedcoder/llm-runner/config"
-	"github.com/magomedcoder/llm-runner/domain"
-	"github.com/magomedcoder/llm-runner/service"
+	"github.com/magomedcoder/gen-runner/config"
+	"github.com/magomedcoder/gen-runner/domain"
+	"github.com/magomedcoder/gen-runner/service"
 )
 
 type TextBackend interface {

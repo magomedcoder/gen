@@ -11,14 +11,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type HostPort struct {
-	Host string `yaml:"host"`
-	Port int    `yaml:"port"`
-}
-
 type Config struct {
-	Listen                         HostPort `yaml:"listen"`
-	Core                           HostPort `yaml:"core"`
+	Host                           string   `yaml:"host"`
+	Port                           int      `yaml:"port"`
 	RegistrationToken              string   `yaml:"registration_token"`
 	LogLevel                       string   `yaml:"log_level"`
 	ModelPath                      string   `yaml:"model_path"`
@@ -114,37 +109,19 @@ func (c *Config) applyDefaults() {
 }
 
 func (c *Config) ListenAddr() string {
-	h := strings.TrimSpace(c.Listen.Host)
-	if h == "" || c.Listen.Port <= 0 {
+	h := strings.TrimSpace(c.Host)
+	if h == "" || c.Port <= 0 {
 		return ""
 	}
-	return net.JoinHostPort(h, strconv.Itoa(c.Listen.Port))
-}
-
-func (c *Config) CoreAddr() string {
-	h := strings.TrimSpace(c.Core.Host)
-	if h == "" || c.Core.Port <= 0 {
-		return ""
-	}
-	return net.JoinHostPort(h, strconv.Itoa(c.Core.Port))
+	return net.JoinHostPort(h, strconv.Itoa(c.Port))
 }
 
 func (c *Config) validate() error {
-	coreHost := strings.TrimSpace(c.Core.Host)
-	hasCoreHost := coreHost != ""
-	hasCorePort := c.Core.Port >= 1 && c.Core.Port <= 65535
-	if hasCoreHost != hasCorePort {
-		if hasCoreHost {
-			return fmt.Errorf("core.port: укажите порт ядра от 1 до 65535")
-		}
-		return fmt.Errorf("core.host: укажите хост ядра")
-	}
-
-	if strings.TrimSpace(c.Listen.Host) == "" {
+	if strings.TrimSpace(c.Host) == "" {
 		return fmt.Errorf("listen.host: укажите хост для прослушивания")
 	}
 
-	if c.Listen.Port < 1 || c.Listen.Port > 65535 {
+	if c.Port < 1 || c.Port > 65535 {
 		return fmt.Errorf("listen.port: укажите порт от 1 до 65535")
 	}
 
