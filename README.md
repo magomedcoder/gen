@@ -18,11 +18,9 @@
 
 ## Связанные репозитории
 
-- **[gen-runner](https://github.com/magomedcoder/gen-runner)** - сервис запуска и взаимодействия с LLM.
+- **[gen-runner](https://github.com/magomedcoder/gen-runner)** - сервис запуска и взаимодействия с LLM
 
 ---
-
-## Разработка
 
 ### Зависимости
 
@@ -32,3 +30,25 @@
     - Flutter 3.24+
     - Dart SDK ^3.10.7
 - **Protobuf** 30.2+
+- 
+---
+
+### Сборка клиента
+
+#### Linux и Android
+
+Сборка **Linux** и **Android** через Docker:
+
+```bash
+docker build -f Dockerfile-client-app --target linux-build -t gen-app-linux .
+docker run --rm -e TARGETS=linux,android -v ./out:/opt/gen/out gen-app-linux
+```
+
+#### Windows
+
+Сборка **Windows** возможна только на **хосте Windows**:
+
+```bash
+docker build -f Dockerfile-client-app-windows --target windows-build -t gen-app-windows .
+docker run --rm -v .\out:C:\gen\out gen-app-windows
+```
