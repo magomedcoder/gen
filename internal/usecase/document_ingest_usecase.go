@@ -211,7 +211,7 @@ func (u *DocumentIngestUseCase) IndexSessionFile(ctx context.Context, userID int
 	if useTextCache {
 		extracted = f.ExtractedText
 	} else {
-		extracted, pdfPageBounds, err = document.ExtractTextForRAG(baseName, data)
+		extracted, pdfPageBounds, err = document.ExtractTextForRAGContext(ctx, baseName, data)
 		if err != nil {
 			logger.W("DocumentIngest: извлечение текста %q: %v", baseName, err)
 			return fmt.Errorf("%w: %v", document.ErrTextExtractionFailed, err)
