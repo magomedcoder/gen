@@ -8,23 +8,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/magomedcoder/gen/pkg/mcpsafe"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 type Config struct {
 	WebhookBase string
-}
-
-func safeToolInvoke(tool string, fn func() (*mcp.CallToolResult, any, error)) (res *mcp.CallToolResult, meta any, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			log.Printf("[b24-mcp] tool=%s panic=%v", tool, r)
-			res = nil
-			meta = nil
-			err = fmt.Errorf("internal error in tool %s", tool)
-		}
-	}()
-	return fn()
 }
 
 func NewServer(cfg Config) (*mcp.Server, error) {
@@ -49,7 +38,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 		Name:        "b24_call_method",
 		Description: "Универсальный вызов метода Bitrix24 REST API",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, args callArgs) (*mcp.CallToolResult, any, error) {
-		return safeToolInvoke("b24_call_method", func() (*mcp.CallToolResult, any, error) {
+		return mcpsafe.SafeToolInvoke("mcp-bitrix24", "b24_call_method", func() (*mcp.CallToolResult, any, error) {
 			method := normalizeMethod(args.Method)
 			if method == "" {
 				return nil, nil, fmt.Errorf("method is required")
@@ -77,7 +66,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 		Name:        "b24_list_tasks",
 		Description: "Получить список задач Bitrix24 (tasks.task.list)",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, args listTasksArgs) (*mcp.CallToolResult, any, error) {
-		return safeToolInvoke("b24_list_tasks", func() (*mcp.CallToolResult, any, error) {
+		return mcpsafe.SafeToolInvoke("mcp-bitrix24", "b24_list_tasks", func() (*mcp.CallToolResult, any, error) {
 			log.Printf("[b24-mcp] tool=b24_list_tasks filter_keys=%d select=%d order_keys=%d has_start=%t", len(args.Filter), len(args.Select), len(args.Order), args.Start != nil)
 			payload := map[string]any{}
 			if args.Filter != nil {
@@ -115,7 +104,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 		Name:        "b24_get_task",
 		Description: "Получить задачу по ID (tasks.task.get)",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, args getTaskArgs) (*mcp.CallToolResult, any, error) {
-		return safeToolInvoke("b24_get_task", func() (*mcp.CallToolResult, any, error) {
+		return mcpsafe.SafeToolInvoke("mcp-bitrix24", "b24_get_task", func() (*mcp.CallToolResult, any, error) {
 			if args.TaskID <= 0 {
 				return nil, nil, fmt.Errorf("task_id must be > 0")
 			}
@@ -149,7 +138,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 		Name:        "b24_get_task_comments",
 		Description: "Получить комментарии задачи (tasks.task.commentitem.getlist)",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, args getCommentsArgs) (*mcp.CallToolResult, any, error) {
-		return safeToolInvoke("b24_get_task_comments", func() (*mcp.CallToolResult, any, error) {
+		return mcpsafe.SafeToolInvoke("mcp-bitrix24", "b24_get_task_comments", func() (*mcp.CallToolResult, any, error) {
 			if args.TaskID <= 0 {
 				return nil, nil, fmt.Errorf("task_id must be > 0")
 			}
@@ -186,7 +175,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 		Name:        "b24_analyze_task",
 		Description: "Быстрый анализ задачи: статус, дедлайн, активность, риски",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, args analyzeArgs) (*mcp.CallToolResult, any, error) {
-		return safeToolInvoke("b24_analyze_task", func() (*mcp.CallToolResult, any, error) {
+		return mcpsafe.SafeToolInvoke("mcp-bitrix24", "b24_analyze_task", func() (*mcp.CallToolResult, any, error) {
 			if args.TaskID <= 0 {
 				return nil, nil, fmt.Errorf("task_id must be > 0")
 			}

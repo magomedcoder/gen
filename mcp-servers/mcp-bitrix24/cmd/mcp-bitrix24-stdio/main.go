@@ -2,10 +2,11 @@ package main
 
 import (
 	"context"
-	"github.com/magomedcoder/gen/mcp-servers/mcp-bitrix24/internal/bitrix24server"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"log"
 	"os"
+
+	"github.com/magomedcoder/gen/mcp-servers/mcp-bitrix24/internal/bitrix24server"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func main() {

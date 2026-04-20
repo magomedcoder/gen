@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/magomedcoder/gen/pkg/mcpsafe"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -23,14 +24,15 @@ func NewServer() *mcp.Server {
 		Name:        "ping",
 		Description: "Проверка связи; возвращает pong",
 	}, func(_ context.Context, _ *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
-		fmt.Println("dddd")
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: "pong",
+		return mcpsafe.SafeToolInvoke("mcp-demo", "ping", func() (*mcp.CallToolResult, any, error) {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{
+					&mcp.TextContent{
+						Text: "pong",
+					},
 				},
-			},
-		}, nil, nil
+			}, nil, nil
+		})
 	})
 
 	type greetArgs struct {
@@ -41,19 +43,20 @@ func NewServer() *mcp.Server {
 		Name:        "greet",
 		Description: "Персональное приветствие",
 	}, func(_ context.Context, _ *mcp.CallToolRequest, args greetArgs) (*mcp.CallToolResult, any, error) {
-		fmt.Println("dddd")
-		name := strings.TrimSpace(args.Name)
-		if name == "" {
-			name = "мир"
-		}
+		return mcpsafe.SafeToolInvoke("mcp-demo", "greet", func() (*mcp.CallToolResult, any, error) {
+			name := strings.TrimSpace(args.Name)
+			if name == "" {
+				name = "мир"
+			}
 
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: "Привет, " + name + "!",
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{
+					&mcp.TextContent{
+						Text: "Привет, " + name + "!",
+					},
 				},
-			},
-		}, nil, nil
+			}, nil, nil
+		})
 	})
 
 	type addArgs struct {
@@ -64,14 +67,15 @@ func NewServer() *mcp.Server {
 		Name:        "add",
 		Description: "Сложить два целых числа",
 	}, func(_ context.Context, _ *mcp.CallToolRequest, args addArgs) (*mcp.CallToolResult, any, error) {
-		fmt.Println("dddd")
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: fmt.Sprintf("%d", args.A+args.B),
+		return mcpsafe.SafeToolInvoke("mcp-demo", "add", func() (*mcp.CallToolResult, any, error) {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{
+					&mcp.TextContent{
+						Text: fmt.Sprintf("%d", args.A+args.B),
+					},
 				},
-			},
-		}, nil, nil
+			}, nil, nil
+		})
 	})
 
 	type httpGetArgs struct {
@@ -81,43 +85,44 @@ func NewServer() *mcp.Server {
 		Name:        "http_get",
 		Description: "GET по https; тело ответа до 64 KiB. В продакшене задайте allowlist хостов - иначе риск SSRF.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, args httpGetArgs) (*mcp.CallToolResult, any, error) {
-		fmt.Println("dddd")
-		u, err := url.Parse(strings.TrimSpace(args.URL))
-		if err != nil || u.Scheme != "https" || u.Host == "" {
-			return nil, nil, fmt.Errorf("нужен корректный https URL с хостом")
-		}
+		return mcpsafe.SafeToolInvoke("mcp-demo", "http_get", func() (*mcp.CallToolResult, any, error) {
+			u, err := url.Parse(strings.TrimSpace(args.URL))
+			if err != nil || u.Scheme != "https" || u.Host == "" {
+				return nil, nil, fmt.Errorf("нужен корректный https URL с хостом")
+			}
 
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
-		if err != nil {
-			return nil, nil, err
-		}
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+			if err != nil {
+				return nil, nil, err
+			}
 
-		client := &http.Client{Timeout: 15 * time.Second}
-		resp, err := client.Do(req)
-		if err != nil {
-			return nil, nil, err
-		}
-		defer resp.Body.Close()
+			client := &http.Client{Timeout: 15 * time.Second}
+			resp, err := client.Do(req)
+			if err != nil {
+				return nil, nil, err
+			}
+			defer resp.Body.Close()
 
-		body, err := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
-		if err != nil {
-			return nil, nil, err
-		}
+			body, err := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
+			if err != nil {
+				return nil, nil, err
+			}
 
-		text, err := json.Marshal(map[string]any{
-			"status": resp.StatusCode,
-			"body":   string(body),
+			text, err := json.Marshal(map[string]any{
+				"status": resp.StatusCode,
+				"body":   string(body),
+			})
+
+			if err != nil {
+				return nil, nil, err
+			}
+
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{
+					&mcp.TextContent{Text: string(text)},
+				},
+			}, nil, nil
 		})
-
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{Text: string(text)},
-			},
-		}, nil, nil
 	})
 
 	return srv

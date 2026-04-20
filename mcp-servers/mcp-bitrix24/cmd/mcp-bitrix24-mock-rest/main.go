@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/magomedcoder/gen/mcp-servers/mcp-bitrix24/internal/bitrix24mock"
+	"github.com/magomedcoder/gen/pkg/mcpsafe"
 )
 
 func main() {
@@ -15,5 +16,5 @@ func main() {
 	srv := bitrix24mock.NewServer()
 
 	log.Printf("Bitrix24 mock REST: http://%s/rest/43176/mock-token/<method>", *addr)
-	log.Fatal(http.ListenAndServe(*addr, srv.Handler()))
+	log.Fatal(http.ListenAndServe(*addr, mcpsafe.RecoverPanic("mcp-bitrix24-mock-rest", srv.Handler())))
 }

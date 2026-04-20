@@ -39,10 +39,6 @@ String _formatProbe(McpProbeResultEntity r) {
     b.writeln('Сервер: ${r.serverName.isNotEmpty ? r.serverName : "?"} ${r.serverVersion.isNotEmpty ? "v${r.serverVersion}" : ""}');
   }
 
-  if (r.protocolVersion.isNotEmpty) {
-    b.writeln('Протокол: ${r.protocolVersion}');
-  }
-
   b.writeln('Возможности: tools=${r.toolsSupported}  resources=${r.resourcesSupported}  prompts=${r.promptsSupported}');
 
   if (r.instructions.trim().isNotEmpty) {

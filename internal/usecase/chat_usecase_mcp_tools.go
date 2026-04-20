@@ -125,7 +125,7 @@ func (c *ChatUseCase) mcpEffectiveServerIDs(ctx context.Context, userID int, set
 			return nil
 		}
 
-		logger.D("MCP mcpEffectiveServerIDs: пустой mcp_server_ids — используем все доступные пользователю включённые серверы (count=%d)", len(source))
+		logger.D("MCP mcpEffectiveServerIDs: пустой mcp_server_ids - используем все доступные пользователю включённые серверы (count=%d)", len(source))
 	}
 
 	out := make([]int64, 0, len(source))

@@ -2,10 +2,12 @@ package main
 
 import (
 	"flag"
-	"github.com/magomedcoder/gen/mcp-servers/mcp-demo/internal/mcpdemoserver"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"log"
 	"net/http"
+
+	"github.com/magomedcoder/gen/mcp-servers/mcp-demo/internal/mcpdemoserver"
+	"github.com/magomedcoder/gen/pkg/mcpsafe"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func main() {
@@ -18,5 +20,5 @@ func main() {
 	}, nil)
 
 	log.Printf("MCP SSE demo: transport=sse url=http://%s/", *addr)
-	log.Fatal(http.ListenAndServe(*addr, h))
+	log.Fatal(http.ListenAndServe(*addr, mcpsafe.RecoverPanic("mcp-demo-sse", h)))
 }

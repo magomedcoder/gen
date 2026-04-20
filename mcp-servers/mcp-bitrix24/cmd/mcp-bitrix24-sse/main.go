@@ -2,11 +2,13 @@ package main
 
 import (
 	"flag"
-	"github.com/magomedcoder/gen/mcp-servers/mcp-bitrix24/internal/bitrix24server"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"log"
 	"net/http"
 	"os"
+
+	"github.com/magomedcoder/gen/mcp-servers/mcp-bitrix24/internal/bitrix24server"
+	"github.com/magomedcoder/gen/pkg/mcpsafe"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func main() {
@@ -27,5 +29,5 @@ func main() {
 	}, nil)
 
 	log.Printf("MCP Bitrix24 SSE: transport=sse url=http://%s/", *addr)
-	log.Fatal(http.ListenAndServe(*addr, h))
+	log.Fatal(http.ListenAndServe(*addr, mcpsafe.RecoverPanic("mcp-bitrix24-sse", h)))
 }

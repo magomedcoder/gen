@@ -172,7 +172,7 @@ class _AssistantReasoningExpandedPanel extends StatelessWidget {
                   Icon(
                     Icons.psychology_outlined,
                     size: 16,
-                    color: cs.tertiary,
+                    color: messageTextColor.withValues(alpha: 0.82),
                   ),
                   const SizedBox(width: 6),
                   Text(
@@ -329,18 +329,6 @@ class _ChatBubbleState extends State<ChatBubble> {
     );
   }
 
-  static String _copyAssistantClipboard(String visible, String reasoning) {
-    final v = visible.trim();
-    final r = reasoning.trim();
-    if (r.isEmpty) {
-      return v;
-    }
-    if (v.isEmpty) {
-      return r;
-    }
-    return '$v\n\n---\nРазмышление:\n$r';
-  }
-
   Future<void> _downloadSessionFile(int fileId) async {
     final sessionId = widget.sessionId;
     if (sessionId == null || fileId <= 0) {
@@ -456,7 +444,7 @@ class _ChatBubbleState extends State<ChatBubble> {
         : '';
     final hasCopyableText = isUser
         ? message.content.trim().isNotEmpty
-        : (assistantVisible.trim().isNotEmpty || reasoningDisplay.isNotEmpty);
+        : assistantVisible.trim().isNotEmpty;
     final editsTotal = widget.editsTotal;
     final editsIndex = widget.editsIndex;
     final showEditNav = widget.showEditNav;
@@ -812,10 +800,7 @@ class _ChatBubbleState extends State<ChatBubble> {
                                   ClipboardData(
                                     text: isUser
                                         ? message.content
-                                        : _copyAssistantClipboard(
-                                            assistantVisible,
-                                            reasoningDisplay,
-                                          ),
+                                        : assistantVisible.trim(),
                                   ),
                                 );
 
