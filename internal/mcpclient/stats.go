@@ -10,8 +10,6 @@ type mcpRPCStats struct {
 	listToolsOK, listToolsFail         atomic.Uint64
 	listResourcesOK, listResourcesFail atomic.Uint64
 	listPromptsOK, listPromptsFail     atomic.Uint64
-	readResourceOK, readResourceFail   atomic.Uint64
-	getPromptOK, getPromptFail         atomic.Uint64
 	callToolOK, callToolFail           atomic.Uint64
 	callToolMCPError                   atomic.Uint64
 	callToolRetry                      atomic.Uint64
@@ -111,22 +109,6 @@ func recordListPrompts(err error) {
 	}
 }
 
-func recordReadResource(err error) {
-	if err != nil {
-		rpcStats.readResourceFail.Add(1)
-	} else {
-		rpcStats.readResourceOK.Add(1)
-	}
-}
-
-func recordGetPrompt(err error) {
-	if err != nil {
-		rpcStats.getPromptFail.Add(1)
-	} else {
-		rpcStats.getPromptOK.Add(1)
-	}
-}
-
 func recordCallToolTransportErr() {
 	rpcStats.callToolFail.Add(1)
 }
@@ -171,10 +153,6 @@ func MCPCountersMap() map[string]uint64 {
 		"list_resources_fail":  rpcStats.listResourcesFail.Load(),
 		"list_prompts_ok":      rpcStats.listPromptsOK.Load(),
 		"list_prompts_fail":    rpcStats.listPromptsFail.Load(),
-		"read_resource_ok":     rpcStats.readResourceOK.Load(),
-		"read_resource_fail":   rpcStats.readResourceFail.Load(),
-		"get_prompt_ok":        rpcStats.getPromptOK.Load(),
-		"get_prompt_fail":      rpcStats.getPromptFail.Load(),
 		"call_tool_ok":         rpcStats.callToolOK.Load(),
 		"call_tool_fail":       rpcStats.callToolFail.Load(),
 		"call_tool_mcp_error":  rpcStats.callToolMCPError.Load(),

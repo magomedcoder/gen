@@ -1,4 +1,4 @@
-.PHONY: install gen gen-proto run test
+.PHONY: install gen gen-proto build run test
 
 install:
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest \
@@ -26,6 +26,10 @@ gen-proto:
 	protoc --proto_path=./api/proto \
 		--dart_out=grpc:./client-app/lib/generated/grpc_pb \
 		./api/proto/*.proto
+
+build:
+	mkdir -p ./build
+	go build -o ./build/gen-server ./cmd/gen
 
 run:
 	go run ./cmd/gen

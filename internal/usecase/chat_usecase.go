@@ -432,9 +432,6 @@ func (c *ChatUseCase) UpdateSessionSettings(
 	temperature *float32,
 	topK *int32,
 	topP *float32,
-	jsonMode bool,
-	jsonSchema string,
-	toolsJSON string,
 	profile string,
 	modelReasoningEnabled bool,
 	webSearchEnabled bool,
@@ -471,9 +468,6 @@ func (c *ChatUseCase) UpdateSessionSettings(
 		Temperature:           temperature,
 		TopK:                  topK,
 		TopP:                  topP,
-		JSONMode:              jsonMode,
-		JSONSchema:            strings.TrimSpace(jsonSchema),
-		ToolsJSON:             strings.TrimSpace(toolsJSON),
 		Profile:               strings.TrimSpace(profile),
 		ModelReasoningEnabled: modelReasoningEnabled,
 		WebSearchEnabled:      webSearchEnabled,
@@ -523,10 +517,6 @@ func (c *ChatUseCase) CreateSession(ctx context.Context, userId int, title strin
 	}
 
 	return session, nil
-}
-
-func (c *ChatUseCase) GetSession(ctx context.Context, userId int, sessionID int64) (*domain.ChatSession, error) {
-	return c.verifySessionOwnership(ctx, userId, sessionID)
 }
 
 func (c *ChatUseCase) GetSessions(ctx context.Context, userId int, page, pageSize int32) ([]*domain.ChatSession, int32, error) {

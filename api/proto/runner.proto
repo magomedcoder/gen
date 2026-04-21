@@ -11,8 +11,6 @@ service RunnerService {
 
   rpc GetUserRunners(common.Empty) returns (GetUserRunnersResponse);
 
-  rpc SetRunnerEnabled(SetRunnerEnabledRequest) returns (common.Empty);
-
   rpc CreateRunner(CreateRunnerRequest) returns (common.Empty);
 
   rpc UpdateRunner(UpdateRunnerRequest) returns (common.Empty);
@@ -37,8 +35,6 @@ service RunnerService {
 
   rpc ListMCPServers(common.Empty) returns (ListMCPServersResponse);
 
-  rpc GetMCPServer(GetMCPServerRequest) returns (MCPServer);
-
   rpc CreateMCPServer(CreateMCPServerRequest) returns (MCPServer);
 
   rpc UpdateMCPServer(UpdateMCPServerRequest) returns (MCPServer);
@@ -46,8 +42,6 @@ service RunnerService {
   rpc DeleteMCPServer(DeleteMCPServerRequest) returns (common.Empty);
 
   rpc ListUserMCPServers(common.Empty) returns (ListMCPServersResponse);
-
-  rpc GetUserMCPServer(GetMCPServerRequest) returns (MCPServer);
 
   rpc CreateUserMCPServer(CreateMCPServerRequest) returns (MCPServer);
 
@@ -130,11 +124,6 @@ message UserRunnerInfo {
 
 message GetUserRunnersResponse {
   repeated UserRunnerInfo runners = 1;
-}
-
-message SetRunnerEnabledRequest {
-  int64 id = 1;
-  bool enabled = 2;
 }
 
 message GetRunnersStatusResponse {
