@@ -150,10 +150,6 @@ class _ChatMcpMenuButtonState extends State<ChatMcpMenuButton> {
             final bloc = context.read<ChatBloc>();
             final curState = bloc.state;
             final ids = List<int>.from(_currentIds(curState));
-            if (v == 'off') {
-              bloc.add(const ChatSetMcp(serverIds: []));
-              return;
-            }
             final id = int.tryParse(v);
             if (id == null) {
               return;
@@ -192,15 +188,8 @@ class _ChatMcpMenuButtonState extends State<ChatMcpMenuButton> {
                 ),
               ];
             }
-            final items = <PopupMenuEntry<String>>[
-              menuItem(
-                'off',
-                'Выключить все MCP',
-                checked: !mcpOn,
-              ),
-            ];
+            final items = <PopupMenuEntry<String>>[];
             if (_servers.isEmpty) {
-              items.add(const PopupMenuDivider());
               items.add(
                 PopupMenuItem<String>(
                   enabled: false,
@@ -214,7 +203,6 @@ class _ChatMcpMenuButtonState extends State<ChatMcpMenuButton> {
               );
               return items;
             }
-            items.add(const PopupMenuDivider());
             for (final s in _servers) {
               final label =
                   s.name.trim().isNotEmpty ? s.name : '#${s.id}';

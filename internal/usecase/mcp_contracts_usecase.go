@@ -30,24 +30,6 @@ type MCPContractsUseCase struct {
 	listToolsFn func(context.Context, *domain.MCPServer, *mcpclient.ToolsListCache) ([]mcpclient.DeclaredTool, error)
 }
 
-func NewMCPContractsUseCase(repo domain.MCPServerRepository, cache *mcpclient.ToolsListCache) *MCPContractsUseCase {
-	return &MCPContractsUseCase{
-		repo:  repo,
-		cache: cache,
-		probeFn: func(ctx context.Context, srv *domain.MCPServer, c *mcpclient.ToolsListCache) (*mcpclient.ServerProbe, error) {
-			return mcpclient.ProbeServer(ctx, srv, c)
-		},
-
-		listToolsFn: func(ctx context.Context, srv *domain.MCPServer, c *mcpclient.ToolsListCache) ([]mcpclient.DeclaredTool, error) {
-			if c == nil {
-				return mcpclient.ListTools(ctx, srv)
-			}
-
-			return c.ListToolsCached(ctx, srv, mcpclient.DefaultToolsListCacheTTL)
-		},
-	}
-}
-
 func contractCheckTimeout(s *domain.MCPServer) time.Duration {
 	sec := int64(30)
 	if s != nil && s.TimeoutSeconds > 0 {

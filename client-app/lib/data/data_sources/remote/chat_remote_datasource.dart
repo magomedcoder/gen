@@ -19,7 +19,6 @@ import 'package:gen/domain/entities/user_message_edit.dart';
 import 'package:gen/domain/entities/session_file_download.dart';
 import 'package:gen/domain/entities/session.dart';
 import 'package:gen/domain/entities/session_messages_page.dart';
-import 'package:gen/domain/entities/spreadsheet_apply_result.dart';
 import 'package:gen/domain/entities/file_ingestion_status.dart';
 import 'package:gen/domain/entities/rag_document_preview.dart';
 import 'package:gen/generated/grpc_pb/chat.pb.dart' as chat_pb;
@@ -196,8 +195,6 @@ abstract class IChatRemoteDataSource {
 
   Future<ChatSession> createSession(String title);
 
-  Future<ChatSession> getSession(int sessionId);
-
   Future<List<ChatSession>> getSessions(int page, int pageSize);
 
   Future<SessionMessagesPage> getSessionMessagesPage({
@@ -219,9 +216,6 @@ abstract class IChatRemoteDataSource {
     double? temperature,
     int? topK,
     double? topP,
-    required bool jsonMode,
-    required String jsonSchema,
-    required String toolsJson,
     required String profile,
     required bool modelReasoningEnabled,
     required bool webSearchEnabled,
@@ -249,19 +243,6 @@ abstract class IChatRemoteDataSource {
     required int fileId,
   });
 
-  Future<SpreadsheetApplyResult> applySpreadsheet({
-    List<int>? workbookXlsx,
-    required String operationsJson,
-    String previewSheet,
-    String previewRange,
-  });
-
-  Future<Uint8List> buildDocx({required String specJson});
-
-  Future<String> applyMarkdownPatch({
-    required String baseText,
-    required String patchJson,
-  });
 }
 
 class ChatRemoteDataSource implements IChatRemoteDataSource {
@@ -1078,26 +1059,6 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
   }
 
   @override
-  Future<ChatSession> getSession(int sessionId) async {
-    try {
-      final request = grpc.GetSessionRequest(sessionId: Int64(sessionId));
-
-      final response = await _authGuard.execute(
-        () => _client.getSession(request),
-      );
-
-      return SessionMapper.fromProto(response);
-    } on GrpcError catch (e) {
-      throwGrpcError(e, 'получение сессии');
-    } catch (e, st) {
-      Logs().e('ChatRemote: getSession', exception: e, stackTrace: st);
-      throw ApiFailure(
-        userSafeErrorMessage(e, fallback: 'Ошибка получения сессии'),
-      );
-    }
-  }
-
-  @override
   Future<List<ChatSession>> getSessions(int page, int pageSize) async {
     Logs().d('ChatRemote: getSessions page=$page pageSize=$pageSize');
     try {
@@ -1207,9 +1168,6 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
       temperature: response.hasTemperature() ? response.temperature : null,
       topK: response.hasTopK() ? response.topK : null,
       topP: response.hasTopP() ? response.topP : null,
-      jsonMode: response.jsonMode,
-      jsonSchema: response.jsonSchema,
-      toolsJson: response.toolsJson,
       profile: response.profile,
       modelReasoningEnabled: response.hasModelReasoningEnabled()
           ? response.modelReasoningEnabled
@@ -1230,9 +1188,6 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
     double? temperature,
     int? topK,
     double? topP,
-    required bool jsonMode,
-    required String jsonSchema,
-    required String toolsJson,
     required String profile,
     required bool modelReasoningEnabled,
     required bool webSearchEnabled,
@@ -1245,9 +1200,6 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
       systemPrompt: systemPrompt,
       stopSequences: stopSequences,
       timeoutSeconds: timeoutSeconds,
-      jsonMode: jsonMode,
-      jsonSchema: jsonSchema,
-      toolsJson: toolsJson,
       profile: profile,
       modelReasoningEnabled: modelReasoningEnabled,
       webSearchEnabled: webSearchEnabled,
@@ -1275,9 +1227,6 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
       temperature: response.hasTemperature() ? response.temperature : null,
       topK: response.hasTopK() ? response.topK : null,
       topP: response.hasTopP() ? response.topP : null,
-      jsonMode: response.jsonMode,
-      jsonSchema: response.jsonSchema,
-      toolsJson: response.toolsJson,
       profile: response.profile,
       modelReasoningEnabled: response.hasModelReasoningEnabled()
           ? response.modelReasoningEnabled
@@ -1422,94 +1371,4 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
     }
   }
 
-  @override
-  Future<SpreadsheetApplyResult> applySpreadsheet({
-    List<int>? workbookXlsx,
-    required String operationsJson,
-    String previewSheet = '',
-    String previewRange = '',
-  }) async {
-    Logs().d('ChatRemote: applySpreadsheet');
-    final req = chat_pb.SpreadsheetApplyRequest(
-      operationsJson: operationsJson,
-      previewSheet: previewSheet,
-      previewRange: previewRange,
-    );
-    if (workbookXlsx != null && workbookXlsx.isNotEmpty) {
-      req.workbookXlsx = workbookXlsx;
-    }
-    try {
-      final resp = await _authGuard.execute(
-        () => _client.applySpreadsheet(req),
-      );
-      return SpreadsheetApplyResult(
-        workbookBytes: Uint8List.fromList(resp.workbookXlsx),
-        previewTsv: resp.previewTsv,
-        exportedCsv: resp.hasExportedCsv() && resp.exportedCsv.isNotEmpty
-            ? resp.exportedCsv
-            : null,
-      );
-    } on GrpcError catch (e) {
-      Logs().e('ChatRemote: applySpreadsheet', exception: e);
-      if (e.code == StatusCode.invalidArgument) {
-        _logGrpcServerMessage(e, 'applySpreadsheet');
-        throw ApiFailure('Некорректные данные (код ${e.code})');
-      }
-      throwGrpcError(e, 'таблица');
-    } catch (e) {
-      if (e is Failure) rethrow;
-      Logs().e('ChatRemote: applySpreadsheet', exception: e);
-      throw ApiFailure('Ошибка таблицы');
-    }
-  }
-
-  @override
-  Future<Uint8List> buildDocx({required String specJson}) async {
-    Logs().d('ChatRemote: buildDocx');
-    final req = chat_pb.DocxBuildRequest(specJson: specJson);
-    try {
-      final resp = await _authGuard.execute(() => _client.buildDocx(req));
-      return Uint8List.fromList(resp.docx);
-    } on GrpcError catch (e) {
-      Logs().e('ChatRemote: buildDocx', exception: e);
-      if (e.code == StatusCode.invalidArgument) {
-        _logGrpcServerMessage(e, 'buildDocx');
-        throw ApiFailure('Некорректные данные (код ${e.code})');
-      }
-      throwGrpcError(e, 'документ Word');
-    } catch (e) {
-      if (e is Failure) rethrow;
-      Logs().e('ChatRemote: buildDocx', exception: e);
-      throw ApiFailure('Ошибка документа Word');
-    }
-  }
-
-  @override
-  Future<String> applyMarkdownPatch({
-    required String baseText,
-    required String patchJson,
-  }) async {
-    Logs().d('ChatRemote: applyMarkdownPatch');
-    final req = chat_pb.MarkdownPatchRequest(
-      baseText: baseText,
-      patchJson: patchJson,
-    );
-    try {
-      final resp = await _authGuard.execute(
-        () => _client.applyMarkdownPatch(req),
-      );
-      return resp.text;
-    } on GrpcError catch (e) {
-      Logs().e('ChatRemote: applyMarkdownPatch', exception: e);
-      if (e.code == StatusCode.invalidArgument) {
-        _logGrpcServerMessage(e, 'applyMarkdownPatch');
-        throw ApiFailure('Некорректные данные (код ${e.code})');
-      }
-      throwGrpcError(e, 'патч текста');
-    } catch (e) {
-      if (e is Failure) rethrow;
-      Logs().e('ChatRemote: applyMarkdownPatch', exception: e);
-      throw ApiFailure('Ошибка патча текста');
-    }
-  }
 }

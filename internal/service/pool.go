@@ -13,9 +13,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 const (
@@ -172,51 +169,6 @@ func (p *Pool) candidateFromRunnerProbe(addr string, c *LLMRunnerService, pr *ll
 	return &candidate{addr: addr, client: c, score: score}
 }
 
-func (p *Pool) probeRunnerAddressLegacy(ctx context.Context, c *LLMRunnerService, addr, model string, modelMatters bool) *candidate {
-	ok, err := c.CheckConnection(ctx)
-	if err != nil || !ok {
-		p.recordProbeFailure(addr)
-		return nil
-	}
-
-	var si *llmrunnerpb.ServerInfo
-	var gi *llmrunnerpb.GetGpuInfoResponse
-	var parWG sync.WaitGroup
-	parWG.Add(2)
-	go func() {
-		defer parWG.Done()
-		si, _ = c.GetServerInfo(ctx)
-	}()
-
-	go func() {
-		defer parWG.Done()
-		gi, _ = c.GetGpuInfo(ctx)
-	}()
-
-	parWG.Wait()
-
-	var models []string
-	if si != nil {
-		models = si.GetModels()
-	}
-	gpuU := maxGPUUtil(gi.GetGpus())
-
-	if modelMatters && !modelAllowed(model, models) {
-		p.recordProbeSuccess(addr, models, gpuU)
-		return nil
-	}
-
-	p.recordProbeSuccess(addr, models, gpuU)
-	inf := p.getOrCreateInflight(addr).Load()
-	score := float64(inf)*100 + float64(gpuU)
-
-	return &candidate{
-		addr:   addr,
-		client: c,
-		score:  score,
-	}
-}
-
 func (p *Pool) probeRunnerAddress(ctx context.Context, addr, model string, modelMatters bool) *candidate {
 	c, err := p.getClient(addr)
 	if err != nil {
@@ -225,10 +177,6 @@ func (p *Pool) probeRunnerAddress(ctx context.Context, addr, model string, model
 
 	pr, err := c.RunnerProbe(ctx)
 	if err != nil {
-		if st, ok := status.FromError(err); ok && st.Code() == codes.Unimplemented {
-			return p.probeRunnerAddressLegacy(ctx, c, addr, model, modelMatters)
-		}
-
 		p.recordProbeFailure(addr)
 		return nil
 	}
@@ -317,41 +265,16 @@ func (p *Pool) ProbeLLMRunner(ctx context.Context, address string) (connected bo
 	}
 
 	pr, err := c.RunnerProbe(ctx)
-	if err == nil {
-		if pr == nil || !pr.GetBackendConnected() {
-			return false, nil, nil, nil
-		}
-
-		gpus = llmGpusToRunnerPB(pr.GetGpus())
-		server = llmServerToRunnerPB(pr.GetServer())
-		loaded = llmLoadedModelToRunnerPB(pr.GetLoadedModel())
-		return true, gpus, server, loaded
+	if err != nil {
+		return false, nil, nil, nil
 	}
-
-	if st, ok := status.FromError(err); !ok || st.Code() != codes.Unimplemented {
+	if pr == nil || !pr.GetBackendConnected() {
 		return false, nil, nil, nil
 	}
 
-	ok, err := c.CheckConnection(ctx)
-	if err != nil || !ok {
-		return false, nil, nil, nil
-	}
-
-	gi, err := c.GetGpuInfo(ctx)
-	if err == nil && gi != nil {
-		gpus = llmGpusToRunnerPB(gi.GetGpus())
-	}
-
-	si, err := c.GetServerInfo(ctx)
-	if err == nil {
-		server = llmServerToRunnerPB(si)
-	}
-
-	lm, err := c.GetLoadedModel(ctx)
-	if err == nil {
-		loaded = llmLoadedModelToRunnerPB(lm)
-	}
-
+	gpus = llmGpusToRunnerPB(pr.GetGpus())
+	server = llmServerToRunnerPB(pr.GetServer())
+	loaded = llmLoadedModelToRunnerPB(pr.GetLoadedModel())
 	return true, gpus, server, loaded
 }
 

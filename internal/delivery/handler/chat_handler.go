@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/magomedcoder/gen/api/pb/chatpb"
 	"github.com/magomedcoder/gen/api/pb/commonpb"
@@ -19,12 +20,9 @@ import (
 	"github.com/magomedcoder/gen/internal/usecase"
 	"github.com/magomedcoder/gen/pkg/document"
 	"github.com/magomedcoder/gen/pkg/logger"
-	"github.com/magomedcoder/gen/pkg/spreadsheet"
 	"google.golang.org/grpc/codes"
 	"gorm.io/gorm"
 )
-
-const maxChatEmbedBatchSize = 256
 
 func voskTopLevelZipPaths(dir string) ([]string, error) {
 	entries, err := os.ReadDir(dir)
@@ -63,6 +61,129 @@ func voskTopLevelZipPaths(dir string) ([]string, error) {
 	}
 
 	return out, nil
+}
+func streamChunkKindToPB(kind usecase.StreamChunkKind) chatpb.StreamChunkKind {
+	switch kind {
+	case usecase.StreamChunkKindToolStatus:
+		return chatpb.StreamChunkKind_STREAM_CHUNK_KIND_TOOL_STATUS
+	case usecase.StreamChunkKindNotice:
+		return chatpb.StreamChunkKind_STREAM_CHUNK_KIND_NOTICE
+	case usecase.StreamChunkKindReasoning:
+		return chatpb.StreamChunkKind_STREAM_CHUNK_KIND_REASONING
+	case usecase.StreamChunkKindRAGMeta:
+		return chatpb.StreamChunkKind_STREAM_CHUNK_KIND_RAG_META
+	default:
+		return chatpb.StreamChunkKind_STREAM_CHUNK_KIND_TEXT
+	}
+}
+
+func streamChunkRole(kind usecase.StreamChunkKind) string {
+	if kind == usecase.StreamChunkKindNotice || kind == usecase.StreamChunkKindRAGMeta {
+		return "system"
+	}
+	return "assistant"
+}
+
+func ragSourcesPayloadToPB(p *usecase.RAGSourcesPayload) *chatpb.RagSourcesPayload {
+	if p == nil {
+		return nil
+	}
+
+	out := &chatpb.RagSourcesPayload{
+		Mode:                p.Mode,
+		FileId:              p.FileID,
+		TopK:                p.TopK,
+		NeighborWindow:      p.NeighborWindow,
+		DeepRagMapCalls:     p.DeepRAGMapCalls,
+		DroppedByBudget:     p.DroppedByBudget,
+		FullDocumentExcerpt: p.FullDocumentExcerpt,
+	}
+
+	for _, c := range p.Chunks {
+		out.Chunks = append(out.Chunks, &chatpb.RagChunkPreview{
+			ChunkIndex:   c.ChunkIndex,
+			Score:        c.Score,
+			IsNeighbor:   c.IsNeighbor,
+			HeadingPath:  c.HeadingPath,
+			PdfPageStart: c.PdfPageStart,
+			PdfPageEnd:   c.PdfPageEnd,
+			Excerpt:      c.Excerpt,
+		})
+	}
+
+	return out
+}
+
+func streamSendLoop(responseChan <-chan usecase.ChatStreamChunk, send func(*chatpb.ChatResponse) error) error {
+	createdAt := time.Now().Unix()
+	var lastMsgID int64
+	var accText, accReasoning strings.Builder
+
+	for chunk := range responseChan {
+		if (chunk.Kind == usecase.StreamChunkKindText || chunk.Kind == usecase.StreamChunkKindReasoning) && chunk.MessageID != 0 {
+			lastMsgID = chunk.MessageID
+		}
+
+		switch chunk.Kind {
+		case usecase.StreamChunkKindText:
+			accText.WriteString(chunk.Text)
+		case usecase.StreamChunkKindReasoning:
+			accReasoning.WriteString(chunk.Text)
+		}
+
+		respID := chunk.MessageID
+		if respID == 0 {
+			respID = lastMsgID
+		}
+
+		resp := &chatpb.ChatResponse{
+			Id:        respID,
+			Content:   chunk.Text,
+			Role:      streamChunkRole(chunk.Kind),
+			CreatedAt: createdAt,
+			Done:      false,
+			ChunkKind: streamChunkKindToPB(chunk.Kind),
+		}
+
+		if chunk.ToolName != "" {
+			tn := chunk.ToolName
+			resp.ToolName = &tn
+		}
+
+		if chunk.RAGMode != "" {
+			rm := chunk.RAGMode
+			resp.RagMode = &rm
+		}
+
+		if chunk.RAGSourcesJSON != "" {
+			rj := chunk.RAGSourcesJSON
+			resp.RagSourcesJson = &rj
+		}
+
+		if chunk.RAGSources != nil {
+			resp.RagSources = ragSourcesPayloadToPB(chunk.RAGSources)
+		}
+
+		if err := send(resp); err != nil {
+			return err
+		}
+	}
+
+	final := &chatpb.AssistantStreamFinal{
+		AssistantMessageId: lastMsgID,
+		Text:               accText.String(),
+		Reasoning:          accReasoning.String(),
+	}
+
+	return send(&chatpb.ChatResponse{
+		Id:             lastMsgID,
+		Content:        "",
+		Role:           "assistant",
+		CreatedAt:      createdAt,
+		Done:           true,
+		ChunkKind:      chatpb.StreamChunkKind_STREAM_CHUNK_KIND_TEXT,
+		AssistantFinal: final,
+	})
 }
 
 type ChatHandler struct {
@@ -433,21 +554,6 @@ func (c *ChatHandler) CreateSession(ctx context.Context, req *chatpb.CreateSessi
 	return mappers.SessionToProto(session), nil
 }
 
-func (c *ChatHandler) GetSession(ctx context.Context, req *chatpb.GetSessionRequest) (*chatpb.ChatSession, error) {
-	userID, err := c.getUserID(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	session, err := c.chatUseCase.GetSession(ctx, userID, req.SessionId)
-	if err != nil {
-		logger.W("GetSession: session=%d: %v", req.SessionId, err)
-		return nil, ToStatusError(codes.NotFound, err)
-	}
-
-	return mappers.SessionToProto(session), nil
-}
-
 func (c *ChatHandler) GetSessions(ctx context.Context, req *chatpb.GetSessionsRequest) (*chatpb.GetSessionsResponse, error) {
 	userID, err := c.getUserID(ctx)
 	if err != nil {
@@ -547,9 +653,6 @@ func mapSessionSettings(s *domain.ChatSessionSettings) *chatpb.SessionSettings {
 		Temperature:           s.Temperature,
 		TopK:                  s.TopK,
 		TopP:                  s.TopP,
-		JsonMode:              s.JSONMode,
-		JsonSchema:            s.JSONSchema,
-		ToolsJson:             s.ToolsJSON,
 		Profile:               s.Profile,
 		ModelReasoningEnabled: s.ModelReasoningEnabled,
 		WebSearchEnabled:      s.WebSearchEnabled,
@@ -588,9 +691,6 @@ func (c *ChatHandler) UpdateSessionSettings(ctx context.Context, req *chatpb.Upd
 		req.Temperature,
 		req.TopK,
 		req.TopP,
-		req.GetJsonMode(),
-		req.GetJsonSchema(),
-		req.GetToolsJson(),
 		req.GetProfile(),
 		req.GetModelReasoningEnabled(),
 		req.GetWebSearchEnabled(),
@@ -634,68 +734,6 @@ func (c *ChatHandler) SetSelectedRunner(ctx context.Context, req *chatpb.SetSele
 	}
 
 	return &commonpb.Empty{}, nil
-}
-
-func (c *ChatHandler) Embed(ctx context.Context, req *chatpb.EmbedRequest) (*chatpb.EmbedResponse, error) {
-	userID, err := c.getUserID(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if req == nil {
-		return nil, StatusErrorWithReason(codes.InvalidArgument, "CHAT_EMBED_EMPTY_REQUEST", "пустой запрос")
-	}
-	text := strings.TrimSpace(req.GetText())
-	if text == "" {
-		return nil, StatusErrorWithReason(codes.InvalidArgument, "CHAT_EMBED_EMPTY_TEXT", "text не может быть пустым")
-	}
-
-	vec, err := c.chatUseCase.Embed(ctx, userID, req.GetModel(), text)
-	if err != nil {
-		if mapped := statusForModelResolutionError(err); mapped != nil {
-			return nil, mapped
-		}
-		return nil, ToStatusError(codes.Internal, err)
-	}
-
-	return &chatpb.EmbedResponse{Values: vec}, nil
-}
-
-func (c *ChatHandler) EmbedBatch(ctx context.Context, req *chatpb.EmbedBatchRequest) (*chatpb.EmbedBatchResponse, error) {
-	userID, err := c.getUserID(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if req == nil {
-		return nil, StatusErrorWithReason(codes.InvalidArgument, "CHAT_EMBED_EMPTY_REQUEST", "пустой запрос")
-	}
-	texts := req.GetTexts()
-	if len(texts) == 0 {
-		return nil, StatusErrorWithReason(codes.InvalidArgument, "CHAT_EMBED_TEXTS_EMPTY", "texts не может быть пустым")
-	}
-	if len(texts) > maxChatEmbedBatchSize {
-		return nil, StatusErrorWithReason(codes.InvalidArgument, "CHAT_EMBED_BATCH_TOO_LARGE", fmt.Sprintf("не более %d текстов за один запрос", maxChatEmbedBatchSize))
-	}
-	for i, t := range texts {
-		if strings.TrimSpace(t) == "" {
-			return nil, StatusErrorWithReason(codes.InvalidArgument, "CHAT_EMBED_TEXTS_ITEM_EMPTY", fmt.Sprintf("texts[%d]: пустая строка", i))
-		}
-	}
-
-	rows, err := c.chatUseCase.EmbedBatch(ctx, userID, req.GetModel(), texts)
-	if err != nil {
-		if mapped := statusForModelResolutionError(err); mapped != nil {
-			return nil, mapped
-		}
-		return nil, ToStatusError(codes.Internal, err)
-	}
-
-	out := &chatpb.EmbedBatchResponse{
-		Embeddings: make([]*chatpb.Embedding, 0, len(rows)),
-	}
-	for _, row := range rows {
-		out.Embeddings = append(out.Embeddings, &chatpb.Embedding{Values: row})
-	}
-	return out, nil
 }
 
 func (c *ChatHandler) PutSessionFile(ctx context.Context, req *chatpb.PutSessionFileRequest) (*chatpb.PutSessionFileResponse, error) {
@@ -744,39 +782,6 @@ func (c *ChatHandler) PutSessionFile(ctx context.Context, req *chatpb.PutSession
 	return &chatpb.PutSessionFileResponse{FileId: id}, nil
 }
 
-func (c *ChatHandler) IndexSessionFile(ctx context.Context, req *chatpb.IndexSessionFileRequest) (*chatpb.IndexSessionFileResponse, error) {
-	if c.documentIngest == nil {
-		return nil, StatusErrorWithReason(codes.Unavailable, "CHAT_INDEXING_UNAVAILABLE", "индексация документов недоступна")
-	}
-
-	userID, err := c.getUserID(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	if req == nil || req.GetSessionId() <= 0 || req.GetFileId() <= 0 {
-		return nil, StatusErrorWithReason(codes.InvalidArgument, "CHAT_SESSION_FILE_IDS_INVALID", "некорректные session_id или file_id")
-	}
-
-	if err := c.documentIngest.IndexSessionFile(ctx, userID, req.GetSessionId(), req.GetFileId(), strings.TrimSpace(req.GetEmbedModel())); err != nil {
-		if errors.Is(err, domain.ErrUnauthorized) {
-			return nil, StatusErrorWithReason(codes.PermissionDenied, "CHAT_UNAUTHORIZED", "нет доступа")
-		}
-
-		if mapped := statusForModelResolutionError(err); mapped != nil {
-			return nil, mapped
-		}
-
-		if mapped := statusForDocumentAttachmentError(err); mapped != nil {
-			return nil, mapped
-		}
-
-		return nil, ToStatusError(codes.Internal, err)
-	}
-
-	return &chatpb.IndexSessionFileResponse{}, nil
-}
-
 func (c *ChatHandler) GetIngestionStatus(ctx context.Context, req *chatpb.GetIngestionStatusRequest) (*chatpb.GetIngestionStatusResponse, error) {
 	if c.documentIngest == nil {
 		return &chatpb.GetIngestionStatusResponse{Status: "unavailable"}, nil
@@ -812,89 +817,6 @@ func (c *ChatHandler) GetIngestionStatus(ctx context.Context, req *chatpb.GetIng
 	out.SourceContentSha256 = idx.SourceContentSHA256
 	out.PipelineVersion = idx.PipelineVersion
 	out.EmbeddingModel = idx.EmbeddingModel
-
-	return out, nil
-}
-
-func (c *ChatHandler) DeleteSessionFileIndex(ctx context.Context, req *chatpb.DeleteSessionFileIndexRequest) (*commonpb.Empty, error) {
-	if c.documentIngest == nil {
-		return &commonpb.Empty{}, nil
-	}
-
-	userID, err := c.getUserID(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	if req == nil || req.GetSessionId() <= 0 || req.GetFileId() <= 0 {
-		return nil, StatusErrorWithReason(codes.InvalidArgument, "CHAT_SESSION_FILE_IDS_INVALID", "некорректные session_id или file_id")
-	}
-
-	if err := c.documentIngest.DeleteSessionFileIndex(ctx, userID, req.GetSessionId(), req.GetFileId()); err != nil {
-		if errors.Is(err, domain.ErrUnauthorized) {
-			return nil, StatusErrorWithReason(codes.PermissionDenied, "CHAT_UNAUTHORIZED", "нет доступа")
-		}
-
-		return nil, ToStatusError(codes.Internal, err)
-	}
-
-	return &commonpb.Empty{}, nil
-}
-
-func (c *ChatHandler) SearchSessionKnowledge(ctx context.Context, req *chatpb.SearchSessionKnowledgeRequest) (*chatpb.SearchSessionKnowledgeResponse, error) {
-	if c.documentIngest == nil {
-		return nil, StatusErrorWithReason(codes.Unavailable, "CHAT_INDEX_SEARCH_UNAVAILABLE", "поиск по индексу недоступен")
-	}
-
-	userID, err := c.getUserID(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	if req == nil || req.GetSessionId() <= 0 {
-		return nil, StatusErrorWithReason(codes.InvalidArgument, "CHAT_INVALID_SESSION_ID", "некорректный session_id")
-	}
-
-	q := strings.TrimSpace(req.GetQuery())
-	if q == "" {
-		return nil, StatusErrorWithReason(codes.InvalidArgument, "CHAT_SEARCH_QUERY_EMPTY", "пустой query")
-	}
-
-	topK := int(req.GetTopK())
-	if topK <= 0 {
-		topK = 5
-	}
-
-	if topK > 32 {
-		topK = 32
-	}
-
-	hits, err := c.documentIngest.SearchSessionKnowledge(ctx, userID, req.GetSessionId(), strings.TrimSpace(req.GetEmbedModel()), q, topK, nil, c.cfg.RAG.EffectiveNeighborChunkWindow())
-	if err != nil {
-		if errors.Is(err, domain.ErrUnauthorized) {
-			return nil, StatusErrorWithReason(codes.PermissionDenied, "CHAT_UNAUTHORIZED", "нет доступа")
-		}
-
-		if mapped := statusForModelResolutionError(err); mapped != nil {
-			return nil, mapped
-		}
-
-		return nil, ToStatusError(codes.Internal, err)
-	}
-
-	out := &chatpb.SearchSessionKnowledgeResponse{
-		Hits: make([]*chatpb.RagSearchHit, 0, len(hits)),
-	}
-
-	for _, h := range hits {
-		out.Hits = append(out.Hits, &chatpb.RagSearchHit{
-			ChunkId:    h.DocumentRAGChunk.ID,
-			FileId:     h.DocumentRAGChunk.FileID,
-			ChunkIndex: int32(h.DocumentRAGChunk.ChunkIndex),
-			Score:      h.Score,
-			Text:       h.DocumentRAGChunk.Text,
-		})
-	}
 
 	return out, nil
 }
@@ -952,83 +874,6 @@ func (c *ChatHandler) GetSessionFile(ctx context.Context, req *chatpb.GetSession
 	}
 
 	return &chatpb.GetSessionFileResponse{Filename: name, Content: data}, nil
-}
-
-func (c *ChatHandler) ApplySpreadsheet(ctx context.Context, req *chatpb.SpreadsheetApplyRequest) (*chatpb.SpreadsheetApplyResponse, error) {
-	_, err := c.getUserID(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	if req == nil {
-		return nil, StatusErrorWithReason(codes.InvalidArgument, "CHAT_SPREADSHEET_EMPTY_REQUEST", "пустой запрос")
-	}
-
-	out, preview, exportedCSV, err := c.chatUseCase.ApplySpreadsheet(
-		ctx,
-		req.GetWorkbookXlsx(),
-		req.GetOperationsJson(),
-		req.GetPreviewSheet(),
-		req.GetPreviewRange(),
-	)
-
-	if err != nil {
-		if errors.Is(err, spreadsheet.ErrInvalidOp) || errors.Is(err, spreadsheet.ErrWorkbookTooLarge) {
-			return nil, StatusErrorWithReason(codes.InvalidArgument, "CHAT_SPREADSHEET_INVALID_ARGUMENT", err.Error())
-		}
-
-		return nil, ToStatusError(codes.Internal, err)
-	}
-
-	return &chatpb.SpreadsheetApplyResponse{
-		WorkbookXlsx: out,
-		PreviewTsv:   preview,
-		ExportedCsv:  exportedCSV,
-	}, nil
-}
-
-func (c *ChatHandler) BuildDocx(ctx context.Context, req *chatpb.DocxBuildRequest) (*chatpb.DocxBuildResponse, error) {
-	_, err := c.getUserID(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	if req == nil {
-		return nil, StatusErrorWithReason(codes.InvalidArgument, "CHAT_DOCX_EMPTY_REQUEST", "пустой запрос")
-	}
-
-	out, err := c.chatUseCase.BuildDocx(ctx, req.GetSpecJson())
-	if err != nil {
-		if errors.Is(err, document.ErrDocxBuildInvalidSpec) || errors.Is(err, document.ErrDocxBuildTooLarge) {
-			return nil, StatusErrorWithReason(codes.InvalidArgument, "CHAT_DOCX_INVALID_ARGUMENT", err.Error())
-		}
-
-		return nil, ToStatusError(codes.Internal, err)
-	}
-
-	return &chatpb.DocxBuildResponse{Docx: out}, nil
-}
-
-func (c *ChatHandler) ApplyMarkdownPatch(ctx context.Context, req *chatpb.MarkdownPatchRequest) (*chatpb.MarkdownPatchResponse, error) {
-	_, err := c.getUserID(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	if req == nil {
-		return nil, StatusErrorWithReason(codes.InvalidArgument, "CHAT_MD_PATCH_EMPTY_REQUEST", "пустой запрос")
-	}
-
-	out, err := c.chatUseCase.ApplyMarkdownPatch(ctx, req.GetBaseText(), req.GetPatchJson())
-	if err != nil {
-		if errors.Is(err, document.ErrMdPatchInvalidSpec) || errors.Is(err, document.ErrMdPatchAmbiguousSubstr) {
-			return nil, StatusErrorWithReason(codes.InvalidArgument, "CHAT_MD_PATCH_INVALID_ARGUMENT", err.Error())
-		}
-
-		return nil, ToStatusError(codes.Internal, err)
-	}
-
-	return &chatpb.MarkdownPatchResponse{Text: out}, nil
 }
 
 func (c *ChatHandler) DownloadVoskModel(req *chatpb.VoskModelDownloadRequest, stream chatpb.ChatService_DownloadVoskModelServer) error {

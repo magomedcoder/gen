@@ -224,37 +224,6 @@ func (h *RunnerHandler) DeleteRunner(ctx context.Context, req *runnerpb.DeleteRu
 	return &commonpb.Empty{}, nil
 }
 
-func (h *RunnerHandler) SetRunnerEnabled(ctx context.Context, req *runnerpb.SetRunnerEnabledRequest) (*commonpb.Empty, error) {
-	if err := RequireAdmin(ctx, h.authUseCase); err != nil {
-		return nil, err
-	}
-	if req == nil || req.GetId() <= 0 {
-		return nil, StatusErrorWithReason(codes.InvalidArgument, "RUNNER_POSITIVE_ID_REQUIRED", "нужен положительный id")
-	}
-	before, err := h.runnerRepo.GetByID(ctx, req.GetId())
-	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
-			return nil, StatusErrorWithReason(codes.NotFound, "RUNNER_NOT_FOUND", "раннер не найден")
-		}
-		return nil, ToStatusError(codes.Internal, err)
-	}
-	if err := h.runnerRepo.SetEnabled(ctx, req.GetId(), req.GetEnabled()); err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
-			return nil, StatusErrorWithReason(codes.NotFound, "RUNNER_NOT_FOUND", "раннер не найден")
-		}
-		return nil, ToStatusError(codes.Internal, err)
-	}
-	addr := domain.RunnerListenAddress(before.Host, before.Port)
-	if !req.GetEnabled() && addr != "" {
-		h.pool.CloseAddr(addr)
-	}
-	if err := h.syncRegistry(ctx); err != nil {
-		return nil, ToStatusError(codes.Internal, err)
-	}
-	logger.I("SetRunnerEnabled: id=%d enabled=%v", req.GetId(), req.GetEnabled())
-	return &commonpb.Empty{}, nil
-}
-
 func (h *RunnerHandler) GetRunnersStatus(ctx context.Context, _ *commonpb.Empty) (*runnerpb.GetRunnersStatusResponse, error) {
 	return &runnerpb.GetRunnersStatusResponse{
 		HasActiveRunners: h.registry.HasActiveRunners(),
@@ -462,14 +431,6 @@ func (h *RunnerHandler) CheckConnection(ctx context.Context, _ *llmrunnerpb.Empt
 	}, nil
 }
 
-func (h *RunnerHandler) RegisterRunnerWithToken(ctx context.Context, _ *llmrunnerpb.RunnerRegisterRequest) (*llmrunnerpb.Empty, error) {
-	return nil, StatusErrorWithReason(codes.FailedPrecondition, "RUNNER_SELF_REGISTER_DISABLED_ADD", "саморегистрация отключена: добавьте раннер в админке (имя, IP, порт)")
-}
-
-func (h *RunnerHandler) UnregisterRunnerWithToken(ctx context.Context, _ *llmrunnerpb.RunnerUnregisterRequest) (*llmrunnerpb.Empty, error) {
-	return nil, StatusErrorWithReason(codes.FailedPrecondition, "RUNNER_SELF_REGISTER_DISABLED_REMOVE", "саморегистрация отключена: удалите раннер в админке")
-}
-
 func mapDomainMCPServerToProto(s *domain.MCPServer) *runnerpb.MCPServer {
 	if s == nil {
 		return nil
@@ -574,31 +535,6 @@ func (h *RunnerHandler) ListMCPServers(ctx context.Context, _ *commonpb.Empty) (
 	}
 
 	return &runnerpb.ListMCPServersResponse{Servers: out}, nil
-}
-
-func (h *RunnerHandler) GetMCPServer(ctx context.Context, req *runnerpb.GetMCPServerRequest) (*runnerpb.MCPServer, error) {
-	if err := RequireAdmin(ctx, h.authUseCase); err != nil {
-		return nil, err
-	}
-
-	if h.mcpServersUC == nil {
-		return nil, StatusErrorWithReason(codes.Internal, "MCP_SERVICE_UNAVAILABLE", "MCP недоступен")
-	}
-
-	if req == nil || req.GetId() <= 0 {
-		return nil, StatusErrorWithReason(codes.InvalidArgument, "RUNNER_POSITIVE_ID_REQUIRED", "нужен положительный id")
-	}
-
-	s, err := h.mcpServersUC.GetGlobal(ctx, req.GetId())
-	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
-			return nil, StatusErrorWithReason(codes.NotFound, "MCP_SERVER_NOT_FOUND", "MCP-сервер не найден")
-		}
-
-		return nil, ToStatusError(codes.Internal, err)
-	}
-
-	return mapDomainMCPServerToProto(s), nil
 }
 
 func (h *RunnerHandler) CreateMCPServer(ctx context.Context, req *runnerpb.CreateMCPServerRequest) (*runnerpb.MCPServer, error) {
@@ -775,32 +711,6 @@ func (h *RunnerHandler) ListUserMCPServers(ctx context.Context, _ *commonpb.Empt
 	}
 
 	return &runnerpb.ListMCPServersResponse{Servers: out}, nil
-}
-
-func (h *RunnerHandler) GetUserMCPServer(ctx context.Context, req *runnerpb.GetMCPServerRequest) (*runnerpb.MCPServer, error) {
-	user, err := GetUserFromContext(ctx, h.authUseCase)
-	if err != nil {
-		return nil, err
-	}
-
-	if h.mcpServersUC == nil {
-		return nil, StatusErrorWithReason(codes.Internal, "MCP_SERVICE_UNAVAILABLE", "MCP недоступен")
-	}
-
-	if req == nil || req.GetId() <= 0 {
-		return nil, StatusErrorWithReason(codes.InvalidArgument, "RUNNER_POSITIVE_ID_REQUIRED", "нужен положительный id")
-	}
-
-	s, err := h.mcpServersUC.GetForUser(ctx, req.GetId(), user.Id)
-	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
-			return nil, StatusErrorWithReason(codes.NotFound, "MCP_SERVER_NOT_FOUND", "MCP-сервер не найден")
-		}
-
-		return nil, ToStatusError(codes.Internal, err)
-	}
-
-	return mapDomainMCPServerToProto(s), nil
 }
 
 func (h *RunnerHandler) CreateUserMCPServer(ctx context.Context, req *runnerpb.CreateMCPServerRequest) (*runnerpb.MCPServer, error) {

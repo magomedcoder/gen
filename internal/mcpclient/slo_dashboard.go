@@ -1,7 +1,6 @@
 package mcpclient
 
 import (
-	"encoding/json"
 	"sort"
 	"sync"
 	"time"
@@ -125,14 +124,4 @@ func MCPServerSLODashboard() []MCPServerSLORow {
 	})
 
 	return out
-}
-
-func MCPServerSLODashboardJSON() string {
-	rows := MCPServerSLODashboard()
-	b, err := json.Marshal(rows)
-	if err != nil {
-		return "[]"
-	}
-
-	return string(b)
 }

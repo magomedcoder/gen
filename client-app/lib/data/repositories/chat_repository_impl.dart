@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
-
 import 'package:gen/core/failures.dart';
 import 'package:gen/core/log/logs.dart';
 import 'package:gen/core/user_safe_error.dart';
@@ -13,7 +11,6 @@ import 'package:gen/domain/entities/user_message_edit.dart';
 import 'package:gen/domain/entities/session.dart';
 import 'package:gen/domain/entities/session_file_download.dart';
 import 'package:gen/domain/entities/session_messages_page.dart';
-import 'package:gen/domain/entities/spreadsheet_apply_result.dart';
 import 'package:gen/domain/entities/file_ingestion_status.dart';
 import 'package:gen/domain/repositories/chat_repository.dart';
 
@@ -200,17 +197,6 @@ class ChatRepositoryImpl implements ChatRepository {
   }
 
   @override
-  Future<ChatSession> getSession(int sessionId) async {
-    try {
-      return await dataSource.getSession(sessionId);
-    } catch (e, st) {
-      if (e is Failure) rethrow;
-      Logs().e('ChatRepository: getSession', exception: e, stackTrace: st);
-      throw ApiFailure(userSafeErrorMessage(e, fallback: 'Ошибка получения сессии'));
-    }
-  }
-
-  @override
   Future<List<ChatSession>> listSessions(int page, int pageSize) async {
     try {
       return await dataSource.getSessions(page, pageSize);
@@ -290,9 +276,6 @@ class ChatRepositoryImpl implements ChatRepository {
     double? temperature,
     int? topK,
     double? topP,
-    required bool jsonMode,
-    required String jsonSchema,
-    required String toolsJson,
     required String profile,
     required bool modelReasoningEnabled,
     required bool webSearchEnabled,
@@ -309,9 +292,6 @@ class ChatRepositoryImpl implements ChatRepository {
         temperature: temperature,
         topK: topK,
         topP: topP,
-        jsonMode: jsonMode,
-        jsonSchema: jsonSchema,
-        toolsJson: toolsJson,
         profile: profile,
         modelReasoningEnabled: modelReasoningEnabled,
         webSearchEnabled: webSearchEnabled,
@@ -415,52 +395,4 @@ class ChatRepositoryImpl implements ChatRepository {
     }
   }
 
-  @override
-  Future<SpreadsheetApplyResult> applySpreadsheet({
-    List<int>? workbookXlsx,
-    required String operationsJson,
-    String previewSheet = '',
-    String previewRange = '',
-  }) async {
-    try {
-      return await dataSource.applySpreadsheet(
-        workbookXlsx: workbookXlsx,
-        operationsJson: operationsJson,
-        previewSheet: previewSheet,
-        previewRange: previewRange,
-      );
-    } catch (e, st) {
-      if (e is Failure) rethrow;
-      Logs().e('ChatRepository: applySpreadsheet', exception: e, stackTrace: st);
-      throw ApiFailure(userSafeErrorMessage(e, fallback: 'Ошибка таблицы'));
-    }
-  }
-
-  @override
-  Future<Uint8List> buildDocx({required String specJson}) async {
-    try {
-      return await dataSource.buildDocx(specJson: specJson);
-    } catch (e, st) {
-      if (e is Failure) rethrow;
-      Logs().e('ChatRepository: buildDocx', exception: e, stackTrace: st);
-      throw ApiFailure(userSafeErrorMessage(e, fallback: 'Ошибка документа Word'));
-    }
-  }
-
-  @override
-  Future<String> applyMarkdownPatch({
-    required String baseText,
-    required String patchJson,
-  }) async {
-    try {
-      return await dataSource.applyMarkdownPatch(
-        baseText: baseText,
-        patchJson: patchJson,
-      );
-    } catch (e, st) {
-      if (e is Failure) rethrow;
-      Logs().e('ChatRepository: applyMarkdownPatch', exception: e, stackTrace: st);
-      throw ApiFailure(userSafeErrorMessage(e, fallback: 'Ошибка патча текста'));
-    }
-  }
 }

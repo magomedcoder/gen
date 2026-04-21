@@ -8,9 +8,6 @@ class ChatSessionSettings extends Equatable {
   final double? temperature;
   final int? topK;
   final double? topP;
-  final bool jsonMode;
-  final String jsonSchema;
-  final String toolsJson;
   final String profile;
   final bool modelReasoningEnabled;
   final bool webSearchEnabled;
@@ -26,9 +23,6 @@ class ChatSessionSettings extends Equatable {
     this.temperature,
     this.topK,
     this.topP,
-    this.jsonMode = false,
-    this.jsonSchema = '',
-    this.toolsJson = '',
     this.profile = '',
     this.modelReasoningEnabled = false,
     this.webSearchEnabled = false,
@@ -46,9 +40,6 @@ class ChatSessionSettings extends Equatable {
     temperature,
     topK,
     topP,
-    jsonMode,
-    jsonSchema,
-    toolsJson,
     profile,
     modelReasoningEnabled,
     webSearchEnabled,

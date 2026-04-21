@@ -4,11 +4,7 @@ import (
 	"math"
 	"sort"
 	"strings"
-
-	"github.com/magomedcoder/gen/api/pb/llmrunnerpb"
 )
-
-const maxRunnerHintInt = int(^uint32(0) >> 1)
 
 type RunnerCoreHints struct {
 	MaxContextTokens           int
@@ -79,44 +75,6 @@ func FinalizeChatHints(h RunnerCoreHints) RunnerCoreHints {
 	h.SummaryRunnerListenAddress = strings.TrimSpace(h.SummaryRunnerListenAddress)
 
 	return h
-}
-
-func ClampHintsFromRegistration(h *RunnerCoreHints) {
-	if h == nil {
-		return
-	}
-	if h.MaxContextTokens < 0 {
-		h.MaxContextTokens = 0
-	}
-	if h.MaxContextTokens > 500_000 {
-		h.MaxContextTokens = 500_000
-	}
-	if h.LLMHistoryMaxMessages < 0 {
-		h.LLMHistoryMaxMessages = 0
-	}
-	if h.LLMHistoryMaxMessages > maxRunnerHintInt {
-		h.LLMHistoryMaxMessages = maxRunnerHintInt
-	}
-	if h.SummaryMaxInputRunes < 0 {
-		h.SummaryMaxInputRunes = 0
-	}
-	if h.SummaryMaxInputRunes > maxRunnerHintInt {
-		h.SummaryMaxInputRunes = maxRunnerHintInt
-	}
-	if h.SummaryCacheEntries < 0 {
-		h.SummaryCacheEntries = 0
-	}
-	if h.SummaryCacheEntries > 50_000 {
-		h.SummaryCacheEntries = 50_000
-	}
-	if h.MaxToolInvocationRounds < 0 {
-		h.MaxToolInvocationRounds = 0
-	}
-	if h.MaxToolInvocationRounds > maxRunnerHintInt {
-		h.MaxToolInvocationRounds = maxRunnerHintInt
-	}
-	h.SummaryModel = strings.TrimSpace(h.SummaryModel)
-	h.SummaryRunnerListenAddress = strings.TrimSpace(h.SummaryRunnerListenAddress)
 }
 
 func (r *Registry) AggregateChatHints() RunnerCoreHints {
@@ -233,23 +191,4 @@ func (r *Registry) AggregateChatHints() RunnerCoreHints {
 	}
 
 	return FinalizeChatHints(out)
-}
-
-func HintsFromRunnerRegisterProto(pb *llmrunnerpb.RunnerRegisterHints) *RunnerCoreHints {
-	if pb == nil {
-		return nil
-	}
-
-	h := &RunnerCoreHints{
-		MaxContextTokens:           int(pb.GetMaxContextTokens()),
-		LLMHistoryMaxMessages:      int(pb.GetLlmHistoryMaxMessages()),
-		LLMHistorySummarizeDropped: pb.GetLlmHistorySummarizeDropped(),
-		SummaryMaxInputRunes:       int(pb.GetLlmHistorySummaryMaxInputRunes()),
-		SummaryModel:               pb.GetLlmHistorySummaryModel(),
-		SummaryRunnerListenAddress: pb.GetLlmHistorySummaryRunnerListenAddress(),
-		SummaryCacheEntries:        int(pb.GetLlmHistorySummaryCacheEntries()),
-		MaxToolInvocationRounds:    int(pb.GetMaxToolInvocationRounds()),
-	}
-	ClampHintsFromRegistration(h)
-	return h
 }

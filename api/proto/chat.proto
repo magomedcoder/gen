@@ -33,8 +33,6 @@ service ChatService {
 
   rpc GetSessions(GetSessionsRequest) returns (GetSessionsResponse);
 
-  rpc GetSession(GetSessionRequest) returns (ChatSession);
-
   rpc GetSessionMessages(GetSessionMessagesRequest) returns (GetSessionMessagesResponse);
 
   rpc DeleteSession(DeleteSessionRequest) returns (common.Empty);
@@ -45,27 +43,11 @@ service ChatService {
 
   rpc UpdateSessionSettings(UpdateSessionSettingsRequest) returns (SessionSettings);
 
-  rpc Embed(EmbedRequest) returns (EmbedResponse);
-
-  rpc EmbedBatch(EmbedBatchRequest) returns (EmbedBatchResponse);
-
   rpc PutSessionFile(PutSessionFileRequest) returns (PutSessionFileResponse);
-
-  rpc IndexSessionFile(IndexSessionFileRequest) returns (IndexSessionFileResponse);
 
   rpc GetIngestionStatus(GetIngestionStatusRequest) returns (GetIngestionStatusResponse);
 
-  rpc DeleteSessionFileIndex(DeleteSessionFileIndexRequest) returns (common.Empty);
-
-  rpc SearchSessionKnowledge(SearchSessionKnowledgeRequest) returns (SearchSessionKnowledgeResponse);
-
   rpc GetSessionFile(GetSessionFileRequest) returns (GetSessionFileResponse);
-
-  rpc ApplySpreadsheet(SpreadsheetApplyRequest) returns (SpreadsheetApplyResponse);
-
-  rpc BuildDocx(DocxBuildRequest) returns (DocxBuildResponse);
-
-  rpc ApplyMarkdownPatch(MarkdownPatchRequest) returns (MarkdownPatchResponse);
 
   rpc DownloadVoskModel(VoskModelDownloadRequest) returns (stream VoskModelChunk);
 }
@@ -233,10 +215,6 @@ message CreateSessionRequest {
   string title = 1;
 }
 
-message GetSessionRequest {
-  int64 session_id = 1;
-}
-
 message GetSessionMessagesRequest {
   int64 session_id = 1;
   int32 page = 2;
@@ -273,9 +251,6 @@ message UpdateSessionSettingsRequest {
   optional float temperature = 5;
   optional int32 top_k = 6;
   optional float top_p = 7;
-  bool json_mode = 8;
-  string json_schema = 9;
-  string tools_json = 10;
   string profile = 11;
   bool model_reasoning_enabled = 12;
   bool web_search_enabled = 13;
@@ -292,9 +267,6 @@ message SessionSettings {
   optional float temperature = 5;
   optional int32 top_k = 6;
   optional float top_p = 7;
-  bool json_mode = 8;
-  string json_schema = 9;
-  string tools_json = 10;
   string profile = 11;
   bool model_reasoning_enabled = 12;
   bool web_search_enabled = 13;
@@ -311,28 +283,6 @@ message SetSelectedRunnerRequest {
   string runner = 1;
 }
 
-message EmbedRequest {
-  string model = 1;
-  string text = 2;
-}
-
-message EmbedResponse {
-  repeated float values = 1;
-}
-
-message EmbedBatchRequest {
-  string model = 1;
-  repeated string texts = 2;
-}
-
-message Embedding {
-  repeated float values = 1;
-}
-
-message EmbedBatchResponse {
-  repeated Embedding embeddings = 1;
-}
-
 message PutSessionFileRequest {
   int64 session_id = 1;
   string filename = 2;
@@ -343,14 +293,6 @@ message PutSessionFileRequest {
 message PutSessionFileResponse {
   int64 file_id = 1;
 }
-
-message IndexSessionFileRequest {
-  int64 session_id = 1;
-  int64 file_id = 2;
-  string embed_model = 3;
-}
-
-message IndexSessionFileResponse {}
 
 message GetIngestionStatusRequest {
   int64 session_id = 1;
@@ -366,30 +308,6 @@ message GetIngestionStatusResponse {
   string embedding_model = 6;
 }
 
-message DeleteSessionFileIndexRequest {
-  int64 session_id = 1;
-  int64 file_id = 2;
-}
-
-message SearchSessionKnowledgeRequest {
-  int64 session_id = 1;
-  string query = 2;
-  int32 top_k = 3;
-  string embed_model = 4;
-}
-
-message RagSearchHit {
-  int64 chunk_id = 1;
-  int64 file_id = 2;
-  int32 chunk_index = 3;
-  double score = 4;
-  string text = 5;
-}
-
-message SearchSessionKnowledgeResponse {
-  repeated RagSearchHit hits = 1;
-}
-
 message GetSessionFileRequest {
   int64 session_id = 1;
   int64 file_id = 2;
@@ -398,36 +316,6 @@ message GetSessionFileRequest {
 message GetSessionFileResponse {
   string filename = 1;
   bytes content = 2;
-}
-
-message SpreadsheetApplyRequest {
-  bytes workbook_xlsx = 1;
-  string operations_json = 2;
-  string preview_sheet = 3;
-  string preview_range = 4;
-}
-
-message SpreadsheetApplyResponse {
-  bytes workbook_xlsx = 1;
-  string preview_tsv = 2;
-  string exported_csv = 3;
-}
-
-message DocxBuildRequest {
-  string spec_json = 1;
-}
-
-message DocxBuildResponse {
-  bytes docx = 1;
-}
-
-message MarkdownPatchRequest {
-  string base_text = 1;
-  string patch_json = 2;
-}
-
-message MarkdownPatchResponse {
-  string text = 1;
 }
 
 message VoskModelDownloadRequest {

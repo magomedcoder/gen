@@ -66,9 +66,6 @@ class ChatSessionSettingsButton extends StatelessWidget {
     final temperatureController = TextEditingController(text: current.temperature?.toString() ?? '');
     final topKController = TextEditingController(text: current.topK?.toString() ?? '');
     final topPController = TextEditingController(text: current.topP?.toString() ?? '');
-    final jsonSchemaController = TextEditingController(text: current.jsonSchema);
-    final toolsJsonController = TextEditingController(text: current.toolsJson);
-    var jsonMode = current.jsonMode;
     var expertMode = false;
     var selectedProfile = current.profile;
     var selectedRunner = state.selectedRunner;
@@ -346,47 +343,6 @@ class ChatSessionSettingsButton extends StatelessWidget {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      _settingsSection(
-                        ctx,
-                        title: 'Формат и инструменты',
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            SwitchListTile(
-                              value: jsonMode,
-                              contentPadding: EdgeInsets.zero,
-                              title: const Text('Режим json'),
-                              subtitle: const Text('Модель возвращать ответ в json-формате'),
-                              onChanged: (v) => setStateDialog(() => jsonMode = v),
-                            ),
-                            if (jsonMode) ...[
-                              const SizedBox(height: 8),
-                              TextField(
-                                controller: jsonSchemaController,
-                                maxLines: 6,
-                                decoration: const InputDecoration(
-                                  labelText: 'json схема (опциональная)',
-                                  helperText: 'Опциональная схема/грамматика JSON для более строгой структуры ответа',
-                                  helperMaxLines: 3,
-                                  border: OutlineInputBorder(),
-                                ),
-                              ),
-                            ],
-                            const SizedBox(height: 8),
-                            TextField(
-                              controller: toolsJsonController,
-                              maxLines: 6,
-                              decoration: const InputDecoration(
-                                labelText: 'Инструменты json (опциональная)',
-                                helperText: 'json-массив инструментов. Пример: [{"name":"search","description":"Поиск","parameters_json":"{\\"type\\":\\"object\\",\\"properties\\":{}}"}]',
-                                helperMaxLines: 4,
-                                border: OutlineInputBorder(),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                     ],
                   ],
                 ),
@@ -432,9 +388,6 @@ class ChatSessionSettingsButton extends StatelessWidget {
                     temperature: temperature,
                     topK: topK,
                     topP: topP,
-                    jsonMode: jsonMode,
-                    jsonSchema: jsonSchemaController.text.trim(),
-                    toolsJson: toolsJsonController.text.trim(),
                     profile: selectedProfile,
                     modelReasoningEnabled: current.modelReasoningEnabled,
                     webSearchEnabled: current.webSearchEnabled,

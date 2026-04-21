@@ -219,9 +219,6 @@ class ChatUpdateSessionSettings extends ChatEvent {
   final double? temperature;
   final int? topK;
   final double? topP;
-  final bool jsonMode;
-  final String jsonSchema;
-  final String toolsJson;
   final String profile;
   final bool modelReasoningEnabled;
   final bool webSearchEnabled;
@@ -236,9 +233,6 @@ class ChatUpdateSessionSettings extends ChatEvent {
     this.temperature,
     this.topK,
     this.topP,
-    required this.jsonMode,
-    required this.jsonSchema,
-    required this.toolsJson,
     required this.profile,
     this.modelReasoningEnabled = false,
     this.webSearchEnabled = false,
@@ -255,9 +249,6 @@ class ChatUpdateSessionSettings extends ChatEvent {
     temperature,
     topK,
     topP,
-    jsonMode,
-    jsonSchema,
-    toolsJson,
     profile,
     modelReasoningEnabled,
     webSearchEnabled,
