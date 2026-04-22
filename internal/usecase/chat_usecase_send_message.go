@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/magomedcoder/gen/internal/domain"
@@ -37,15 +38,21 @@ func (c *ChatUseCase) SendMessage(ctx context.Context, userId int, sessionId int
 		return nil, err
 	}
 
+	if len(normalizedAttachmentFileIDs) == 0 && strings.TrimSpace(userMessage) == "" {
+		return nil, fmt.Errorf("пустое сообщение: укажите текст или вложение")
+	}
+
 	attachmentNames := make([]string, 0, len(normalizedAttachmentFileIDs))
 	attachmentContents := make([][]byte, 0, len(normalizedAttachmentFileIDs))
+	attachmentImageMIMEs := make([]string, 0, len(normalizedAttachmentFileIDs))
 	for _, fid := range normalizedAttachmentFileIDs {
-		name, content, err := c.loadSessionAttachmentForSend(ctx, userId, sessionId, fid)
+		name, content, imgMime, err := c.loadSessionAttachmentForSend(ctx, userId, sessionId, fid)
 		if err != nil {
 			return nil, err
 		}
 		attachmentNames = append(attachmentNames, name)
 		attachmentContents = append(attachmentContents, content)
+		attachmentImageMIMEs = append(attachmentImageMIMEs, imgMime)
 	}
 
 	var storedAttachmentFileID *int64
@@ -76,6 +83,7 @@ func (c *ChatUseCase) SendMessage(ctx context.Context, userId int, sessionId int
 			attachmentFileIDs:        normalizedAttachmentFileIDs,
 			attachmentNames:          attachmentNames,
 			attachmentContents:       attachmentContents,
+			attachmentImageMIMEs:     attachmentImageMIMEs,
 			fileRAG:                  fileRAG,
 			preferFullDocumentIfFits: c.preferFullDocumentWhenFits,
 			genParams:                genParams,

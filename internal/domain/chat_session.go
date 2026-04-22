@@ -18,6 +18,7 @@ type Message struct {
 	Content           string
 	Role              MessageRole
 	AttachmentName    string
+	AttachmentMime    string
 	AttachmentFileID  *int64
 	AttachmentContent []byte
 	ToolCallID        string

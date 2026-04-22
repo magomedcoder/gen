@@ -17,6 +17,50 @@ import 'package:gen/presentation/screens/chat/bloc/chat_bloc.dart';
 import 'package:gen/presentation/screens/chat/bloc/chat_event.dart';
 import 'package:gen/presentation/screens/chat/bloc/chat_state.dart';
 import 'package:gen/presentation/screens/chat/widgets/chat_mcp_input_sheet.dart';
+import 'package:super_clipboard/super_clipboard.dart';
+
+Future<Uint8List?> _readClipboardFileFormat(
+  DataReader reader,
+  FileFormat format,
+) async {
+  final completer = Completer<Uint8List?>();
+  final progress = reader.getFile(format, (file) async {
+    try {
+      completer.complete(await file.readAll());
+    } catch (e, st) {
+      completer.completeError(e, st);
+    }
+  }, onError: (e) {
+    if (!completer.isCompleted) {
+      completer.completeError(e);
+    }
+  });
+  if (progress == null) {
+    completer.complete(null);
+  }
+  return completer.future;
+}
+
+Future<({Uint8List bytes, String name})?> _readFirstSupportedClipboardImage(
+  ClipboardReader reader,
+) async {
+  final candidates = <(FileFormat, String)>[
+    (Formats.png, 'clipboard.png'),
+    (Formats.jpeg, 'clipboard.jpg'),
+    (Formats.webp, 'clipboard.webp'),
+    (Formats.gif, 'clipboard.gif'),
+  ];
+  for (final c in candidates) {
+    if (!reader.canProvide(c.$1)) {
+      continue;
+    }
+    final bytes = await _readClipboardFileFormat(reader, c.$1);
+    if (bytes != null && bytes.isNotEmpty) {
+      return (bytes: bytes, name: c.$2);
+    }
+  }
+  return null;
+}
 
 class ChatInputBar extends StatefulWidget {
   const ChatInputBar({
@@ -192,7 +236,7 @@ class ChatInputBarState extends State<ChatInputBar> {
 
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: AttachmentSettings.textFileExtensions,
+      allowedExtensions: AttachmentSettings.allChatAttachmentExtensions,
       allowMultiple: true,
       withData: true,
     );
@@ -303,6 +347,63 @@ class ChatInputBarState extends State<ChatInputBar> {
         error: true,
       );
     }
+  }
+
+  Future<void> _pasteImageFromClipboard() async {
+    if (!widget.isEnabled || !widget.allowAttachments) {
+      return;
+    }
+    if (_dictating || _voskModelLoading) {
+      return;
+    }
+    if (_selectedFiles.length >= _maxAttachments) {
+      if (mounted) {
+        showAppTopNotice(
+          'Можно прикрепить не более $_maxAttachments файлов',
+          error: true,
+        );
+      }
+      return;
+    }
+    final clipboard = SystemClipboard.instance;
+    if (clipboard == null) {
+      if (mounted) {
+        showAppTopNotice(
+          'Вставка изображения из буфера на этой платформе недоступна',
+          error: true,
+        );
+      }
+      return;
+    }
+    final ClipboardReader reader;
+    try {
+      reader = await clipboard.read();
+    } catch (_) {
+      if (mounted) {
+        showAppTopNotice('Не удалось прочитать буфер обмена', error: true);
+      }
+      return;
+    }
+    final pair = await _readFirstSupportedClipboardImage(reader);
+    if (pair == null) {
+      if (mounted) {
+        showAppTopNotice(
+          'В буфере нет изображения (PNG, JPEG, WebP, GIF)',
+          error: true,
+        );
+      }
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    setDroppedFiles([
+      PlatformFile(
+        name: pair.name,
+        size: pair.bytes.length,
+        bytes: pair.bytes,
+      ),
+    ]);
   }
 
   void _stopGeneration() {
@@ -1135,6 +1236,24 @@ class ChatInputBarState extends State<ChatInputBar> {
                                 _sendMessage();
                               }
                             },
+                            const SingleActivator(
+                              LogicalKeyboardKey.keyV,
+                              control: true,
+                              shift: true,
+                            ): () {
+                              if (widget.isEnabled) {
+                                unawaited(_pasteImageFromClipboard());
+                              }
+                            },
+                            const SingleActivator(
+                              LogicalKeyboardKey.keyV,
+                              meta: true,
+                              shift: true,
+                            ): () {
+                              if (widget.isEnabled) {
+                                unawaited(_pasteImageFromClipboard());
+                              }
+                            },
                           },
                         },
                         child: TextField(
@@ -1157,8 +1276,8 @@ class ChatInputBarState extends State<ChatInputBar> {
                                 : _dictating
                                 ? 'Слушаю...'
                                 : (isDesktop
-                                      ? 'Сообщение...  Ctrl+Enter - новая строка'
-                                      : 'Сообщение...'),
+                                      ? 'Сообщение…  Ctrl+Enter — новая строка; Ctrl+Shift+V — изображение из буфера'
+                                      : 'Сообщение…'),
                             hintStyle: TextStyle(
                               fontSize: 14,
                               height: 1.45,
@@ -1177,6 +1296,25 @@ class ChatInputBarState extends State<ChatInputBar> {
                             parent: AlwaysScrollableScrollPhysics(),
                           ),
                           onTapOutside: (_) => _focusNode.unfocus(),
+                          contextMenuBuilder: (context, editableTextState) {
+                            return AdaptiveTextSelectionToolbar.buttonItems(
+                              anchors: editableTextState.contextMenuAnchors,
+                              buttonItems: <ContextMenuButtonItem>[
+                                if (widget.allowAttachments &&
+                                    widget.isEnabled &&
+                                    !_dictating &&
+                                    !_voskModelLoading)
+                                  ContextMenuButtonItem(
+                                    label: 'Вставить изображение из буфера',
+                                    onPressed: () {
+                                      editableTextState.hideToolbar();
+                                      unawaited(_pasteImageFromClipboard());
+                                    },
+                                  ),
+                                ...editableTextState.contextMenuButtonItems,
+                              ],
+                            );
+                          },
                         ),
                       ),
                     ),

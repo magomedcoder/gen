@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -7,6 +8,7 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:gen/presentation/widgets/safe_markdown_body.dart';
 import 'package:gen/core/redacted_thinking_split.dart';
 import 'package:gen/core/docx_file_export.dart';
+import 'package:gen/core/chat_image_attachment.dart';
 import 'package:gen/core/injector.dart';
 import 'package:gen/core/layout/responsive.dart';
 import 'package:gen/core/log/logs.dart';
@@ -244,16 +246,26 @@ class _ChatBubbleState extends State<ChatBubble> {
   int? _downloadingFileId;
   bool _isEditing = false;
   bool _reasoningExpanded = false;
+  Uint8List? _userAttachmentThumbBytes;
+  bool _userAttachmentThumbLoading = false;
 
   @override
   void initState() {
     super.initState();
     _reasoningExpanded = widget.isStreaming;
+    unawaited(_maybeLoadUserAttachmentThumb());
   }
 
   @override
   void didUpdateWidget(ChatBubble oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.message.id != oldWidget.message.id ||
+        widget.message.attachmentFileId != oldWidget.message.attachmentFileId ||
+        widget.message.attachmentFileName != oldWidget.message.attachmentFileName ||
+        widget.message.attachmentMime != oldWidget.message.attachmentMime) {
+      _userAttachmentThumbBytes = null;
+      unawaited(_maybeLoadUserAttachmentThumb());
+    }
     if (widget.message.id != oldWidget.message.id) {
       _reasoningExpanded = widget.isStreaming;
     } else if (!oldWidget.isStreaming && widget.isStreaming) {
@@ -330,6 +342,168 @@ class _ChatBubbleState extends State<ChatBubble> {
           ],
         ),
       ],
+    );
+  }
+
+  Future<void> _maybeLoadUserAttachmentThumb() async {
+    final m = widget.message;
+    if (!messageEligibleForChatImageThumb(m) ||
+        !messageHasImageBytesOrFileRef(m)) {
+      if (mounted) {
+        setState(() => _userAttachmentThumbLoading = false);
+      }
+      return;
+    }
+
+    final inline = m.attachmentContent;
+    if (inline != null && inline.isNotEmpty) {
+      if (mounted) {
+        setState(() {
+          _userAttachmentThumbBytes = inline;
+          _userAttachmentThumbLoading = false;
+        });
+      }
+      return;
+    }
+
+    final sid = widget.sessionId;
+    final fid = m.attachmentFileId;
+    if (sid == null || fid == null || fid <= 0) {
+      return;
+    }
+
+    if (mounted) {
+      setState(() => _userAttachmentThumbLoading = true);
+    }
+
+    try {
+      final dl = await sl<GetSessionFileUseCase>()(
+        sessionId: sid,
+        fileId: fid,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _userAttachmentThumbBytes = dl.content;
+        _userAttachmentThumbLoading = false;
+      });
+    } on Object catch (_) {
+      if (mounted) {
+        setState(() {
+          _userAttachmentThumbBytes = null;
+          _userAttachmentThumbLoading = false;
+        });
+      }
+    }
+  }
+
+  void _openFullScreenImagePreview(BuildContext context, Uint8List bytes) {
+    final barrierLabel =
+        MaterialLocalizations.of(context).modalBarrierDismissLabel;
+    showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: barrierLabel,
+      pageBuilder: (ctx, animation, secondaryAnimation) {
+        return Scaffold(
+          backgroundColor: Colors.black.withValues(alpha: 0.93),
+          body: SafeArea(
+            child: Stack(
+              children: [
+                Center(
+                  child: InteractiveViewer(
+                    minScale: 0.4,
+                    maxScale: 6,
+                    child: Image.memory(
+                      bytes,
+                      fit: BoxFit.contain,
+                      gaplessPlayback: true,
+                      errorBuilder: (c, _, stackTrace) => Icon(
+                        Icons.broken_image_outlined,
+                        color: Colors.white.withValues(alpha: 0.7),
+                        size: 64,
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 4,
+                  right: 4,
+                  child: IconButton(
+                    tooltip: 'Закрыть',
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    icon: const Icon(Icons.close, color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget? _userImagePreviewChip(Color messageTextColor) {
+    final m = widget.message;
+    if (!messageEligibleForChatImageThumb(m) ||
+        !messageHasImageBytesOrFileRef(m)) {
+      return null;
+    }
+
+    if (_userAttachmentThumbLoading && _userAttachmentThumbBytes == null) {
+      return SizedBox(
+        height: 120,
+        width: 200,
+        child: Center(
+          child: SizedBox(
+            width: 28,
+            height: 28,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: messageTextColor.withValues(alpha: 0.45),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final bytes = _userAttachmentThumbBytes;
+    if (bytes == null || bytes.isEmpty) {
+      return null;
+    }
+
+    return Tooltip(
+      message: 'Нажмите, чтобы открыть изображение целиком',
+      child: Semantics(
+        label: 'Вложенное изображение, открыть целиком',
+        button: true,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => _openFullScreenImagePreview(context, bytes),
+            borderRadius: BorderRadius.circular(10),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Image.memory(
+                bytes,
+                width: 200,
+                height: 120,
+                fit: BoxFit.cover,
+                gaplessPlayback: true,
+                errorBuilder: (ctx, _, stack) => SizedBox(
+                  width: 200,
+                  height: 48,
+                  child: Icon(
+                    Icons.broken_image_outlined,
+                    color: messageTextColor.withValues(alpha: 0.45),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -474,6 +648,8 @@ class _ChatBubbleState extends State<ChatBubble> {
     final messageTextColor = _messageBodyTextColor(theme.colorScheme);
     final hasAssistantReasoning =
         isAssistant && reasoningDisplay.isNotEmpty;
+    final userImagePreview =
+        isUser ? _userImagePreviewChip(messageTextColor) : null;
 
     return Semantics(
       container: true,
@@ -505,63 +681,78 @@ class _ChatBubbleState extends State<ChatBubble> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    if (userImagePreview != null) ...[
+                      userImagePreview,
+                      const SizedBox(height: 8),
+                    ],
                     if (attachmentLabel != null)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 8),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: canOpenRagPreview
-                                ? () => _showRagPreviewForAttachment(context)
-                                : null,
-                            borderRadius: BorderRadius.circular(8),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 4,
-                                horizontal: 2,
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.insert_drive_file_rounded,
-                                    size: 18,
-                                    color: messageTextColor,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Flexible(
-                                    child: Text(
-                                      attachmentLabel,
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        color: messageTextColor,
-                                        decoration: canOpenRagPreview
-                                            ? TextDecoration.underline
-                                            : TextDecoration.none,
-                                        decorationStyle:
-                                            TextDecorationStyle.dotted,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
+                        child: Tooltip(
+                          message: canOpenRagPreview
+                              ? 'Открыть, как модель видит документ (RAG)'
+                              : (messageEligibleForChatImageThumb(message)
+                                    ? 'Вложение: изображение'
+                                    : 'Вложение: файл'),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: canOpenRagPreview
+                                  ? () => _showRagPreviewForAttachment(context)
+                                  : null,
+                              borderRadius: BorderRadius.circular(8),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 4,
+                                  horizontal: 2,
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      messageEligibleForChatImageThumb(
+                                        message,
+                                      )
+                                          ? Icons.image_outlined
+                                          : Icons.insert_drive_file_rounded,
+                                      size: 18,
+                                      color: messageTextColor,
                                     ),
-                                  ),
-                                  if (canOpenRagPreview) ...[
-                                    const SizedBox(width: 4),
-                                    Tooltip(
-                                      message: hasRagPreviewStored
-                                          ? 'Как модель видит документ'
-                                          : 'Превью после ответа с RAG',
-                                      child: Icon(
-                                        hasRagPreviewStored
-                                            ? Icons.visibility_outlined
-                                            : Icons.visibility_off_outlined,
-                                        size: 18,
-                                        color: messageTextColor.withValues(
-                                          alpha: 0.75,
+                                    const SizedBox(width: 6),
+                                    Flexible(
+                                      child: Text(
+                                        attachmentLabel,
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: messageTextColor,
+                                          decoration: canOpenRagPreview
+                                              ? TextDecoration.underline
+                                              : TextDecoration.none,
+                                          decorationStyle:
+                                              TextDecorationStyle.dotted,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    if (canOpenRagPreview) ...[
+                                      const SizedBox(width: 4),
+                                      Tooltip(
+                                        message: hasRagPreviewStored
+                                            ? 'Как модель видит документ'
+                                            : 'Превью после ответа с RAG',
+                                        child: Icon(
+                                          hasRagPreviewStored
+                                              ? Icons.visibility_outlined
+                                              : Icons.visibility_off_outlined,
+                                          size: 18,
+                                          color: messageTextColor.withValues(
+                                            alpha: 0.75,
+                                          ),
                                         ),
                                       ),
-                                    ),
+                                    ],
                                   ],
-                                ],
+                                ),
                               ),
                             ),
                           ),

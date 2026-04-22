@@ -48,6 +48,7 @@ abstract class MessageMapper {
       attachmentFileNames: proto.hasAttachmentName()
           ? [proto.attachmentName]
           : const [],
+      attachmentMime: proto.hasAttachmentMime() ? proto.attachmentMime : null,
       attachmentContent: proto.attachmentContent.isNotEmpty
           ? Uint8List.fromList(proto.attachmentContent)
           : null,

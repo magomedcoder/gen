@@ -12,6 +12,7 @@ class Message extends Equatable {
   final DateTime? updatedAt;
   final String? attachmentFileName;
   final List<String> attachmentFileNames;
+  final String? attachmentMime;
   final Uint8List? attachmentContent;
   final int? attachmentFileId;
   final List<int> attachmentFileIds;
@@ -31,6 +32,7 @@ class Message extends Equatable {
     this.updatedAt,
     this.attachmentFileName,
     this.attachmentFileNames = const [],
+    this.attachmentMime,
     this.attachmentContent,
     this.attachmentFileId,
     this.attachmentFileIds = const [],
@@ -61,6 +63,7 @@ class Message extends Equatable {
     updatedAt,
     attachmentFileName,
     attachmentFileNames,
+    attachmentMime,
     attachmentFileId,
     attachmentFileIds,
     reasoningContent,

@@ -68,6 +68,7 @@ message ChatMessage {
   optional string tool_calls_json = 9;
   optional int64 attachment_file_id = 10;
   int64 updated_at = 11;
+  optional string attachment_mime = 12;
 }
 
 enum StreamChunkKind {

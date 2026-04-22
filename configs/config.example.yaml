@@ -30,6 +30,10 @@ mcp:
   #  - "/opt/mcp-servers"
   # max_mcp_servers_per_user: 20 # лимит личных MCP-серверов на пользователя; 0 = без лимита
   # max_tracked_server_ids_for_call_stats: 2048 # лимит различных server_id в in-memory per-server метриках call_tool; 0 = без лимита
+  # При непустом списке: если пользователь отправил сообщение с изображением (vision), выполняются только MCP-инструменты, перечисленные как "<server_id>:<tool_name>" (имя - как на MCP-сервере, до вызова)
+  # Остальные MCP-вызовы блокируются
+  # tools_allowlist_when_user_image_attached:
+  #   - "1:read_file"
 
 attachment_hydrate_parallelism: 64 # параллельная подготовка вложений в истории для LLM (1...64; 0 = 8).
 

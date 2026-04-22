@@ -27,6 +27,14 @@ abstract final class AttachmentSettings {
     'xhtml',
   ];
 
+  static const List<String> imageAttachmentExtensions = [
+    'png',
+    'jpg',
+    'jpeg',
+    'webp',
+    'gif',
+  ];
+
   static const List<String> documentBinaryExtensions = [
     'pdf',
     'docx',
@@ -53,8 +61,14 @@ abstract final class AttachmentSettings {
 
     final ext = parts.last.toLowerCase();
 
-    return textFileExtensions.contains(ext);
+    return textFileExtensions.contains(ext) ||
+        imageAttachmentExtensions.contains(ext);
   }
+
+  static List<String> get allChatAttachmentExtensions => [
+    ...textFileExtensions,
+    ...imageAttachmentExtensions,
+  ];
 
   static const List<String> textFormatLabels = ['TXT', 'MD', 'LOG', 'HTML'];
 
@@ -65,4 +79,6 @@ abstract final class AttachmentSettings {
     'CSV',
     'PPTX',
   ];
+
+  static const List<String> imageFormatLabels = ['PNG', 'JPEG', 'WebP', 'GIF'];
 }

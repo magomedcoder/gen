@@ -192,6 +192,11 @@ class ChatSessionSettingsButton extends StatelessWidget {
                                 'Документы: ${AttachmentSettings.documentFormatLabels.join(', ')}',
                                 style: theme.textTheme.bodyMedium,
                               ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Изображения: ${AttachmentSettings.imageFormatLabels.join(', ')}',
+                                style: theme.textTheme.bodyMedium,
+                              ),
                               const SizedBox(height: 8),
                               Text(
                                 'Рекомендуемый максимум: ${AttachmentSettings.maxFileSizeLabel}',

@@ -1,10 +1,14 @@
 package usecase
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"image"
+	"image/color"
+	"image/png"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -156,7 +160,14 @@ func TestHydrateAttachmentsForRunner_loadsImageFromDisk(t *testing.T) {
 	}
 
 	path := filepath.Join(sessDir, "42_img.png")
-	want := []byte{0x89, 0x50, 0x4e, 0x47, 0x01, 0x02}
+	img := image.NewNRGBA(image.Rect(0, 0, 1, 1))
+	img.Set(0, 0, color.RGBA{R: 10, G: 20, B: 30, A: 255})
+	var pngBuf bytes.Buffer
+	if err := png.Encode(&pngBuf, img); err != nil {
+		t.Fatal(err)
+	}
+
+	want := pngBuf.Bytes()
 	if err := os.WriteFile(path, want, 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -188,6 +199,10 @@ func TestHydrateAttachmentsForRunner_loadsImageFromDisk(t *testing.T) {
 
 	if string(msgs[0].AttachmentContent) != string(want) {
 		t.Fatalf("содержимое вложения не совпадает с файлом на диске")
+	}
+
+	if msgs[0].AttachmentMime != "image/png" {
+		t.Fatalf("ожидался image/png, получено %q", msgs[0].AttachmentMime)
 	}
 }
 

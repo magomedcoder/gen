@@ -5,6 +5,7 @@ import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gen/core/failures.dart';
 import 'package:gen/core/grpc_unavailable.dart';
+import 'package:gen/core/chat_image_attachment.dart';
 import 'package:gen/core/log/logs.dart';
 import 'package:gen/core/request_logout_on_unauthorized.dart';
 import 'package:gen/core/user_safe_error.dart';
@@ -621,6 +622,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       updatedAt: DateTime.now(),
       attachmentFileName: target.attachmentFileName,
       attachmentFileNames: target.attachmentFileNames,
+      attachmentMime: target.attachmentMime,
       attachmentContent: target.attachmentContent,
       attachmentFileId: target.attachmentFileId,
       attachmentFileIds: target.attachmentFileIds,
@@ -1471,15 +1473,16 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       );
     }
 
+    final firstAttachName =
+        attachmentNames.isNotEmpty ? attachmentNames.first : null;
     final userMessage = Message(
       id: _localTempMessageId(),
       content: text,
       role: MessageRole.user,
       createdAt: DateTime.now(),
-      attachmentFileName: attachmentNames.isNotEmpty
-          ? attachmentNames.first
-          : null,
+      attachmentFileName: firstAttachName,
       attachmentFileNames: attachmentNames,
+      attachmentMime: guessImageMimeFromFilename(firstAttachName),
       attachmentContent: null,
       attachmentFileId: hasResolvedFiles
           ? resolvedAttachmentFileIds.first
@@ -1495,6 +1498,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
           last.role == MessageRole.user &&
           last.content == text &&
           last.attachmentFileName == userMessage.attachmentFileName &&
+          last.attachmentMime == userMessage.attachmentMime &&
           last.attachmentFileId == userMessage.attachmentFileId &&
           last.attachmentFileIds.length ==
               userMessage.attachmentFileIds.length &&

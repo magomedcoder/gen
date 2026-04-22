@@ -101,6 +101,20 @@ void showSupportedFormatsDialog(BuildContext context) {
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
+              const SizedBox(height: 12),
+              Text(
+                'Изображения (vision)',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                AttachmentSettings.imageFormatLabels.join(', '),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
               const SizedBox(height: 16),
               Text(
                 'Рекомендуемый максимум: ${AttachmentSettings.maxFileSizeLabel}',
