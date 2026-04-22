@@ -28,36 +28,38 @@ const (
 )
 
 type ChatUseCase struct {
-	chatTx                       domain.ChatTransactionRunner
-	sessionRepo                  domain.ChatSessionRepository
-	preferenceRepo               domain.ChatPreferenceRepository
-	sessionSettingsRepo          domain.ChatSessionSettingsRepository
-	messageRepo                  domain.MessageRepository
-	messageEditRepo              domain.MessageEditRepository
-	assistantRegenRepo           domain.AssistantMessageRegenerationRepository
-	fileRepo                     domain.FileRepository
-	runnerRepo                   domain.RunnerRepository
-	llmRepo                      domain.LLMRepository
-	runnerPool                   *service.Pool
-	runnerReg                    *service.Registry
-	attachmentsSaveDir           string
-	historySummaryCache          *historySummaryCache
-	attachmentHydrateParallelism int
-	webSearchSettingsRepo        domain.WebSearchSettingsRepository
-	mcpServerRepo                domain.MCPServerRepository
-	mcpToolsListCache            *mcpclient.ToolsListCache
-	documentIngest               *DocumentIngestUseCase
-	ragBackgroundIndexTimeout    time.Duration
-	llmContextFallbackTokens     int
-	ragMaxExtractedRunesOnUpload int
-	ragNeighborChunkWindow       int
-	preferFullDocumentWhenFits   bool
-	deepRAGEnabled               bool
-	deepRAGMaxMapCalls           int
-	deepRAGChunksPerMap          int
-	deepRAGMapMaxTokens          int32
-	deepRAGMapTimeoutSeconds     int32
-	deepRAGMaxMapOutputRunes     int
+	chatTx                         domain.ChatTransactionRunner
+	sessionRepo                    domain.ChatSessionRepository
+	preferenceRepo                 domain.ChatPreferenceRepository
+	sessionSettingsRepo            domain.ChatSessionSettingsRepository
+	messageRepo                    domain.MessageRepository
+	messageEditRepo                domain.MessageEditRepository
+	assistantRegenRepo             domain.AssistantMessageRegenerationRepository
+	fileRepo                       domain.FileRepository
+	runnerRepo                     domain.RunnerRepository
+	llmRepo                        domain.LLMRepository
+	runnerPool                     *service.Pool
+	runnerReg                      *service.Registry
+	attachmentsSaveDir             string
+	historySummaryCache            *historySummaryCache
+	attachmentHydrateParallelism   int
+	webSearchSettingsRepo          domain.WebSearchSettingsRepository
+	mcpServerRepo                  domain.MCPServerRepository
+	mcpToolsListCache              *mcpclient.ToolsListCache
+	documentIngest                 *DocumentIngestUseCase
+	ragBackgroundIndexTimeout      time.Duration
+	llmContextFallbackTokens       int
+	ragMaxExtractedRunesOnUpload   int
+	ragNeighborChunkWindow         int
+	putSessionFileRate             sessionPutRateLimiter
+	preferFullDocumentWhenFits     bool
+	deepRAGEnabled                 bool
+	deepRAGMaxMapCalls             int
+	deepRAGChunksPerMap            int
+	deepRAGMapMaxTokens            int32
+	deepRAGMapTimeoutSeconds       int32
+	deepRAGMaxMapOutputRunes       int
+	mcpToolsAllowlistWhenUserImage []string
 }
 
 func NewChatUseCase(
@@ -90,41 +92,43 @@ func NewChatUseCase(
 	deepRAGMapMaxTokens int32,
 	deepRAGMapTimeoutSeconds int32,
 	deepRAGMaxMapOutputRunes int,
+	mcpToolsAllowlistWhenUserImage []string,
 ) *ChatUseCase {
 	if ragBackgroundIndexTimeout <= 0 {
 		ragBackgroundIndexTimeout = 30 * time.Minute
 	}
 	return &ChatUseCase{
-		chatTx:                       chatTx,
-		sessionRepo:                  sessionRepo,
-		preferenceRepo:               preferenceRepo,
-		sessionSettingsRepo:          sessionSettingsRepo,
-		messageRepo:                  messageRepo,
-		messageEditRepo:              messageEditRepo,
-		assistantRegenRepo:           assistantRegenRepo,
-		fileRepo:                     fileRepo,
-		runnerRepo:                   runnerRepo,
-		llmRepo:                      llmRepo,
-		runnerPool:                   runnerPool,
-		runnerReg:                    runnerReg,
-		attachmentsSaveDir:           attachmentsSaveDir,
-		historySummaryCache:          newHistorySummaryCache(512),
-		webSearchSettingsRepo:        webSearchSettingsRepo,
-		mcpServerRepo:                mcpServerRepo,
-		mcpToolsListCache:            mcpToolsListCache,
-		documentIngest:               documentIngest,
-		ragBackgroundIndexTimeout:    ragBackgroundIndexTimeout,
-		llmContextFallbackTokens:     llmContextFallbackTokens,
-		ragMaxExtractedRunesOnUpload: ragMaxExtractedRunesOnUpload,
-		ragNeighborChunkWindow:       ragNeighborChunkWindow,
-		preferFullDocumentWhenFits:   preferFullDocumentWhenFits,
-		deepRAGEnabled:               deepRAGEnabled,
-		deepRAGMaxMapCalls:           deepRAGMaxMapCalls,
-		deepRAGChunksPerMap:          deepRAGChunksPerMap,
-		deepRAGMapMaxTokens:          deepRAGMapMaxTokens,
-		deepRAGMapTimeoutSeconds:     deepRAGMapTimeoutSeconds,
-		deepRAGMaxMapOutputRunes:     deepRAGMaxMapOutputRunes,
-		attachmentHydrateParallelism: normalizeAttachmentHydrateParallelism(attachmentHydrateParallelism),
+		chatTx:                         chatTx,
+		sessionRepo:                    sessionRepo,
+		preferenceRepo:                 preferenceRepo,
+		sessionSettingsRepo:            sessionSettingsRepo,
+		messageRepo:                    messageRepo,
+		messageEditRepo:                messageEditRepo,
+		assistantRegenRepo:             assistantRegenRepo,
+		fileRepo:                       fileRepo,
+		runnerRepo:                     runnerRepo,
+		llmRepo:                        llmRepo,
+		runnerPool:                     runnerPool,
+		runnerReg:                      runnerReg,
+		attachmentsSaveDir:             attachmentsSaveDir,
+		historySummaryCache:            newHistorySummaryCache(512),
+		webSearchSettingsRepo:          webSearchSettingsRepo,
+		mcpServerRepo:                  mcpServerRepo,
+		mcpToolsListCache:              mcpToolsListCache,
+		documentIngest:                 documentIngest,
+		ragBackgroundIndexTimeout:      ragBackgroundIndexTimeout,
+		llmContextFallbackTokens:       llmContextFallbackTokens,
+		ragMaxExtractedRunesOnUpload:   ragMaxExtractedRunesOnUpload,
+		ragNeighborChunkWindow:         ragNeighborChunkWindow,
+		preferFullDocumentWhenFits:     preferFullDocumentWhenFits,
+		deepRAGEnabled:                 deepRAGEnabled,
+		deepRAGMaxMapCalls:             deepRAGMaxMapCalls,
+		deepRAGChunksPerMap:            deepRAGChunksPerMap,
+		deepRAGMapMaxTokens:            deepRAGMapMaxTokens,
+		deepRAGMapTimeoutSeconds:       deepRAGMapTimeoutSeconds,
+		deepRAGMaxMapOutputRunes:       deepRAGMaxMapOutputRunes,
+		mcpToolsAllowlistWhenUserImage: append([]string(nil), mcpToolsAllowlistWhenUserImage...),
+		attachmentHydrateParallelism:   normalizeAttachmentHydrateParallelism(attachmentHydrateParallelism),
 	}
 }
 
@@ -652,6 +656,10 @@ func (c *ChatUseCase) PutSessionFile(ctx context.Context, userID int, sessionID 
 		ttl = sessionArtifactMaxTTL
 	}
 
+	if err := c.putSessionFileRate.checkPutSessionFileRate(userID, len(content)); err != nil {
+		return 0, err
+	}
+
 	n, sum, err := c.fileRepo.CountSessionTTLArtifacts(ctx, sessionID, userID)
 	if err != nil {
 		return 0, err
@@ -694,7 +702,8 @@ func (c *ChatUseCase) GetSessionFile(ctx context.Context, userID int, sessionID 
 		return "", nil, fmt.Errorf("некорректный file_id")
 	}
 
-	return c.loadSessionAttachmentForSend(ctx, userID, sessionID, fileID)
+	name, content, _, err := c.loadSessionAttachmentForSend(ctx, userID, sessionID, fileID)
+	return name, content, err
 }
 
 const (

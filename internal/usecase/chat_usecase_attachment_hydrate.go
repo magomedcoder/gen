@@ -145,7 +145,23 @@ func (c *ChatUseCase) hydrateOneAttachmentForRunner(ctx context.Context, m *doma
 			return err
 		}
 
-		m.AttachmentContent = data
+		mime, err := document.SniffStrictImageMIME(data)
+		if err != nil {
+			return err
+		}
+
+		norm, normMime, err := document.NormalizeChatImageBytesForRunner(data, mime)
+		if err != nil {
+			return fmt.Errorf("нормализация изображения для раннера: %w", err)
+		}
+
+		if len(norm) > document.MaxRecommendedAttachmentSizeBytes {
+			return fmt.Errorf("после нормализации вложение превышает лимит %d байт", document.MaxRecommendedAttachmentSizeBytes)
+		}
+
+		m.AttachmentContent = norm
+		m.AttachmentMime = normMime
+		m.AttachmentName = document.FilenameForNormalizedImageMime(name, normMime)
 
 		return nil
 	}
@@ -180,50 +196,50 @@ func (c *ChatUseCase) hydrateOneAttachmentForRunner(ctx context.Context, m *doma
 	return nil
 }
 
-func (c *ChatUseCase) loadSessionAttachmentForSend(ctx context.Context, userID int, sessionID int64, fileID int64) (name string, content []byte, err error) {
+func (c *ChatUseCase) loadSessionAttachmentForSend(ctx context.Context, userID int, sessionID int64, fileID int64) (name string, content []byte, imageMIME string, err error) {
 	if strings.TrimSpace(c.attachmentsSaveDir) == "" {
-		return "", nil, fmt.Errorf("хранилище вложений не настроено")
+		return "", nil, "", fmt.Errorf("хранилище вложений не настроено")
 	}
 
 	f, err := c.fileRepo.GetById(ctx, fileID)
 	if err != nil {
-		return "", nil, fmt.Errorf("файл id=%d: %w", fileID, err)
+		return "", nil, "", fmt.Errorf("файл id=%d: %w", fileID, err)
 	}
 
 	if f == nil {
-		return "", nil, fmt.Errorf("файл id=%d не найден", fileID)
+		return "", nil, "", fmt.Errorf("файл id=%d не найден", fileID)
 	}
 
 	if f.ChatSessionID == nil || *f.ChatSessionID != sessionID {
-		return "", nil, fmt.Errorf("файл не относится к этой сессии")
+		return "", nil, "", fmt.Errorf("файл не относится к этой сессии")
 	}
 
 	if f.UserID == nil || *f.UserID != userID {
-		return "", nil, fmt.Errorf("файл не принадлежит пользователю")
+		return "", nil, "", fmt.Errorf("файл не принадлежит пользователю")
 	}
 
 	if f.ExpiresAt != nil && time.Now().After(*f.ExpiresAt) {
-		return "", nil, fmt.Errorf("срок действия файла истёк")
+		return "", nil, "", fmt.Errorf("срок действия файла истёк")
 	}
 
 	path := strings.TrimSpace(f.StoragePath)
 	if path == "" {
-		return "", nil, fmt.Errorf("файл id=%d: пустой storage_path", fileID)
+		return "", nil, "", fmt.Errorf("файл id=%d: пустой storage_path", fileID)
 	}
 
 	expectedDir := filepath.Clean(filepath.Join(c.attachmentsSaveDir, strconv.FormatInt(sessionID, 10)))
 	cleanPath := filepath.Clean(path)
 	if !strings.HasPrefix(cleanPath, expectedDir+string(filepath.Separator)) && cleanPath != expectedDir {
-		return "", nil, fmt.Errorf("файл id=%d: неверный путь хранения", fileID)
+		return "", nil, "", fmt.Errorf("файл id=%d: неверный путь хранения", fileID)
 	}
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return "", nil, fmt.Errorf("чтение файла: %w", err)
+		return "", nil, "", fmt.Errorf("чтение файла: %w", err)
 	}
 
 	if len(data) > document.MaxRecommendedAttachmentSizeBytes {
-		return "", nil, fmt.Errorf("размер вложения превышает рекомендуемый максимум: %d байт", document.MaxRecommendedAttachmentSizeBytes)
+		return "", nil, "", fmt.Errorf("размер вложения превышает рекомендуемый максимум: %d байт", document.MaxRecommendedAttachmentSizeBytes)
 	}
 
 	baseName := filepath.Base(f.Filename)
@@ -233,11 +249,30 @@ func (c *ChatUseCase) loadSessionAttachmentForSend(ctx context.Context, userID i
 
 	if document.IsImageAttachment(baseName) {
 		if err := document.ValidateImageAttachment(baseName, data); err != nil {
-			return "", nil, err
+			return "", nil, "", err
 		}
-	} else if err := document.ValidateAttachment(baseName, data); err != nil {
-		return "", nil, err
+
+		mime, err := document.SniffStrictImageMIME(data)
+		if err != nil {
+			return "", nil, "", err
+		}
+
+		norm, normMime, err := document.NormalizeChatImageBytesForRunner(data, mime)
+		if err != nil {
+			return "", nil, "", fmt.Errorf("нормализация изображения для раннера: %w", err)
+		}
+
+		if len(norm) > document.MaxRecommendedAttachmentSizeBytes {
+			return "", nil, "", fmt.Errorf("после нормализации вложение превышает лимит %d байт", document.MaxRecommendedAttachmentSizeBytes)
+		}
+
+		baseName = document.FilenameForNormalizedImageMime(baseName, normMime)
+		return baseName, norm, normMime, nil
 	}
 
-	return baseName, data, nil
+	if err := document.ValidateAttachment(baseName, data); err != nil {
+		return "", nil, "", err
+	}
+
+	return baseName, data, "", nil
 }

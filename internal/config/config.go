@@ -36,17 +36,18 @@ type JWTConfig struct {
 }
 
 type MCPConfig struct {
-	HTTPAllowAny                    bool     `yaml:"http_allow_any"`
-	HTTPAllowHosts                  []string `yaml:"http_allow_hosts"`
-	Roots                           []string `yaml:"roots"`
-	SamplingEnabled                 bool     `yaml:"sampling_enabled"`
-	LogServerMessages               bool     `yaml:"log_server_messages"`
-	HTTPReuseSessions               bool     `yaml:"http_reuse_sessions"`
-	HTTPSessionMaxIdleSeconds       int      `yaml:"http_session_max_idle_seconds"`
-	StdioDisabled                   bool     `yaml:"stdio_disabled"`
-	StdioCommandPrefixes            []string `yaml:"stdio_command_prefixes"`
-	MaxMCPServersPerUser            int      `yaml:"max_mcp_servers_per_user"`
-	MaxTrackedServerIDsForCallStats int      `yaml:"max_tracked_server_ids_for_call_stats"`
+	HTTPAllowAny                        bool     `yaml:"http_allow_any"`
+	HTTPAllowHosts                      []string `yaml:"http_allow_hosts"`
+	Roots                               []string `yaml:"roots"`
+	SamplingEnabled                     bool     `yaml:"sampling_enabled"`
+	LogServerMessages                   bool     `yaml:"log_server_messages"`
+	HTTPReuseSessions                   bool     `yaml:"http_reuse_sessions"`
+	HTTPSessionMaxIdleSeconds           int      `yaml:"http_session_max_idle_seconds"`
+	StdioDisabled                       bool     `yaml:"stdio_disabled"`
+	StdioCommandPrefixes                []string `yaml:"stdio_command_prefixes"`
+	MaxMCPServersPerUser                int      `yaml:"max_mcp_servers_per_user"`
+	MaxTrackedServerIDsForCallStats     int      `yaml:"max_tracked_server_ids_for_call_stats"`
+	ToolsAllowlistWhenUserImageAttached []string `yaml:"tools_allowlist_when_user_image_attached"`
 }
 
 type RAGConfig struct {

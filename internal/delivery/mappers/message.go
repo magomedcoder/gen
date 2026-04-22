@@ -1,8 +1,11 @@
 package mappers
 
 import (
+	"strings"
+
 	"github.com/magomedcoder/gen/api/pb/chatpb"
 	"github.com/magomedcoder/gen/internal/domain"
+	"github.com/magomedcoder/gen/pkg/document"
 )
 
 func MessageToProto(msg *domain.Message) *chatpb.ChatMessage {
@@ -40,6 +43,14 @@ func MessageToProto(msg *domain.Message) *chatpb.ChatMessage {
 	if msg.AttachmentFileID != nil {
 		v := *msg.AttachmentFileID
 		p.AttachmentFileId = &v
+	}
+
+	if mime := strings.TrimSpace(msg.AttachmentMime); mime != "" {
+		p.AttachmentMime = &mime
+	} else if msg.AttachmentFileID != nil && document.IsImageAttachment(msg.AttachmentName) {
+		if inferred := document.ImageMIMEFromFilename(msg.AttachmentName); inferred != "" {
+			p.AttachmentMime = &inferred
+		}
 	}
 
 	return p

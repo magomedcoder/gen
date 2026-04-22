@@ -22,6 +22,7 @@ type sendPromptAssemblyInput struct {
 	attachmentFileIDs        []int64
 	attachmentNames          []string
 	attachmentContents       [][]byte
+	attachmentImageMIMEs     []string
 	fileRAG                  *SendMessageFileRAGOptions
 	preferFullDocumentIfFits bool
 	genParams                *domain.GenerationParams
@@ -39,6 +40,9 @@ func (c *ChatUseCase) buildSendPromptAssembly(ctx context.Context, in sendPrompt
 	if len(in.attachmentContents) == 1 && document.IsImageAttachment(in.attachmentNames[0]) {
 		userInstruction.AttachmentName = in.attachmentNames[0]
 		userInstruction.AttachmentContent = in.attachmentContents[0]
+		if len(in.attachmentImageMIMEs) == 1 {
+			userInstruction.AttachmentMime = strings.TrimSpace(in.attachmentImageMIMEs[0])
+		}
 	}
 
 	documentContextBlocks, ragStream, err := c.buildDocumentContextPipeline(ctx, in, systemAndHistory)
@@ -59,6 +63,7 @@ func (c *ChatUseCase) buildSendPromptAssembly(ctx context.Context, in sendPrompt
 	if len(documentContextBlocks) > 0 {
 		userInstruction.AttachmentFileID = nil
 		userInstruction.AttachmentName = ""
+		userInstruction.AttachmentMime = ""
 		userInstruction.AttachmentContent = nil
 	}
 

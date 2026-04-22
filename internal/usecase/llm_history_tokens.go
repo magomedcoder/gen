@@ -6,9 +6,49 @@ import (
 	"unicode/utf8"
 
 	"github.com/magomedcoder/gen/internal/domain"
+	"github.com/magomedcoder/gen/pkg/document"
 )
 
 const HistoryTruncatedClientNotice = "Часть более старой переписки не передана модели из-за лимита оценки токенов."
+
+func messageHasLikelyVisionImage(m *domain.Message) bool {
+	if m == nil || len(m.AttachmentContent) == 0 {
+		return false
+	}
+
+	mt := strings.ToLower(strings.TrimSpace(m.AttachmentMime))
+	if strings.HasPrefix(mt, "image/") {
+		return true
+	}
+
+	if mt == "" {
+		return document.IsImageAttachment(m.AttachmentName) || strings.TrimSpace(m.AttachmentName) == ""
+	}
+
+	return false
+}
+
+func approxVisionImageTokens(byteLen int) int {
+	if byteLen <= 0 {
+		return 0
+	}
+
+	const (
+		minTokens = 256
+		maxTokens = 8192
+	)
+
+	t := byteLen / 16
+	if t < minTokens {
+		t = minTokens
+	}
+
+	if t > maxTokens {
+		t = maxTokens
+	}
+
+	return t
+}
 
 func approximateLLMMessageTokens(m *domain.Message) int {
 	if m == nil {
@@ -19,14 +59,27 @@ func approximateLLMMessageTokens(m *domain.Message) int {
 	runes += utf8.RuneCountInString(m.ToolCallsJSON)
 	runes += utf8.RuneCountInString(m.ToolName)
 	runes += utf8.RuneCountInString(m.ToolCallID)
+
+	extraTok := 0
 	if len(m.AttachmentContent) > 0 {
-		runes += len(m.AttachmentContent) / 4
+		if messageHasLikelyVisionImage(m) {
+			if strings.TrimSpace(m.AttachmentMime) != "" {
+				runes += utf8.RuneCountInString(m.AttachmentMime)
+			} else {
+				runes += utf8.RuneCountInString(m.AttachmentName)
+			}
+
+			extraTok += approxVisionImageTokens(len(m.AttachmentContent))
+		} else {
+			runes += len(m.AttachmentContent) / 4
+			runes += utf8.RuneCountInString(m.AttachmentMime)
+		}
 	} else {
 		runes += utf8.RuneCountInString(m.AttachmentName)
 	}
 
 	const perMessageOverhead = 6
-	tok := runes/4 + perMessageOverhead
+	tok := runes/4 + perMessageOverhead + extraTok
 	if tok < 1 {
 		return 1
 	}
@@ -81,10 +134,23 @@ func trimLLMMessagesByApproxTokensWithDropped(msgs []*domain.Message, maxTokens 
 	var dropped []*domain.Message
 	trimmed := false
 	for len(middle) > 0 && total > maxTokens {
-		dropped = append(dropped, middle[0])
-		drop := approximateLLMMessageTokens(middle[0])
+		first := middle[0]
+		dropped = append(dropped, first)
+		drop := approximateLLMMessageTokens(first)
 		middle = middle[1:]
 		total -= drop
+
+		if len(middle) > 0 &&
+			first.Role == domain.MessageRoleUser &&
+			messageHasLikelyVisionImage(first) &&
+			middle[0].Role == domain.MessageRoleAssistant &&
+			strings.TrimSpace(middle[0].ToolCallsJSON) == "" {
+			dropped = append(dropped, middle[0])
+			drop2 := approximateLLMMessageTokens(middle[0])
+			middle = middle[1:]
+			total -= drop2
+		}
+
 		trimmed = true
 	}
 

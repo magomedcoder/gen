@@ -68,6 +68,69 @@ func TestTrimLLMMessagesByApproxTokensWithDropped_collectsMiddle(t *testing.T) {
 	}
 }
 
+func TestApproximateLLMMessageTokens_visionImageUsesCappedLenOver16(t *testing.T) {
+	img := make([]byte, 80_000)
+	m := &domain.Message{
+		Role:              domain.MessageRoleUser,
+		Content:           "что на фото",
+		AttachmentMime:    "image/png",
+		AttachmentName:    "x.png",
+		AttachmentContent: img,
+	}
+
+	got := approximateLLMMessageTokens(m)
+	wantImgTok := min(8192, max(256, len(img)/16))
+	if got < wantImgTok {
+		t.Fatalf("ожидалось >= %d токенов (оценка кадра), got=%d", wantImgTok, got)
+	}
+
+	pdf := &domain.Message{
+		Role:              domain.MessageRoleUser,
+		Content:           "что на фото",
+		AttachmentMime:    "application/pdf",
+		AttachmentName:    "x.pdf",
+		AttachmentContent: img,
+	}
+
+	gotPDF := approximateLLMMessageTokens(pdf)
+	if got > gotPDF+64 {
+		t.Fatalf("vision не должна сильно превосходить не‑image по байтам: vision=%d pdf=%d", got, gotPDF)
+	}
+}
+
+func TestTrimLLMMessagesByApproxTokens_dropsVisionUserWithFollowingAssistant(t *testing.T) {
+	sys := domain.NewMessage(1, "system", domain.MessageRoleSystem)
+	img := make([]byte, 100_000)
+	uOld := &domain.Message{
+		SessionId:         1,
+		Role:              domain.MessageRoleUser,
+		Content:           "старый вопрос",
+		AttachmentMime:    "image/jpeg",
+		AttachmentName:    "old.jpg",
+		AttachmentContent: img,
+	}
+	aOld := domain.NewMessage(1, "ответ по старой картинке", domain.MessageRoleAssistant)
+	uTail := domain.NewMessage(1, "новый текст", domain.MessageRoleUser)
+
+	msgs := []*domain.Message{sys, uOld, aOld, uTail}
+	out, trimmed, dropped := trimLLMMessagesByApproxTokensWithDropped(msgs, 120, 1)
+	if !trimmed {
+		t.Fatal("ожидалась обрезка средней части")
+	}
+
+	if len(out) != 2 || out[0] != sys || out[len(out)-1] != uTail {
+		t.Fatalf("ожидались system + хвост user: len=%d", len(out))
+	}
+
+	if len(dropped) < 2 {
+		t.Fatalf("ожидалось снять user+vision и следующего assistant: dropped=%d", len(dropped))
+	}
+
+	if dropped[0] != uOld || dropped[1] != aOld {
+		t.Fatalf("unexpected dropped order: roles %v %v", dropped[0].Role, dropped[1].Role)
+	}
+}
+
 func TestInjectSummaryAfterSystem(t *testing.T) {
 	sys := domain.NewMessage(1, "base", domain.MessageRoleSystem)
 	u := domain.NewMessage(1, "u", domain.MessageRoleUser)

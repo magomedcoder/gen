@@ -86,11 +86,12 @@ type executableToolCall struct {
 type toolLoopEnvKey struct{}
 
 type toolLoopEnv struct {
-	RunnerAddr     string
-	ResolvedModel  string
-	StopSequences  []string
-	TimeoutSeconds int32
-	SamplingGen    *domain.GenerationParams
+	RunnerAddr             string
+	ResolvedModel          string
+	StopSequences          []string
+	TimeoutSeconds         int32
+	SamplingGen            *domain.GenerationParams
+	UserTurnHasVisionImage bool
 }
 
 func withToolLoopEnv(ctx context.Context, env *toolLoopEnv) context.Context {
@@ -869,8 +870,9 @@ func (c *ChatUseCase) runChatToolLoop(
 
 	gp := cloneGenParamsForToolCalls(genParams)
 	history := append([]*domain.Message(nil), messagesForLLM...)
+	userTurnVision := lastUserMessageHasVisionAttachment(messagesForLLM)
 
-	logger.I("ChatUseCase tool-loop: session_id=%d user_id=%d phase=enter runner=%q model=%q history_msgs=%d tools=%d rag=%t history_notice=%t", sessionID, userID, runnerAddr, resolvedModel, len(history), len(gp.Tools), ragStream != nil, historyInitiallyTrimmed)
+	logger.I("ChatUseCase tool-loop: session_id=%d user_id=%d phase=enter runner=%q model=%q history_msgs=%d tools=%d rag=%t history_notice=%t user_turn_vision=%t", sessionID, userID, runnerAddr, resolvedModel, len(history), len(gp.Tools), ragStream != nil, historyInitiallyTrimmed, userTurnVision)
 
 	if ragStream != nil {
 		_ = send(ragStream.asChunk())
@@ -1015,11 +1017,12 @@ func (c *ChatUseCase) runChatToolLoop(
 
 			toolCtx, cancelTool := context.WithTimeout(ctx, toolExecutionDuration(timeoutSeconds))
 			toolCtx = withToolLoopEnv(toolCtx, &toolLoopEnv{
-				RunnerAddr:     runnerAddr,
-				ResolvedModel:  resolvedModel,
-				StopSequences:  stopSequences,
-				TimeoutSeconds: timeoutSeconds,
-				SamplingGen:    samplingGenParamsForMCP(gp),
+				RunnerAddr:             runnerAddr,
+				ResolvedModel:          resolvedModel,
+				StopSequences:          stopSequences,
+				TimeoutSeconds:         timeoutSeconds,
+				SamplingGen:            samplingGenParamsForMCP(gp),
+				UserTurnHasVisionImage: userTurnVision,
 			})
 			res, err := c.executeDeclaredTool(toolCtx, userID, sessionID, gp, call.ResolvedName, call.Parameters)
 			cancelTool()
@@ -1224,6 +1227,12 @@ func (c *ChatUseCase) executeDeclaredTool(ctx context.Context, userID int, sessi
 		return c.toolWebSearch(ctx, userID, sessionID, params)
 	default:
 		if sid, orig, ok := mcpclient.ParseToolAlias(nameNorm); ok {
+			if env := toolLoopEnvFrom(ctx); env != nil && env.UserTurnHasVisionImage &&
+				len(c.mcpToolsAllowlistWhenUserImage) > 0 &&
+				!mcpToolAllowedWhenUserHasImage(c.mcpToolsAllowlistWhenUserImage, sid, orig) {
+				logger.W("Tool: phase=mcp_blocked_user_image session_id=%d server_id=%d mcp_tool=%q allowlist_entries=%d", sessionID, sid, orig, len(c.mcpToolsAllowlistWhenUserImage))
+				return "", fmt.Errorf("инструмент %q недоступен при вложённом изображении; разрешите в конфиге mcp.tools_allowlist_when_user_image_attached как %d:%s", orig, sid, orig)
+			}
 			logger.I("Tool: phase=dispatch_mcp session_id=%d alias=%q server_id=%d mcp_tool=%q params_bytes=%d", sessionID, nameNorm, sid, orig, len(params))
 			res, err = c.toolMCP(ctx, sessionID, sid, orig, params)
 			return res, err
@@ -1305,7 +1314,7 @@ func (c *ChatUseCase) toolApplySpreadsheet(ctx context.Context, userID int, sess
 	if fid, ok, err := optionalInt64Field(m, "workbook_file_id"); err != nil {
 		return "", err
 	} else if ok && fid > 0 {
-		_, data, err := c.loadSessionAttachmentForSend(ctx, userID, sessionID, fid)
+		_, data, _, err := c.loadSessionAttachmentForSend(ctx, userID, sessionID, fid)
 		if err != nil {
 			return "", err
 		}
@@ -1523,7 +1532,7 @@ func (c *ChatUseCase) toolApplyMarkdownPatch(ctx context.Context, userID int, se
 			return "", fmt.Errorf("нельзя одновременно задавать base_text и base_file_id")
 		}
 
-		_, data, err := c.loadSessionAttachmentForSend(ctx, userID, sessionID, fid)
+		_, data, _, err := c.loadSessionAttachmentForSend(ctx, userID, sessionID, fid)
 		if err != nil {
 			return "", err
 		}

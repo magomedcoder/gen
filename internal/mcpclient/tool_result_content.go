@@ -50,7 +50,7 @@ func contentToLLMString(c mcp.Content) string {
 	case *mcp.TextContent:
 		return strings.TrimSpace(x.Text)
 	case *mcp.ImageContent:
-		return imageAudioToLLMString("Изображение", x.MIMEType, x.Data)
+		return mcpImageContentToLLMPlaceholder(x.MIMEType, len(x.Data))
 	case *mcp.AudioContent:
 		return imageAudioToLLMString("Аудио", x.MIMEType, x.Data)
 	case *mcp.ResourceLink:
@@ -67,6 +67,15 @@ func contentToLLMString(c mcp.Content) string {
 		}
 		return fmt.Sprintf("%T", c)
 	}
+}
+
+func mcpImageContentToLLMPlaceholder(mime string, n int) string {
+	mime = strings.TrimSpace(mime)
+	if n <= 0 {
+		return fmt.Sprintf("[Изображение из инструмента mime=%q: пустые данные]", mime)
+	}
+
+	return fmt.Sprintf("[Изображение из инструмента mime=%q size_bytes=%d - пиксели не переданы в текст контекста; опирайтесь на вложение пользователя в чате при анализе кадра]", mime, n)
 }
 
 func imageAudioToLLMString(kind, mime string, data []byte) string {
@@ -118,6 +127,12 @@ func embeddedResourceToString(rc *mcp.ResourceContents) string {
 		return b.String()
 	}
 	if len(rc.Blob) > 0 {
+		mt := strings.ToLower(strings.TrimSpace(rc.MIMEType))
+		if strings.HasPrefix(mt, "image/") {
+			fmt.Fprintf(&b, " image_bytes=%d - пиксели не включены в контекст LLM]", len(rc.Blob))
+			return b.String()
+		}
+
 		b64 := base64.StdEncoding.EncodeToString(rc.Blob)
 		if len(b64) > maxInlinedBase64Runes {
 			fmt.Fprintf(&b, " blob_bytes=%d - base64 обрезан в выдаче]", len(rc.Blob))

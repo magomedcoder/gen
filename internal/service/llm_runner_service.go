@@ -10,6 +10,7 @@ import (
 	"github.com/magomedcoder/gen/api/pb/llmrunnerpb"
 	"github.com/magomedcoder/gen/internal/domain"
 	"github.com/magomedcoder/gen/internal/rpcmeta"
+	"github.com/magomedcoder/gen/pkg/document"
 	"github.com/magomedcoder/gen/pkg/logger"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -293,6 +294,10 @@ func (s *LLMRunnerService) sendMessageStream(
 		req.TimeoutSeconds = &timeoutSeconds
 	}
 
+	if nv := countRunnerVisionAttachments(messages); nv > 0 {
+		logger.I("Runner gRPC client: phase=vision_attachments session_id=%d model=%q messages_with_image_payload=%d", sessionID, modelName, nv)
+	}
+
 	stream, err := s.client.SendMessage(s.rpcCtx(ctx), req)
 	if err != nil {
 		logger.W("Runner gRPC client: phase=grpc_send_err session_id=%d model=%q err=%v", sessionID, modelName, err)
@@ -359,6 +364,27 @@ func (s *LLMRunnerService) sendMessageStream(
 	return output, toolFn, nil
 }
 
+func countRunnerVisionAttachments(messages []*domain.Message) int {
+	n := 0
+	for _, m := range messages {
+		if m == nil || len(m.AttachmentContent) == 0 {
+			continue
+		}
+
+		mt := strings.ToLower(strings.TrimSpace(m.AttachmentMime))
+		if document.IsAllowedChatImageMIME(mt) || strings.HasPrefix(mt, "image/") {
+			n++
+			continue
+		}
+
+		if mt == "" && document.IsImageAttachment(m.AttachmentName) {
+			n++
+		}
+	}
+
+	return n
+}
+
 func domainMessagesToProto(messages []*domain.Message) []*llmrunnerpb.ChatMessage {
 	out := make([]*llmrunnerpb.ChatMessage, 0, len(messages))
 	for _, m := range messages {
@@ -393,6 +419,10 @@ func domainMessagesToProto(messages []*domain.Message) []*llmrunnerpb.ChatMessag
 		}
 		if len(m.AttachmentContent) > 0 {
 			cm.AttachmentContent = m.AttachmentContent
+		}
+
+		if mime := strings.TrimSpace(m.AttachmentMime); mime != "" {
+			cm.AttachmentMime = &mime
 		}
 
 		out = append(out, cm)
