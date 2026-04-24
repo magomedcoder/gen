@@ -244,8 +244,8 @@ func (u *DocumentIngestUseCase) IndexSessionFile(ctx context.Context, userID int
 		prev.SourceContentSHA256 == sourceHash &&
 		prev.PipelineVersion == domain.RAGPipelineVersion &&
 		prev.EmbeddingModel == embedModel {
-		logger.I("DocumentIngest: пропуск (уже готов) file_id=%d session_id=%d model=%q hash=%s за %s",
-			fileID, sessionID, embedModel, sourceHash[:8], time.Since(ingestStart).Truncate(time.Millisecond))
+		logger.I("DocumentIngest: пропуск (уже готов) file_id=%d session_id=%d model=%q hash=%s за %s", fileID, sessionID, embedModel, sourceHash[:8], time.Since(ingestStart).Truncate(time.Millisecond))
+
 		return nil
 	}
 
@@ -330,11 +330,7 @@ func (u *DocumentIngestUseCase) IndexSessionFile(ctx context.Context, userID int
 		return err
 	}
 	storeDur := time.Since(storePhase)
-	logger.I("DocumentIngest: готово file_id=%d session_id=%d chunks=%d model=%q extract=%s chunk=%s embed=%s store=%s total=%s",
-		fileID, sessionID, len(domainChunks), embedModel,
-		extractDur.Truncate(time.Millisecond), chunkDur.Truncate(time.Millisecond),
-		embedDur.Truncate(time.Millisecond), storeDur.Truncate(time.Millisecond),
-		time.Since(ingestStart).Truncate(time.Millisecond))
+	logger.I("DocumentIngest: готово file_id=%d session_id=%d chunks=%d model=%q extract=%s chunk=%s embed=%s store=%s total=%s", fileID, sessionID, len(domainChunks), embedModel, extractDur.Truncate(time.Millisecond), chunkDur.Truncate(time.Millisecond), embedDur.Truncate(time.Millisecond), storeDur.Truncate(time.Millisecond), time.Since(ingestStart).Truncate(time.Millisecond))
 	return nil
 }
 
@@ -423,10 +419,7 @@ func (u *DocumentIngestUseCase) SearchSessionKnowledge(ctx context.Context, user
 
 	searchTopK := topK
 	if u.adaptiveKEnabled && u.adaptiveKMultiplier > 1 {
-		searchTopK = topK * u.adaptiveKMultiplier
-		if searchTopK > maxAdaptiveSearchTopK {
-			searchTopK = maxAdaptiveSearchTopK
-		}
+		searchTopK = min(topK*u.adaptiveKMultiplier, maxAdaptiveSearchTopK)
 	}
 
 	tSearch := time.Now()

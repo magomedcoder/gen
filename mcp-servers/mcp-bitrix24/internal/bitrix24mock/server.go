@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"maps"
 	"net/http"
 	"sort"
 	"strconv"
@@ -111,7 +112,7 @@ func (s *Server) handleMethod(w http.ResponseWriter, r *http.Request) {
 		s.handleTaskList(w, req)
 	case "tasks.task.get":
 		s.handleTaskGet(w, req)
-	case "tasks.task.commentitem.getlist":
+	case "task.commentitem.getlist":
 		s.handleCommentList(w, req)
 	default:
 		log.Printf("[b24-mock] method=%q not_implemented", method)
@@ -182,7 +183,7 @@ func (s *Server) handleTaskGet(w http.ResponseWriter, req map[string]any) {
 func (s *Server) handleCommentList(w http.ResponseWriter, req map[string]any) {
 	taskID := toInt(req["taskId"])
 	if taskID <= 0 {
-		log.Printf("[b24-mock] tasks.task.commentitem.getlist missing taskId")
+		log.Printf("[b24-mock] task.commentitem.getlist missing taskId")
 		writeJSON(w, http.StatusOK, map[string]any{
 			"error":             "ERROR_REQUIRED_PARAMETER",
 			"error_description": "taskId is required",
@@ -206,7 +207,7 @@ func (s *Server) handleCommentList(w http.ResponseWriter, req map[string]any) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"result": items,
 	})
-	log.Printf("[b24-mock] tasks.task.commentitem.getlist ok taskId=%d total=%d", taskID, len(items))
+	log.Printf("[b24-mock] task.commentitem.getlist ok taskId=%d total=%d", taskID, len(items))
 }
 
 func extractMethod(path string) string {
@@ -312,9 +313,7 @@ func toInt(v any) int {
 
 func cloneMap(src map[string]any) map[string]any {
 	dst := make(map[string]any, len(src))
-	for k, v := range src {
-		dst[k] = v
-	}
+	maps.Copy(dst, src)
 
 	return dst
 }

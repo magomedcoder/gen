@@ -30,31 +30,31 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 		Version: "0.1.0",
 	}, nil)
 
-	type callArgs struct {
-		Method string         `json:"method" jsonschema:"REST-метод Bitrix24, например tasks.task.list"`
-		Params map[string]any `json:"params" jsonschema:"Параметры метода в JSON"`
-	}
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "b24_call_method",
-		Description: "Универсальный вызов метода Bitrix24 REST API",
-	}, func(ctx context.Context, _ *mcp.CallToolRequest, args callArgs) (*mcp.CallToolResult, any, error) {
-		return mcpsafe.SafeToolInvoke("mcp-bitrix24", "b24_call_method", func() (*mcp.CallToolResult, any, error) {
-			method := normalizeMethod(args.Method)
-			if method == "" {
-				return nil, nil, fmt.Errorf("method is required")
-			}
-			log.Printf("[b24-mcp] tool=b24_call_method method=%q params_keys=%d", method, len(args.Params))
-
-			resp, err := client.call(ctx, method, args.Params)
-			if err != nil {
-				log.Printf("[b24-mcp] tool=b24_call_method method=%q err=%v", method, err)
-				return nil, nil, err
-			}
-			log.Printf("[b24-mcp] tool=b24_call_method method=%q ok", method)
-
-			return textResult(prettyJSON(resp)), nil, nil
-		})
-	})
+	//type callArgs struct {
+	//	Method string         `json:"method" jsonschema:"REST-метод Bitrix24, например tasks.task.list"`
+	//	Params map[string]any `json:"params" jsonschema:"Параметры метода в JSON"`
+	//}
+	//mcp.AddTool(srv, &mcp.Tool{
+	//	Name:        "b24_call_method",
+	//	Description: "Универсальный вызов метода Bitrix24 REST API",
+	//}, func(ctx context.Context, _ *mcp.CallToolRequest, args callArgs) (*mcp.CallToolResult, any, error) {
+	//	return mcpsafe.SafeToolInvoke("mcp-bitrix24", "b24_call_method", func() (*mcp.CallToolResult, any, error) {
+	//		method := normalizeMethod(args.Method)
+	//		if method == "" {
+	//			return nil, nil, fmt.Errorf("method is required")
+	//		}
+	//		log.Printf("[b24-mcp] tool=b24_call_method method=%q params_keys=%d", method, len(args.Params))
+	//
+	//		resp, err := client.call(ctx, method, args.Params)
+	//		if err != nil {
+	//			log.Printf("[b24-mcp] tool=b24_call_method method=%q err=%v", method, err)
+	//			return nil, nil, err
+	//		}
+	//		log.Printf("[b24-mcp] tool=b24_call_method method=%q ok", method)
+	//
+	//		return textResult(prettyJSON(resp)), nil, nil
+	//	})
+	//})
 
 	type listTasksArgs struct {
 		Filter map[string]any `json:"filter,omitempty" jsonschema:"Фильтры задач Bitrix24 (например UF_* поля)"`
@@ -136,7 +136,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 	}
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "b24_get_task_comments",
-		Description: "Получить комментарии задачи (tasks.task.commentitem.getlist)",
+		Description: "Получить комментарии задачи (task.commentitem.getlist)",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, args getCommentsArgs) (*mcp.CallToolResult, any, error) {
 		return mcpsafe.SafeToolInvoke("mcp-bitrix24", "b24_get_task_comments", func() (*mcp.CallToolResult, any, error) {
 			if args.TaskID <= 0 {
@@ -156,7 +156,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 				payload["select"] = args.Select
 			}
 
-			resp, err := client.call(ctx, "tasks.task.commentitem.getlist", payload)
+			resp, err := client.call(ctx, "task.commentitem.getlist", payload)
 			if err != nil {
 				log.Printf("[b24-mcp] tool=b24_get_task_comments task_id=%d err=%v", args.TaskID, err)
 				return nil, nil, err
@@ -184,6 +184,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 			if args.IncludeComments != nil {
 				includeComments = *args.IncludeComments
 			}
+
 			log.Printf("[b24-mcp] tool=b24_analyze_task task_id=%d include_comments=%t", args.TaskID, includeComments)
 
 			taskResp, err := client.call(ctx, "tasks.task.get", map[string]any{
@@ -209,9 +210,9 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 				return nil, nil, err
 			}
 
-			comments := []map[string]any{}
+			var comments []map[string]any
 			if includeComments {
-				commentResp, err := client.call(ctx, "tasks.task.commentitem.getlist", map[string]any{
+				commentResp, err := client.call(ctx, "task.commentitem.getlist", map[string]any{
 					"taskId": args.TaskID,
 					"order":  map[string]string{"ID": "asc"},
 				})
@@ -233,13 +234,13 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 	return srv, nil
 }
 
-func normalizeMethod(method string) string {
-	method = strings.TrimSpace(method)
-	method = strings.TrimPrefix(method, "/")
-	method = strings.TrimSuffix(method, "/")
-	method = strings.TrimSuffix(method, ".json")
-	return method
-}
+//func normalizeMethod(method string) string {
+//	method = strings.TrimSpace(method)
+//	method = strings.TrimPrefix(method, "/")
+//	method = strings.TrimSuffix(method, "/")
+//	method = strings.TrimSuffix(method, ".json")
+//	return method
+//}
 
 func prettyJSON(data any) string {
 	b, err := json.MarshalIndent(data, "", "  ")
