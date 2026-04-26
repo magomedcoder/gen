@@ -35,8 +35,12 @@
 
 ---
 
-- **[gen-runner](https://github.com/magomedcoder/gen-runner)** - отдельный сервис запуска и взаимодействия с LLM,
+- **[gen-runner](https://github.com/magomedcoder/gen/api)** - отдельный сервис запуска и взаимодействия с LLM,
   который можно разворачивать на разных серверах и использовать для запуска разных моделей.
+
+- **[gen-app](https://github.com/magomedcoder/gen-app)**
+
+- **[gen-mcp-servers](https://github.com/magomedcoder/gen-mcp-servers)** 
 
 ---
 

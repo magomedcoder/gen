@@ -5,27 +5,14 @@ install:
 	&& go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
 gen-proto:
-	@for proto in ./api/proto/*.proto; do \
+	@for proto in ./api/proto/app/*.proto; do \
 		name=$$(basename $$proto .proto); \
-		mkdir -p ./api/pb/$${name}pb; \
-		protoc --proto_path=./api/proto \
-			--go_out=paths=source_relative:./api/pb/$${name}pb \
-			--go-grpc_out=paths=source_relative:./api/pb/$${name}pb \
+		mkdir -p ./api/pb/app/$${name}pb; \
+		protoc --proto_path=./api/proto/app \
+			--go_out=paths=source_relative:./api/pb/app/$${name}pb \
+			--go-grpc_out=paths=source_relative:./api/pb/app/$${name}pb \
 			$$proto; \
 	done
-
-	mkdir -p ./api/pb/llmrunnerpb
-	protoc --proto_path=../gen-runner \
-		--go_opt=Mllmrunner.proto=github.com/magomedcoder/gen/api/pb/llmrunnerpb \
-		--go-grpc_opt=Mllmrunner.proto=github.com/magomedcoder/gen/api/pb/llmrunnerpb \
-		--go_out=module=github.com/magomedcoder/gen:. \
-		--go-grpc_out=module=github.com/magomedcoder/gen:. \
-		../gen-runner/llmrunner.proto
-
-	mkdir -p ./client-app/lib/generated/grpc_pb
-	protoc --proto_path=./api/proto \
-		--dart_out=grpc:./client-app/lib/generated/grpc_pb \
-		./api/proto/*.proto
 
 build:
 	mkdir -p ./build
