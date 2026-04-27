@@ -32,7 +32,7 @@ jobs:
       - name: Generate Dart gRPC code
         run: |
           mkdir -p ./client-app/lib/generated/grpc_pb
-          protoc --proto_path=./api/proto \
+          protoc --proto_path=./api/proto/app \
             --dart_out=grpc:./client-app/lib/generated/grpc_pb \
             ./api/proto/app/*.proto
 
@@ -81,7 +81,7 @@ jobs:
       - name: Generate Dart gRPC code
         run: |
           New-Item -ItemType Directory -Force -Path ./client-app/lib/generated/grpc_pb
-          protoc --proto_path=./api/proto `
+          protoc --proto_path=./api/proto/app `
             --dart_out=grpc:./client-app/lib/generated/grpc_pb `
             ./api/proto/app/*.proto
 
@@ -134,7 +134,7 @@ jobs:
       - name: Generate Dart gRPC code
         run: |
           mkdir -p ./client-app/lib/generated/grpc_pb
-          protoc --proto_path=./api/proto \
+          protoc --proto_path=./api/proto/app \
             --dart_out=grpc:./client-app/lib/generated/grpc_pb \
             ./api/proto/app/*.proto
 
@@ -181,7 +181,7 @@ jobs:
       - name: Generate Dart gRPC code
         run: |
           mkdir -p ./client-app/lib/generated/grpc_pb
-          protoc --proto_path=./api/proto \
+          protoc --proto_path=./api/proto/app \
             --dart_out=grpc:./client-app/lib/generated/grpc_pb \
             ./api/proto/app/*.proto
 
@@ -213,7 +213,7 @@ jobs:
       - name: Generate Dart gRPC code
         run: |
           mkdir -p ./client-app/lib/generated/grpc_pb
-          protoc --proto_path=./api/proto \
+          protoc --proto_path=./api/proto/app \
             --dart_out=grpc:./client-app/lib/generated/grpc_pb \
             ./api/proto/app/*.proto
 
