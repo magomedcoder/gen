@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/magomedcoder/gen-runner/pb/llm-runner/llmrunnerpb"
+	"github.com/magomedcoder/en-runner//api/pb/llm-runner/llmrunnerpb"
 	"github.com/magomedcoder/gen/internal/domain"
 	"github.com/magomedcoder/gen/internal/rpcmeta"
 	"github.com/magomedcoder/gen/pkg/document"
@@ -332,7 +332,10 @@ func (s *LLMRunnerService) sendMessageStream(
 				select {
 				case <-ctx.Done():
 					return
-				case output <- domain.LLMStreamChunk{Content: content, ReasoningContent: rc}:
+				case output <- domain.LLMStreamChunk{
+					Content:          content,
+					ReasoningContent: rc,
+				}:
 				}
 			}
 
