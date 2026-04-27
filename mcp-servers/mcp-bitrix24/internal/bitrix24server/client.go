@@ -17,11 +17,14 @@ import (
 )
 
 type bitrixClient struct {
-	baseURL    *url.URL
-	httpClient *http.Client
+	baseURL      *url.URL
+	httpClient   *http.Client
+	logLevel     string
+	retryMax     int
+	retryBackoff time.Duration
 }
 
-func newBitrixClient(baseURL string, timeout time.Duration) (*bitrixClient, error) {
+func newBitrixClient(baseURL string, timeout time.Duration, logLevel string, retryMax int, retryBackoff time.Duration) (*bitrixClient, error) {
 	trimmed := strings.TrimSpace(baseURL)
 	if trimmed == "" {
 		return nil, fmt.Errorf("B24_WEBHOOK_BASE is empty")
@@ -46,6 +49,9 @@ func newBitrixClient(baseURL string, timeout time.Duration) (*bitrixClient, erro
 		httpClient: &http.Client{
 			Timeout: timeout,
 		},
+		logLevel:     strings.ToLower(strings.TrimSpace(logLevel)),
+		retryMax:     retryMax,
+		retryBackoff: retryBackoff,
 	}, nil
 }
 
@@ -54,6 +60,7 @@ func (c *bitrixClient) call(ctx context.Context, method string, payload any) (ma
 	if method == "" {
 		return nil, fmt.Errorf("method is empty")
 	}
+	reqID, _ := requestIDFromContext(ctx)
 
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -62,8 +69,10 @@ func (c *bitrixClient) call(ctx context.Context, method string, payload any) (ma
 
 	endpoint := *c.baseURL
 	endpoint.Path = strings.TrimSuffix(endpoint.Path, "/") + "/" + method
-	log.Printf("[b24-mcp] http method=%q url=%s payload_bytes=%d", method, endpoint.String(), len(body))
-	log.Printf("[b24-mcp] http method=%q request_body=%s", method, truncateForLog(prettyJSONString(body), 3000))
+	log.Printf("[b24-mcp] req_id=%s http method=%q url=%s payload_bytes=%d", reqID, method, endpoint.String(), len(body))
+	if c.isDebugLogEnabled() {
+		log.Printf("[b24-mcp] req_id=%s http method=%q request_body=%s", reqID, method, truncateForLog(prettyJSONString(maskJSONForLog(body)), 3000))
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint.String(), bytes.NewReader(body))
 	if err != nil {
@@ -71,10 +80,21 @@ func (c *bitrixClient) call(ctx context.Context, method string, payload any) (ma
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		log.Printf("[b24-mcp] http method=%q request_err=%v", method, err)
-		return nil, fmt.Errorf("request failed: %w", err)
+	var resp *http.Response
+	for attempt := 0; ; attempt++ {
+		resp, err = c.httpClient.Do(req)
+		if err == nil {
+			break
+		}
+
+		log.Printf("[b24-mcp] req_id=%s http method=%q request_err=%v attempt=%d", reqID, method, err, attempt+1)
+		incHTTPError()
+		if attempt >= c.retryMax {
+			return nil, fmt.Errorf("request failed: %w", err)
+		}
+		time.Sleep(c.retryBackoff * time.Duration(attempt+1))
+		req, _ = http.NewRequestWithContext(ctx, http.MethodPost, endpoint.String(), bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
 	}
 	defer resp.Body.Close()
 
@@ -82,30 +102,67 @@ func (c *bitrixClient) call(ctx context.Context, method string, payload any) (ma
 	if err != nil {
 		return nil, fmt.Errorf("read response: %w", err)
 	}
+
 	raw = normalizeResponseEncoding(raw)
-	log.Printf("[b24-mcp] http method=%q status=%d response_bytes=%d", method, resp.StatusCode, len(raw))
-	log.Printf("[b24-mcp] http method=%q response_body=%s", method, truncateForLog(prettyJSONString(raw), 3000))
+	incHTTPCall()
+	log.Printf("[b24-mcp] req_id=%s http method=%q status=%d response_bytes=%d", reqID, method, resp.StatusCode, len(raw))
+	if c.isDebugLogEnabled() {
+		log.Printf("[b24-mcp] req_id=%s http method=%q response_body=%s", reqID, method, truncateForLog(prettyJSONString(maskJSONForLog(raw)), 3000))
+	}
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		log.Printf("[b24-mcp] http method=%q non_2xx status=%d body=%s", method, resp.StatusCode, truncateForLog(string(raw), 600))
-		return nil, fmt.Errorf("bitrix http status %d: %s", resp.StatusCode, string(raw))
+		log.Printf("[b24-mcp] req_id=%s http method=%q non_2xx status=%d body=%s", reqID, method, resp.StatusCode, truncateForLog(string(raw), 600))
+		incHTTPError()
+		if shouldRetryStatus(resp.StatusCode) && c.retryMax > 0 {
+			for retry := 0; retry < c.retryMax; retry++ {
+				time.Sleep(c.retryBackoff * time.Duration(retry+1))
+				reqRetry, _ := http.NewRequestWithContext(ctx, http.MethodPost, endpoint.String(), bytes.NewReader(body))
+				reqRetry.Header.Set("Content-Type", "application/json")
+				respRetry, errRetry := c.httpClient.Do(reqRetry)
+				if errRetry != nil {
+					log.Printf("[b24-mcp] req_id=%s http method=%q retry_err=%v attempt=%d", reqID, method, errRetry, retry+1)
+					incHTTPError()
+					continue
+				}
+
+				retryRaw, _ := io.ReadAll(io.LimitReader(respRetry.Body, 5<<20))
+				_ = respRetry.Body.Close()
+				retryRaw = normalizeResponseEncoding(retryRaw)
+				incHTTPCall()
+				if respRetry.StatusCode >= http.StatusOK && respRetry.StatusCode < http.StatusMultipleChoices {
+					var response map[string]any
+					if err := json.Unmarshal(retryRaw, &response); err == nil {
+						return response, nil
+					}
+				}
+			}
+		}
+		return nil, wrapBitrixError(method, resp.StatusCode, raw, nil)
 	}
 
 	var response map[string]any
 	if err := json.Unmarshal(raw, &response); err != nil {
-		log.Printf("[b24-mcp] http method=%q decode_json_err=%v body=%s", method, err, truncateForLog(string(raw), 600))
+		log.Printf("[b24-mcp] req_id=%s http method=%q decode_json_err=%v body=%s", reqID, method, err, truncateForLog(string(raw), 600))
 		return nil, fmt.Errorf("decode json: %w", err)
 	}
 
 	if errObj, ok := response["error"]; ok {
 		desc, _ := response["error_description"].(string)
-		log.Printf("[b24-mcp] http method=%q api_error=%v desc=%q", method, errObj, desc)
-		return nil, fmt.Errorf("bitrix api error: %v (%s)", errObj, desc)
+		log.Printf("[b24-mcp] req_id=%s http method=%q api_error=%v desc=%q", reqID, method, errObj, desc)
+		return nil, wrapBitrixError(method, resp.StatusCode, raw, response)
 	}
 
-	log.Printf("[b24-mcp] http method=%q ok", method)
+	log.Printf("[b24-mcp] req_id=%s http method=%q ok", reqID, method)
 
 	return response, nil
+}
+
+func (c *bitrixClient) isDebugLogEnabled() bool {
+	return c.logLevel == "debug"
+}
+
+func shouldRetryStatus(status int) bool {
+	return status == http.StatusTooManyRequests || status == http.StatusServiceUnavailable || status >= 500
 }
 
 func (c *bitrixClient) callTaskCommentItemGetList(ctx context.Context, taskID int, order map[string]any, filter map[string]any) (map[string]any, error) {
@@ -159,4 +216,86 @@ func prettyJSONString(raw []byte) string {
 	}
 
 	return string(formatted)
+}
+
+func maskJSONForLog(raw []byte) []byte {
+	if len(raw) == 0 {
+		return raw
+	}
+
+	var parsed any
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		return raw
+	}
+	masked := maskValue(parsed)
+	b, err := json.Marshal(masked)
+	if err != nil {
+		return raw
+	}
+
+	return b
+}
+
+func maskValue(v any) any {
+	switch typed := v.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(typed))
+		for k, vv := range typed {
+			lk := strings.ToLower(strings.TrimSpace(k))
+			if lk == "auth" || strings.Contains(lk, "token") || strings.Contains(lk, "password") || strings.Contains(lk, "secret") {
+				out[k] = "***MASKED***"
+				continue
+			}
+			out[k] = maskValue(vv)
+		}
+		return out
+	case []any:
+		out := make([]any, 0, len(typed))
+		for _, item := range typed {
+			out = append(out, maskValue(item))
+		}
+		return out
+	default:
+		return v
+	}
+}
+
+func wrapBitrixError(method string, statusCode int, raw []byte, decoded map[string]any) error {
+	var code string
+	var desc string
+	if decoded != nil {
+		code, _ = decoded["error"].(string)
+		desc, _ = decoded["error_description"].(string)
+	} else {
+		var m map[string]any
+		if err := json.Unmarshal(raw, &m); err == nil {
+			code, _ = m["error"].(string)
+			desc, _ = m["error_description"].(string)
+		}
+	}
+	hint := bitrixErrorHint(method, code, desc, statusCode)
+	if code == "" && desc == "" {
+		return fmt.Errorf("bitrix method %s failed with status %d. %s", method, statusCode, hint)
+	}
+
+	return fmt.Errorf("bitrix method %s failed: %s (%s). %s", method, code, strings.TrimSpace(desc), hint)
+}
+
+func bitrixErrorHint(method, code, desc string, statusCode int) string {
+	msg := strings.ToLower(code + " " + desc)
+	switch {
+	case strings.Contains(msg, "wrong_arguments"), strings.Contains(msg, "expected to be of type"):
+		return "Проверьте типы и названия параметров запроса."
+	case strings.Contains(msg, "action_failed_to_be_processed"), strings.Contains(msg, "tasks_error_exception_#8"):
+		if method == "task.commentitem.getlist" {
+			return "Комментарий API может быть ограничен правами/новой карточкой задач. Попробуйте отключить include_comments."
+		}
+		return "Операция отклонена на стороне Bitrix24. Проверьте права и корректность полей."
+	case strings.Contains(msg, "access denied"), statusCode == http.StatusForbidden:
+		return "Недостаточно прав у пользователя/вебхука для этого метода."
+	case statusCode == http.StatusTooManyRequests || strings.Contains(msg, "query_limit_exceeded"):
+		return "Превышен лимит запросов Bitrix24, повторите позже."
+	default:
+		return "Проверьте параметры метода, права доступа и ограничения портала."
+	}
 }

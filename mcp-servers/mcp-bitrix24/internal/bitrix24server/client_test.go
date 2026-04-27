@@ -2,8 +2,10 @@ package bitrix24server
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -22,7 +24,7 @@ func TestBitrixClientCall_DecodesWindows1251JSON(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client, err := newBitrixClient(srv.URL, time.Second)
+	client, err := newBitrixClient(srv.URL, time.Second, "debug", 0, 200*time.Millisecond)
 	if err != nil {
 		t.Fatalf("newBitrixClient: %v", err)
 	}
@@ -50,7 +52,7 @@ func TestBitrixClientCall_DecodesWindows1251WithoutCharsetHint(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client, err := newBitrixClient(srv.URL, time.Second)
+	client, err := newBitrixClient(srv.URL, time.Second, "debug", 0, 200*time.Millisecond)
 	if err != nil {
 		t.Fatalf("newBitrixClient: %v", err)
 	}
@@ -71,4 +73,40 @@ func nestedTaskTitle(resp map[string]any) string {
 	task, _ := result["task"].(map[string]any)
 	title, _ := task["TITLE"].(string)
 	return title
+}
+
+func TestCallTaskCommentItemGetList_UsesStablePayloadOrder(t *testing.T) {
+	var gotBody string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		gotBody = string(raw)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"result":[]}`))
+	}))
+	defer srv.Close()
+
+	client, err := newBitrixClient(srv.URL, time.Second, "debug", 0, 200*time.Millisecond)
+	if err != nil {
+		t.Fatalf("newBitrixClient: %v", err)
+	}
+
+	_, err = client.callTaskCommentItemGetList(
+		context.Background(),
+		1822404,
+		map[string]any{"POST_DATE": "desc"},
+		map[string]any{"AUTHOR_ID": 7},
+	)
+	if err != nil {
+		t.Fatalf("callTaskCommentItemGetList: %v", err)
+	}
+
+	idxTask := strings.Index(gotBody, `"TASKID"`)
+	idxOrder := strings.Index(gotBody, `"ORDER"`)
+	idxFilter := strings.Index(gotBody, `"FILTER"`)
+	if idxTask == -1 || idxOrder == -1 || idxFilter == -1 {
+		t.Fatalf("payload missing required keys: %s", gotBody)
+	}
+	if !(idxTask < idxOrder && idxOrder < idxFilter) {
+		t.Fatalf("unexpected key order, want TASKID->ORDER->FILTER, got: %s", gotBody)
+	}
 }

@@ -103,52 +103,17 @@ func analyzeTask(task map[string]any, comments []map[string]any, now time.Time) 
 		}
 	}
 
-	risk := "низкий"
-	score := 0
-	reasons := make([]string, 0, 6)
-	if !deadline.IsZero() && deadline.Before(now) {
-		score += 4
-		reasons = append(reasons, "задача уже просрочена")
-	}
-
-	if deadline.IsZero() && (statusCode == 2 || statusCode == 3 || statusCode == 4) {
-		score += 2
-		reasons = append(reasons, "нет дедлайна у активной задачи")
-	}
-
-	if len(comments) == 0 && !createdAt.IsZero() && now.Sub(createdAt) > 48*time.Hour {
-		score += 2
-		reasons = append(reasons, "долгое время нет комментариев")
-	}
-
-	if !lastCommentAt.IsZero() && now.Sub(lastCommentAt) > 72*time.Hour && statusCode != 5 && statusCode != 7 {
-		score += 2
-		reasons = append(reasons, "нет свежих коммуникаций по задаче")
-	}
-
-	if scoreMentionsBlockers(comments) {
-		score += 2
-		reasons = append(reasons, "в комментариях есть сигналы блокировки/ожидания")
-	}
-
-	if timeEstimate > 0 && timeSpent > timeEstimate {
-		score += 2
-		reasons = append(reasons, "превышена оценка времени")
-	}
-
-	if statusCode == 5 || statusCode == 7 {
-		score = 0
-		reasons = nil
-	}
-
-	switch {
-	case score >= 5:
-		risk = "высокий"
-	case score >= 2:
-		risk = "средний"
-	default:
-		risk = "низкий"
-	}
+	_, risk, reasons := evaluateRisk(RiskInput{
+		Now:           now,
+		StatusCode:    statusCode,
+		CreatedAt:     createdAt,
+		Deadline:      deadline,
+		LastComment:   lastCommentAt,
+		CommentsCount: len(comments),
+		HasBlockers:   scoreMentionsBlockers(comments),
+		TimeEstimate:  timeEstimate,
+		TimeSpent:     timeSpent,
+	}, defaultRiskScoringConfig())
 
 	out = append(out, "")
 	out = append(out, "=== Риски и рекомендации ===")
@@ -326,29 +291,38 @@ func max(a, b int) int {
 func taskConclusion(title string, statusCode int, risk string, deadline, now time.Time, commentsCount int, hasBlockers bool) string {
 	title = emptyDash(strings.TrimSpace(title))
 	if statusCode == 5 || statusCode == 7 {
-		return fmt.Sprintf("Задача \"%s\" находится в финальном статусе; риск %s. Действие: проверить итог и закрывающие артефакты.", title, risk)
+		return formatTaskConclusion("стабильно", "финальный статус задачи", fmt.Sprintf("проверить итог и закрывающие артефакты по \"%s\"", title), "в плановом порядке")
 	}
 
 	if !deadline.IsZero() && deadline.Before(now) {
 		if hasBlockers {
-			return fmt.Sprintf("Задача \"%s\" просрочена и имеет признаки блокировки; риск %s. Действие: срочная эскалация, снять блокер и зафиксировать новый план.", title, risk)
+			return formatTaskConclusion("критично", fmt.Sprintf("задача \"%s\" просрочена и заблокирована", title), "срочная эскалация, снять блокер и зафиксировать новый план", "немедленно")
 		}
-		return fmt.Sprintf("Задача \"%s\" просрочена; риск %s. Действие: срочно обновить план работ и согласовать новый реалистичный дедлайн.", title, risk)
+		return formatTaskConclusion("критично", fmt.Sprintf("задача \"%s\" просрочена", title), "обновить план работ и согласовать новый дедлайн", "сегодня")
 	}
 
 	if commentsCount == 0 {
-		return fmt.Sprintf("Задача \"%s\" без коммуникаций в комментариях; риск %s. Действие: запросить статус-апдейт и ближайший следующий шаг.", title, risk)
+		return formatTaskConclusion("под контролем", fmt.Sprintf("по задаче \"%s\" нет коммуникаций", title), "запросить статус-апдейт и ближайший следующий шаг", "в течение 1 рабочего дня")
 	}
 
 	if hasBlockers {
-		return fmt.Sprintf("По задаче \"%s\" есть сигналы блокера; риск %s. Действие: назначить владельца блокера и срок снятия.", title, risk)
+		return formatTaskConclusion("под контролем", fmt.Sprintf("по задаче \"%s\" есть сигналы блокера", title), "назначить владельца блокера и срок снятия", "в течение 1 рабочего дня")
 	}
 
 	if deadline.IsZero() {
-		return fmt.Sprintf("Задача \"%s\" активна, но без дедлайна; риск %s. Действие: установить контрольный срок и точку проверки.", title, risk)
+		return formatTaskConclusion("под контролем", fmt.Sprintf("активная задача \"%s\" без дедлайна", title), "установить контрольный срок и точку проверки", "в течение 1 рабочего дня")
 	}
 
-	return fmt.Sprintf("Задача \"%s\" контролируема; риск %s. Действие: поддерживать текущий ритм обновлений и мониторинг дедлайна.", title, risk)
+	return formatTaskConclusion("стабильно", fmt.Sprintf("задача \"%s\" контролируема, риск %s", title, risk), "поддерживать текущий ритм обновлений и мониторинг дедлайна", "по текущему регламенту")
+}
+
+func formatTaskConclusion(status, risk, action, reactionTime string) string {
+	return strings.Join([]string{
+		fmt.Sprintf("Статус: %s", status),
+		fmt.Sprintf("Главный риск: %s", risk),
+		fmt.Sprintf("Приоритетное действие: %s", action),
+		fmt.Sprintf("Срок реакции: %s", reactionTime),
+	}, "\n")
 }
 
 func statusLabel(status int) string {
