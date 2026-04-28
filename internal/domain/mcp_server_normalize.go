@@ -10,7 +10,7 @@ func NormalizeMCPServer(s *MCPServer) {
 	s.Name = strings.TrimSpace(s.Name)
 	s.Transport = strings.ToLower(strings.TrimSpace(s.Transport))
 	if s.Transport == "" {
-		s.Transport = "stdio"
+		s.Transport = "sse"
 	}
 
 	s.Command = strings.TrimSpace(s.Command)

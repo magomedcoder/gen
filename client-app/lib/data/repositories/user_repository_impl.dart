@@ -15,8 +15,8 @@ class UserRepositoryImpl implements UserRepository {
       return await dataSource.getUsers(page: page, pageSize: pageSize);
     } catch (e) {
       if (e is Failure) rethrow;
-      Logs().e('UserRepository: ошибка получения пользователей', exception: e);
-      throw ApiFailure('Ошибка получения пользователей');
+      Logs().e('UserRepository: error получения пользователей', exception: e);
+      throw ApiFailure('Error получения пользователей');
     }
   }
 
@@ -38,8 +38,8 @@ class UserRepositoryImpl implements UserRepository {
       );
     } catch (e) {
       if (e is Failure) rethrow;
-      Logs().e('UserRepository: ошибка создания пользователя', exception: e);
-      throw ApiFailure('Ошибка создания пользователя');
+      Logs().e('UserRepository: error создания пользователя', exception: e);
+      throw ApiFailure('Error создания пользователя');
     }
   }
 
@@ -63,8 +63,8 @@ class UserRepositoryImpl implements UserRepository {
       );
     } catch (e) {
       if (e is Failure) rethrow;
-      Logs().e('UserRepository: ошибка обновления пользователя', exception: e);
-      throw ApiFailure('Ошибка обновления пользователя');
+      Logs().e('UserRepository: error обновления пользователя', exception: e);
+      throw ApiFailure('Error обновления пользователя');
     }
   }
 }

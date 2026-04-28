@@ -47,14 +47,14 @@ class UsersAdminBloc extends Bloc<UsersAdminEvent, UsersAdminState> {
         pageSize: event.pageSize,
       ));
     } catch (e) {
-      Logs().e('UsersAdminBloc: ошибка загрузки', exception: e);
+      Logs().e('UsersAdminBloc: error загрузки', exception: e);
       requestLogoutIfUnauthorized(e, authBloc);
       emit(
         state.copyWith(
           isLoading: false,
           error: userSafeErrorMessage(
             e,
-            fallback: 'Ошибка загрузки пользователей',
+            fallback: 'Error загрузки пользователей',
           ),
         ),
       );
@@ -82,14 +82,14 @@ class UsersAdminBloc extends Bloc<UsersAdminEvent, UsersAdminState> {
         state.pageSize,
       ));
     } catch (e) {
-      Logs().e('UsersAdminBloc: ошибка создания', exception: e);
+      Logs().e('UsersAdminBloc: error создания', exception: e);
       requestLogoutIfUnauthorized(e, authBloc);
       emit(
         state.copyWith(
           isLoading: false,
           error: userSafeErrorMessage(
             e,
-            fallback: 'Ошибка создания пользователя',
+            fallback: 'Error создания пользователя',
           ),
         ),
       );
@@ -117,14 +117,14 @@ class UsersAdminBloc extends Bloc<UsersAdminEvent, UsersAdminState> {
         pageSize: state.pageSize,
       ));
     } catch (e) {
-      Logs().e('UsersAdminBloc: ошибка обновления', exception: e);
+      Logs().e('UsersAdminBloc: error обновления', exception: e);
       requestLogoutIfUnauthorized(e, authBloc);
       emit(
         state.copyWith(
           isLoading: false,
           error: userSafeErrorMessage(
             e,
-            fallback: 'Ошибка обновления пользователя',
+            fallback: 'Error обновления пользователя',
           ),
         ),
       );

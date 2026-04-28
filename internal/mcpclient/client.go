@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -20,20 +18,6 @@ type DeclaredTool struct {
 	Name           string
 	Description    string
 	ParametersJSON string
-}
-
-func parseStringSliceJSON(raw string) ([]string, error) {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return nil, nil
-	}
-
-	var out []string
-	if err := json.Unmarshal([]byte(raw), &out); err != nil {
-		return nil, err
-	}
-
-	return out, nil
 }
 
 func parseStringMapJSON(raw string) (map[string]string, error) {
@@ -52,23 +36,6 @@ func parseStringMapJSON(raw string) (map[string]string, error) {
 	}
 
 	return out, nil
-}
-
-func mergeEnv(base []string, extra map[string]string) []string {
-	if len(extra) == 0 {
-		return base
-	}
-
-	out := append([]string(nil), base...)
-	for k, v := range extra {
-		if strings.TrimSpace(k) == "" {
-			continue
-		}
-
-		out = append(out, fmt.Sprintf("%s=%s", k, v))
-	}
-
-	return out
 }
 
 type headerRoundTripper struct {
@@ -119,32 +86,6 @@ func transportFor(ctx context.Context, srv *domain.MCPServer) (mcp.Transport, er
 	hc := httpClientWithHeaders(headers)
 
 	switch tr {
-	case "stdio":
-		cmdPath := strings.TrimSpace(srv.Command)
-		if cmdPath == "" {
-			return nil, errors.New("stdio: пустая команда")
-		}
-
-		if err := validateStdioPolicy(srv); err != nil {
-			logger.W("MCP transport stdio: server_id=%d policy: %v", srv.ID, err)
-			return nil, err
-		}
-
-		args, err := parseStringSliceJSON(srv.ArgsJSON)
-		if err != nil {
-			return nil, fmt.Errorf("args_json: %w", err)
-		}
-
-		envExtra, err := parseStringMapJSON(srv.EnvJSON)
-		if err != nil {
-			return nil, fmt.Errorf("env_json: %w", err)
-		}
-
-		cmd := exec.CommandContext(ctx, cmdPath, args...)
-		cmd.Env = mergeEnv(os.Environ(), envExtra)
-		logger.D("MCP transport stdio: server_id=%d command=%q args_count=%d env_extra_keys=%d", srv.ID, cmdPath, len(args), len(envExtra))
-		return &mcp.CommandTransport{Command: cmd}, nil
-
 	case "sse":
 		raw := strings.TrimSpace(srv.URL)
 		if raw == "" {

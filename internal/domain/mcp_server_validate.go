@@ -12,13 +12,13 @@ func ValidateMCPServerStructure(s *MCPServer) error {
 
 	tr := strings.ToLower(strings.TrimSpace(s.Transport))
 	if tr == "" {
-		tr = "stdio"
+		tr = "sse"
 	}
 
 	switch tr {
-	case "stdio", "sse", "streamable":
+	case "sse", "streamable":
 	default:
-		return fmt.Errorf("transport: ожидается stdio, sse или streamable")
+		return fmt.Errorf("transport: ожидается sse или streamable")
 	}
 
 	ts := s.TimeoutSeconds

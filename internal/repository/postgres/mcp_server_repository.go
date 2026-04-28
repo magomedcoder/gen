@@ -252,10 +252,10 @@ func (r *mcpServerRepository) CountOwnedByUser(ctx context.Context, userID int) 
 func normalizeMCPTransport(t string) string {
 	t = strings.ToLower(strings.TrimSpace(t))
 	switch t {
-	case "stdio", "sse", "streamable":
+	case "sse", "streamable":
 		return t
 	default:
-		return "stdio"
+		return "sse"
 	}
 }
 

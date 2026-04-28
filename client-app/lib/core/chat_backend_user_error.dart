@@ -13,7 +13,7 @@ String chatBackendErrorMessage(Object error) {
 
   final raw = error.toString().trim();
   if (raw.isEmpty) {
-    return 'Неизвестная ошибка';
+    return 'Неизвестная error';
   }
 
   return raw;
@@ -31,37 +31,37 @@ String _grpcRunnerOrGenMessage(GrpcError e) {
   final detail = e.message?.trim();
   switch (e.code) {
     case StatusCode.deadlineExceeded:
-      return 'превышено время ожидания gen или локального раннера. Проверьте таймаут в настройках сессии и сеть.';
+      return 'превышено время ожидания gen или локального раннера. Проверьте timeout в настройках сессии и сеть.';
     case StatusCode.cancelled:
-      return 'запрос отменён.';
+      return 'request отменён.';
     case StatusCode.unavailable:
       return 'gen или раннер недоступен по сети.';
     case StatusCode.unauthenticated:
-      return 'требуется повторный вход (gen отклонил запрос).';
+      return 'требуется повторный вход (gen отклонил request).';
     case StatusCode.permissionDenied:
       return 'доступ запрещён на стороне gen.';
     case StatusCode.notFound:
       return 'ресурс не найден на стороне gen.';
     case StatusCode.invalidArgument:
       if (detail != null && detail.isNotEmpty) {
-        return 'некорректный запрос: $detail';
+        return 'invalid request: $detail';
       }
 
-      return 'некорректный запрос к gen или раннеру.';
+      return 'invalid request к gen или раннеру.';
     case StatusCode.resourceExhausted:
-      return 'лимит или размер запроса (gen).';
+      return 'лимит или размер requestа (gen).';
     case StatusCode.unimplemented:
       return 'операция не поддержана раннером или конфигурацией gen.';
     case StatusCode.internal:
       if (detail != null && detail.isNotEmpty) {
-        return 'внутренняя ошибка gen/раннера: $detail';
+        return 'внутренняя error gen/раннера: $detail';
       }
 
-      return 'внутренняя ошибка gen или раннера (см. логи сервера).';
+      return 'внутренняя error gen или раннера (см. логи сервера).';
     default:
       if (detail != null && detail.isNotEmpty) {
-        return 'ошибка gen/раннера (${e.codeName}): $detail';
+        return 'error gen/раннера (${e.codeName}): $detail';
       }
-      return 'ошибка gen/раннера (${e.codeName}).';
+      return 'error gen/раннера (${e.codeName}).';
   }
 }

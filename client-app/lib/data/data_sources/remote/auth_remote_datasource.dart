@@ -45,7 +45,7 @@ class AuthRemoteDataSource implements IAuthRemoteDataSource {
       );
     } catch (e) {
       Logs().e('AuthRemote: login', exception: e);
-      throw ApiFailure('Ошибка входа');
+      throw ApiFailure('Error входа');
     }
   }
 
@@ -68,7 +68,7 @@ class AuthRemoteDataSource implements IAuthRemoteDataSource {
       );
     } catch (e) {
       Logs().e('AuthRemote: refreshToken', exception: e);
-      throw ApiFailure('Ошибка обновления токена');
+      throw ApiFailure('Error обновления токена');
     }
   }
 
@@ -90,10 +90,10 @@ class AuthRemoteDataSource implements IAuthRemoteDataSource {
         'AuthRemote: logout code=${e.code} message=${e.message}',
         exception: e,
       );
-      throw NetworkFailure('Ошибка выхода (код ${e.code})');
+      throw NetworkFailure('Error выхода (код ${e.code})');
     } catch (e) {
       Logs().e('AuthRemote: logout', exception: e);
-      throw ApiFailure('Ошибка выхода');
+      throw ApiFailure('Error выхода');
     }
   }
 
@@ -117,7 +117,7 @@ class AuthRemoteDataSource implements IAuthRemoteDataSource {
       throwGrpcError(e, 'смена пароля');
     } catch (e) {
       Logs().e('AuthRemote: changePassword', exception: e);
-      throw ApiFailure('Ошибка смены пароля');
+      throw ApiFailure('Error смены пароля');
     }
   }
 }

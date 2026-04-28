@@ -64,12 +64,12 @@ class RunnersAdminBloc extends Bloc<RunnersAdminEvent, RunnersAdminState> {
         error: null,
       ));
     } catch (e) {
-      Logs().e('RunnersAdminBloc: ошибка загрузки', exception: e);
+      Logs().e('RunnersAdminBloc: error загрузки', exception: e);
       emit(state.copyWith(
         isLoading: false,
         error: userSafeErrorMessage(
           e,
-          fallback: 'Ошибка загрузки раннеров',
+          fallback: 'Error загрузки раннеров',
         ),
       ));
     }
@@ -155,7 +155,7 @@ class RunnersAdminBloc extends Bloc<RunnersAdminEvent, RunnersAdminState> {
       emit(state.copyWith(
         error: userSafeErrorMessage(
           e,
-          fallback: 'Ошибка выбора раннера по умолчанию',
+          fallback: 'Error выбора раннера по умолчанию',
         ),
       ));
     }

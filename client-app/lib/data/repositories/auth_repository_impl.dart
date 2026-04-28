@@ -16,8 +16,8 @@ class AuthRepositoryImpl implements AuthRepository {
       return await dataSource.login(username, password);
     } catch (e) {
       if (e is Failure) rethrow;
-      Logs().e('AuthRepository: ошибка входа', exception: e);
-      throw ApiFailure('Ошибка входа');
+      Logs().e('AuthRepository: error входа', exception: e);
+      throw ApiFailure('Error входа');
     }
   }
 
@@ -27,8 +27,8 @@ class AuthRepositoryImpl implements AuthRepository {
       return await dataSource.refreshToken(refreshToken);
     } catch (e) {
       if (e is Failure) rethrow;
-      Logs().e('AuthRepository: ошибка обновления токена', exception: e);
-      throw ApiFailure('Ошибка обновления токена');
+      Logs().e('AuthRepository: error обновления токена', exception: e);
+      throw ApiFailure('Error обновления токена');
     }
   }
 
@@ -38,8 +38,8 @@ class AuthRepositoryImpl implements AuthRepository {
       await dataSource.logout();
     } catch (e) {
       if (e is Failure) rethrow;
-      Logs().e('AuthRepository: ошибка выхода', exception: e);
-      throw ApiFailure('Ошибка выхода');
+      Logs().e('AuthRepository: error выхода', exception: e);
+      throw ApiFailure('Error выхода');
     }
   }
 
@@ -49,8 +49,8 @@ class AuthRepositoryImpl implements AuthRepository {
       await dataSource.changePassword(oldPassword, newPassword);
     } catch (e) {
       if (e is Failure) rethrow;
-      Logs().e('AuthRepository: ошибка смены пароля', exception: e);
-      throw ApiFailure('Ошибка смены пароля');
+      Logs().e('AuthRepository: error смены пароля', exception: e);
+      throw ApiFailure('Error смены пароля');
     }
   }
 }

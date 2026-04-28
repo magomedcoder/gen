@@ -118,7 +118,7 @@ class _WebSearchAdminScreenState extends State<WebSearchAdminScreen> {
         return;
       }
 
-      showAppTopNotice('Ошибка: $e', error: true);
+      showAppTopNotice('Error: $e', error: true);
     } finally {
       if (mounted) {
         setState(() => _saving = false);
@@ -215,7 +215,7 @@ class _WebSearchAdminScreenState extends State<WebSearchAdminScreen> {
                 controller: _maxResultsCtrl,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(
-                  labelText: 'Максимальное количество результатов на запрос',
+                  labelText: 'Максимальное количество результатов на request',
                   border: OutlineInputBorder(),
                   helperText: 'Не более 50',
                 ),

@@ -161,7 +161,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           Logs().w('AuthBloc: refresh не авторизован');
           break;
         }
-        Logs().e('AuthBloc: ошибка проверки сессии', exception: e);
+        Logs().e('AuthBloc: error проверки сессии', exception: e);
         if (attempt < maxAttempts) {
           await Future<void>.delayed(retryDelay);
         }
@@ -252,7 +252,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           ),
         );
       } else {
-        Logs().e('AuthBloc: ошибка входа', exception: e);
+        Logs().e('AuthBloc: error входа', exception: e);
         emit(
           state.copyWith(
             isLoading: false,
@@ -330,7 +330,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     try {
       await logoutUseCase();
     } catch (e) {
-      Logs().w('AuthBloc: ошибка при выходе', exception: e);
+      Logs().w('AuthBloc: error при выходе', exception: e);
     } finally {
       tokenStorage.clearTokens();
       emit(
@@ -360,7 +360,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       final response = await channelManager.authClientForVersionCheck.checkVersion(request);
       return response.compatible;
     } catch (e) {
-      Logs().w('AuthBloc: ошибка проверки версии', exception: e);
+      Logs().w('AuthBloc: error проверки версии', exception: e);
       return true;
     }
   }

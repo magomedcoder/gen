@@ -128,72 +128,14 @@ func TestRAGConfigEffectiveAdaptiveKAndMinScore(t *testing.T) {
 	}
 }
 
-func TestStdioCommandAllowed(t *testing.T) {
-	if !StdioCommandAllowed("/opt/mcp/bin/server", []string{"/opt/mcp"}) {
-		t.Fatal("ожидалось совпадение по префиксу каталога")
-	}
-
-	if !StdioCommandAllowed("/opt/mcp", []string{"/opt/mcp"}) {
-		t.Fatal("ожидалось точное совпадение")
-	}
-
-	if StdioCommandAllowed("/other/bin", []string{"/opt/mcp"}) {
-		t.Fatal("ожидался отказ")
-	}
-
-	if !StdioCommandAllowed("/any/path", nil) {
-		t.Fatal("пустой allowlist = без ограничения")
-	}
-
-	if StdioCommandAllowed("", []string{"/opt"}) {
-		t.Fatal("пустая команда")
-	}
-}
-
-func TestValidateMCPServerStdio(t *testing.T) {
-	cfg := &Config{
-		MCP: MCPConfig{
-			StdioDisabled:        false,
-			StdioCommandPrefixes: []string{"/opt/mcp"},
-		},
-	}
-
-	ok := &domain.MCPServer{
-		Transport: "stdio",
-		Command:   "/opt/mcp/wrapper",
-	}
-
-	if err := cfg.ValidateMCPServerStdio(ok); err != nil {
-		t.Fatal(err)
-	}
-
-	bad := &domain.MCPServer{
-		Transport: "stdio",
-		Command:   "/usr/bin/evil",
-	}
-	if err := cfg.ValidateMCPServerStdio(bad); err == nil {
-		t.Fatal("ожидалась ошибка allowlist")
-	}
-
-	disabled := &Config{
-		MCP: MCPConfig{
-			StdioDisabled: true,
-		},
-	}
-	if err := disabled.ValidateMCPServerStdio(ok); err == nil {
-		t.Fatal("ожидали отключение stdio")
-	}
-}
-
-func TestValidateMCPServerHTTPUnchangedForStdio(t *testing.T) {
+func TestValidateMCPServerHTTPIgnoredForNonHTTPTransport(t *testing.T) {
 	cfg := &Config{
 		MCP: MCPConfig{},
 	}
 	s := &domain.MCPServer{
-		Transport: "stdio",
-		Command:   "/bin/true",
+		Transport: "invalid",
 	}
 	if err := cfg.ValidateMCPServerHTTP(s); err != nil {
-		t.Fatalf("stdio не должен валидироваться как HTTP: %v", err)
+		t.Fatalf("non-http транспорт не должен валидироваться как HTTP: %v", err)
 	}
 }

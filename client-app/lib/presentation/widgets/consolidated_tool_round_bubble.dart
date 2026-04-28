@@ -382,7 +382,7 @@ class _ConsolidatedToolRoundBubbleState extends State<ConsolidatedToolRoundBubbl
                       Padding(
                         padding: const EdgeInsets.only(top: 12),
                         child: Text(
-                          'Ожидаю итоговый ответ модели…',
+                          'Ожидаю итоговый ответ модели...',
                           style: TextStyle(
                             fontSize: 13,
                             color: theme.colorScheme.onSurfaceVariant,

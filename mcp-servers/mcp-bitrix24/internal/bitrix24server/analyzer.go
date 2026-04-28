@@ -250,7 +250,7 @@ func recommendActions(task map[string]any, comments []map[string]any, now, deadl
 	statusCode := taskStatusCode(task)
 	var actions []string
 	if !deadline.IsZero() && deadline.Before(now) && statusCode != 5 && statusCode != 7 {
-		actions = append(actions, "Пересогласуйте срок или срочно обновите план закрытия с ответственным.")
+		actions = append(actions, "Пересогласуйте срок или срочно обновите план закрытия с responseственным.")
 	}
 
 	if deadline.IsZero() && statusCode != 5 && statusCode != 7 {
@@ -258,7 +258,7 @@ func recommendActions(task map[string]any, comments []map[string]any, now, deadl
 	}
 
 	if len(comments) == 0 {
-		actions = append(actions, "Запросите статус-апдейт у ответственного одним комментарием с датой следующего шага.")
+		actions = append(actions, "Запросите статус-апдейт у responseственного одним комментарием с датой следующего шага.")
 	}
 
 	if !lastCommentAt.IsZero() && now.Sub(lastCommentAt) > 72*time.Hour && statusCode != 5 && statusCode != 7 {
@@ -274,18 +274,10 @@ func recommendActions(task map[string]any, comments []map[string]any, now, deadl
 	}
 
 	if len(actions) == 0 {
-		actions = append(actions, "Проверьте актуальность статуса, ответственного и ближайших шагов.")
+		actions = append(actions, "Проверьте актуальность статуса, responseственного и ближайших шагов.")
 	}
 
 	return actions
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-
-	return b
 }
 
 func taskConclusion(title string, statusCode int, risk string, deadline, now time.Time, commentsCount int, hasBlockers bool) string {
@@ -302,7 +294,7 @@ func taskConclusion(title string, statusCode int, risk string, deadline, now tim
 	}
 
 	if commentsCount == 0 {
-		return formatTaskConclusion("под контролем", fmt.Sprintf("по задаче \"%s\" нет коммуникаций", title), "запросить статус-апдейт и ближайший следующий шаг", "в течение 1 рабочего дня")
+		return formatTaskConclusion("под контролем", fmt.Sprintf("по задаче \"%s\" нет коммуникаций", title), "requestить статус-апдейт и ближайший следующий шаг", "в течение 1 рабочего дня")
 	}
 
 	if hasBlockers {

@@ -35,7 +35,7 @@ func CallToolResultString(r *mcp.CallToolResult) string {
 	}
 
 	if len(parts) == 0 && r.IsError {
-		return "ошибка инструмента (пустой ответ)"
+		return "error инструмента (empty response)"
 	}
 
 	return strings.Join(parts, "\n")

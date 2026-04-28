@@ -22,11 +22,6 @@ func TestUseHTTPSessionPool(t *testing.T) {
 		Transport: "streamable",
 		URL:       "http://127.0.0.1:9/x",
 	}
-	stdio := &domain.MCPServer{
-		ID:        42,
-		Transport: "stdio",
-		Command:   "/bin/true",
-	}
 	noID := &domain.MCPServer{
 		ID:        0,
 		Transport: "sse",
@@ -45,10 +40,6 @@ func TestUseHTTPSessionPool(t *testing.T) {
 
 	if !useHTTPSessionPool(ctx, stream) {
 		t.Fatal("ожидалось true для streamable")
-	}
-
-	if useHTTPSessionPool(ctx, stdio) {
-		t.Fatal("stdio не использует HTTP-пул")
 	}
 
 	if useHTTPSessionPool(ctx, noID) {

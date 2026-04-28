@@ -64,7 +64,7 @@ class SessionsSidebarErrorState extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              'Ошибка загрузки',
+              'Error загрузки',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 color: Theme.of(context).colorScheme.error,
               ),

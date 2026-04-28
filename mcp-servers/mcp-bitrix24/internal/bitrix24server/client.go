@@ -33,21 +33,21 @@ var readOnlyBitrixMethods = map[string]struct{}{
 func newBitrixClient(baseURL string, timeout time.Duration, logLevel string, retryMax int, retryBackoff time.Duration) (*bitrixClient, error) {
 	trimmed := strings.TrimSpace(baseURL)
 	if trimmed == "" {
-		return nil, fmt.Errorf("B24_WEBHOOK_BASE is empty")
+		return nil, fmt.Errorf("bitrix webhook base is empty (set X-B24-Base in MCP headers)")
 	}
 
 	trimmed = strings.TrimSuffix(trimmed, "/")
 	u, err := url.Parse(trimmed)
 	if err != nil {
-		return nil, fmt.Errorf("invalid B24_WEBHOOK_BASE: %w", err)
+		return nil, fmt.Errorf("invalid bitrix webhook base: %w", err)
 	}
 
 	if u.Scheme != "http" && u.Scheme != "https" {
-		return nil, fmt.Errorf("B24_WEBHOOK_BASE must start with http:// or https://")
+		return nil, fmt.Errorf("bitrix webhook base must start with http:// or https://")
 	}
 
 	if u.Host == "" {
-		return nil, fmt.Errorf("B24_WEBHOOK_BASE host is empty")
+		return nil, fmt.Errorf("bitrix webhook base host is empty")
 	}
 
 	return &bitrixClient{
@@ -99,7 +99,7 @@ func (c *bitrixClient) call(ctx context.Context, method string, payload any) (ma
 		log.Printf("[b24-mcp] req_id=%s http method=%q request_err=%v attempt=%d", reqID, method, err, attempt+1)
 		incHTTPError()
 		if attempt >= c.retryMax {
-			return nil, fmt.Errorf("request failed: %w", err)
+			return nil, fmt.Errorf("request не удалось: %w", err)
 		}
 		time.Sleep(c.retryBackoff * time.Duration(attempt+1))
 		req, _ = http.NewRequestWithContext(ctx, http.MethodPost, endpoint.String(), bytes.NewReader(body))
@@ -297,18 +297,18 @@ func wrapBitrixError(method string, statusCode int, raw []byte, decoded map[stri
 	}
 	hint := bitrixErrorHint(method, code, desc, statusCode)
 	if code == "" && desc == "" {
-		return fmt.Errorf("bitrix method %s failed with status %d. %s", method, statusCode, hint)
+		return fmt.Errorf("bitrix method %s не удалось with status %d. %s", method, statusCode, hint)
 	}
 
-	return fmt.Errorf("bitrix method %s failed: %s (%s). %s", method, code, strings.TrimSpace(desc), hint)
+	return fmt.Errorf("bitrix method %s не удалось: %s (%s). %s", method, code, strings.TrimSpace(desc), hint)
 }
 
 func bitrixErrorHint(method, code, desc string, statusCode int) string {
 	msg := strings.ToLower(code + " " + desc)
 	switch {
 	case strings.Contains(msg, "wrong_arguments"), strings.Contains(msg, "expected to be of type"):
-		return "Проверьте типы и названия параметров запроса."
-	case strings.Contains(msg, "action_failed_to_be_processed"), strings.Contains(msg, "tasks_error_exception_#8"):
+		return "Проверьте типы и названия параметров requestа."
+	case strings.Contains(msg, "action_не удалось_to_be_processed"), strings.Contains(msg, "tasks_error_exception_#8"):
 		if method == "task.commentitem.getlist" {
 			return "Комментарий API может быть ограничен правами/новой карточкой задач. Попробуйте отключить include_comments."
 		}
@@ -316,7 +316,7 @@ func bitrixErrorHint(method, code, desc string, statusCode int) string {
 	case strings.Contains(msg, "access denied"), statusCode == http.StatusForbidden:
 		return "Недостаточно прав у пользователя/вебхука для этого метода."
 	case statusCode == http.StatusTooManyRequests || strings.Contains(msg, "query_limit_exceeded"):
-		return "Превышен лимит запросов Bitrix24, повторите позже."
+		return "Превышен лимит requestов Bitrix24, повторите позже."
 	default:
 		return "Проверьте параметры метода, права доступа и ограничения портала."
 	}

@@ -112,7 +112,7 @@ class _McpAdminScreenState extends State<McpAdminScreen> {
       if (!mounted) {
         return;
       }
-      showAppTopNotice('Ошибка: $e', error: true);
+      showAppTopNotice('Error: $e', error: true);
     }
   }
 
@@ -178,7 +178,7 @@ class _McpAdminScreenState extends State<McpAdminScreen> {
                   showAppTopNotice(e.message, error: true);
                   return;
                 } catch (e) {
-                  showAppTopNotice('Некорректный JSON: $e', error: true);
+                  showAppTopNotice('Invalid JSON: $e', error: true);
                   return;
                 }
                 Navigator.pop(ctx, true);
@@ -201,7 +201,7 @@ class _McpAdminScreenState extends State<McpAdminScreen> {
       showAppTopNotice(e.message, error: true);
       return;
     } catch (e) {
-      showAppTopNotice('Некорректный JSON: $e', error: true);
+      showAppTopNotice('Invalid JSON: $e', error: true);
       return;
     }
 
@@ -229,7 +229,7 @@ class _McpAdminScreenState extends State<McpAdminScreen> {
       if (!mounted) {
         return;
       }
-      showAppTopNotice('Ошибка: $e', error: true);
+      showAppTopNotice('Error: $e', error: true);
     }
   }
 

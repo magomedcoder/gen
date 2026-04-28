@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/magomedcoder/gen/pkg/collections"
 )
 
 type taskAnalyticsItem struct {
@@ -134,7 +136,7 @@ func isIgnorableCommentError(err error) bool {
 	}
 
 	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "task.commentitem.getlist") || strings.Contains(msg, "tasks_error_exception_#8") || strings.Contains(msg, "action_failed_to_be_processed") || strings.Contains(msg, "access denied")
+	return strings.Contains(msg, "task.commentitem.getlist") || strings.Contains(msg, "tasks_error_exception_#8") || strings.Contains(msg, "action_не удалось_to_be_processed") || strings.Contains(msg, "access denied")
 }
 
 func loadTaskList(ctx context.Context, client *bitrixClient, filter, order map[string]any, start *int, limit int) ([]map[string]any, error) {
@@ -149,11 +151,11 @@ func loadTaskList(ctx context.Context, client *bitrixClient, filter, order map[s
 	}
 
 	if filter != nil {
-		payload["filter"] = cloneAnyMap(filter)
+		payload["filter"] = collections.CloneAnyMap(filter)
 	}
 
 	if order != nil {
-		payload["order"] = cloneAnyMap(order)
+		payload["order"] = collections.CloneAnyMap(order)
 	}
 
 	currentStart := 0
@@ -324,7 +326,7 @@ func renderAnalyticsAnswer(query string, items []taskAnalyticsItem, now time.Tim
 		filtered = items
 	}
 	if len(filtered) == 0 {
-		return "По этому аналитическому запросу совпадений не найдено."
+		return "По этому аналитическому requestу совпадений не найдено."
 	}
 
 	high := 0
@@ -383,7 +385,7 @@ func renderAnalyticsAnswer(query string, items []taskAnalyticsItem, now time.Tim
 		lines = append(lines, "- Разобрать блокеры: назначить владельца каждого препятствия и дату снятия.")
 	}
 
-	lines = append(lines, "- Для задач без свежих комментариев запросить статус-апдейт и следующий контрольный шаг.")
+	lines = append(lines, "- Для задач без свежих комментариев requestить статус-апдейт и следующий контрольный шаг.")
 	lines = append(lines, "")
 	lines = append(lines, "=== Вывод ===")
 	lines = append(lines, analyticsQueryConclusion(len(filtered), overdue, blockers, high))
@@ -401,7 +403,7 @@ func emptyIfBlank(v, fallback string) string {
 
 func analyticsQueryConclusion(total, overdue, blockers, highRisk int) string {
 	if total == 0 {
-		return formatConclusion("стабильно", "совпадений нет", "уточнить фильтр/запрос", "в плановом порядке")
+		return formatConclusion("стабильно", "совпадений нет", "уточнить фильтр/request", "в плановом порядке")
 	}
 
 	if overdue > 0 || highRisk > 0 {
@@ -1030,14 +1032,8 @@ func formatConclusion(status, risk, action, reactionTime string) string {
 
 func runWorkloadSummary(ctx context.Context, client *bitrixClient, filter map[string]any, order map[string]any, start *int, limit *int, includeComments *bool, overloadTasks *int) (string, error) {
 	now := time.Now()
-	maxTasks := 40
-	if limit != nil {
-		maxTasks = *limit
-	}
-	overloadThreshold := 12
-	if overloadTasks != nil {
-		overloadThreshold = *overloadTasks
-	}
+	maxTasks := clampIntArg(limit, 40, 1, 50)
+	overloadThreshold := clampIntArg(overloadTasks, 12, 1, 100)
 
 	withComments := false
 	if includeComments != nil {
@@ -1146,7 +1142,7 @@ func runWorkloadSummary(ctx context.Context, client *bitrixClient, filter map[st
 		fmt.Sprintf("Охват: %d задач | Активных: %d | Просрочено: %d | Высокий риск: %d", len(items), totalActive, totalOverdue, totalHighRisk),
 		fmt.Sprintf("Ответственных в перегрузе: %d", overloaded),
 		"",
-		"Нагрузка по ответственным:",
+		"Нагрузка по responseственным:",
 	}
 	for _, row := range rows {
 		flag := ""
@@ -1162,7 +1158,7 @@ func runWorkloadSummary(ctx context.Context, client *bitrixClient, filter map[st
 	lines = append(lines, "Рекомендации по перераспределению:")
 	lines = append(lines, "- Разгрузить сотрудников с флагом [ПЕРЕГРУЗ] за счет переноса низкоприоритетных задач.")
 	lines = append(lines, "- Сначала перераспределять просроченные и high-risk задачи, затем задачи без блокеров.")
-	lines = append(lines, "- Зафиксировать owner и дедлайн для каждой задачи, переданной между ответственными.")
+	lines = append(lines, "- Зафиксировать owner и дедлайн для каждой задачи, переданной между responseственными.")
 	lines = append(lines, "")
 	lines = append(lines, "=== Вывод ===")
 	if overloaded > 0 || totalOverdue > 0 || totalHighRisk > 0 {
@@ -1186,15 +1182,9 @@ func runWorkloadSummary(ctx context.Context, client *bitrixClient, filter map[st
 
 func runStatusTrends(ctx context.Context, client *bitrixClient, filter map[string]any, order map[string]any, start *int, limit *int, periodDays *int) (string, error) {
 	now := time.Now()
-	maxTasks := 50
-	if limit != nil {
-		maxTasks = *limit
-	}
+	maxTasks := clampIntArg(limit, 50, 1, 50)
 
-	days := 7
-	if periodDays != nil {
-		days = *periodDays
-	}
+	days := clampIntArg(periodDays, 7, 1, 30)
 
 	currentStart := now.Add(-time.Duration(days) * 24 * time.Hour)
 	previousStart := currentStart.Add(-time.Duration(days) * 24 * time.Hour)
@@ -1308,7 +1298,7 @@ func runResponsiblePerformance(ctx context.Context, client *bitrixClient, respon
 		}
 	}
 
-	responsibleFilter := cloneAnyMap(filter)
+	responsibleFilter := collections.CloneAnyMap(filter)
 	if responsibleFilter == nil {
 		responsibleFilter = map[string]any{}
 	}
@@ -1325,12 +1315,12 @@ func runResponsiblePerformance(ctx context.Context, client *bitrixClient, respon
 	}
 
 	if len(ac.Items) == 0 {
-		return fmt.Sprintf("По ответственному %s задачи не найдены.", responsibleID), nil
+		return fmt.Sprintf("По responseственному %s задачи не найдены.", responsibleID), nil
 	}
 
 	items := ac.Items
 	if len(items) == 0 {
-		return fmt.Sprintf("По ответственному %s задачи не найдены.", responsibleID), nil
+		return fmt.Sprintf("По responseственному %s задачи не найдены.", responsibleID), nil
 	}
 
 	total := len(items)
@@ -1358,7 +1348,7 @@ func runResponsiblePerformance(ctx context.Context, client *bitrixClient, respon
 
 	sort.SliceStable(items, func(i, j int) bool { return items[i].RiskScore > items[j].RiskScore })
 	lines := []string{
-		fmt.Sprintf("Performance по ответственному %s", responsibleID),
+		fmt.Sprintf("Performance по responseственному %s", responsibleID),
 		fmt.Sprintf("Всего задач: %d | Активных: %d | Просрочено: %d | High-risk: %d | Блокеры: %d", total, active, overdue, highRisk, blockers),
 		"",
 		"Топ задач по риску:",
@@ -1392,27 +1382,17 @@ func runResponsiblePerformance(ctx context.Context, client *bitrixClient, respon
 	return strings.Join(lines, "\n"), nil
 }
 
-func cloneAnyMap(src map[string]any) map[string]any {
-	if src == nil {
-		return nil
+func clampIntArg(value *int, def, min, max int) int {
+	if value == nil {
+		return def
 	}
-
-	dst := make(map[string]any, len(src))
-	for k, v := range src {
-		dst[k] = v
+	if *value < min {
+		return min
 	}
-
-	return dst
-}
-
-func cloneStringSlice(src []string) []string {
-	if len(src) == 0 {
-		return nil
+	if *value > max {
+		return max
 	}
-
-	dst := make([]string, len(src))
-	copy(dst, src)
-	return dst
+	return *value
 }
 
 func runProjectHealth(ctx context.Context, client *bitrixClient, filter map[string]any, order map[string]any, start *int, limit *int, includeComments *bool) (string, error) {

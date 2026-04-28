@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/magomedcoder/gen/pkg/mcpresult"
 	"github.com/magomedcoder/gen/pkg/mcpsafe"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -25,13 +26,7 @@ func NewServer() *mcp.Server {
 		Description: "Проверка связи; возвращает pong",
 	}, func(_ context.Context, _ *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
 		return mcpsafe.SafeToolInvoke("mcp-demo", "ping", func() (*mcp.CallToolResult, any, error) {
-			return &mcp.CallToolResult{
-				Content: []mcp.Content{
-					&mcp.TextContent{
-						Text: "pong",
-					},
-				},
-			}, nil, nil
+			return mcpresult.Text("pong"), nil, nil
 		})
 	})
 
@@ -49,13 +44,7 @@ func NewServer() *mcp.Server {
 				name = "мир"
 			}
 
-			return &mcp.CallToolResult{
-				Content: []mcp.Content{
-					&mcp.TextContent{
-						Text: "Привет, " + name + "!",
-					},
-				},
-			}, nil, nil
+			return mcpresult.Text("Привет, " + name + "!"), nil, nil
 		})
 	})
 
@@ -68,13 +57,7 @@ func NewServer() *mcp.Server {
 		Description: "Сложить два целых числа",
 	}, func(_ context.Context, _ *mcp.CallToolRequest, args addArgs) (*mcp.CallToolResult, any, error) {
 		return mcpsafe.SafeToolInvoke("mcp-demo", "add", func() (*mcp.CallToolResult, any, error) {
-			return &mcp.CallToolResult{
-				Content: []mcp.Content{
-					&mcp.TextContent{
-						Text: fmt.Sprintf("%d", args.A+args.B),
-					},
-				},
-			}, nil, nil
+			return mcpresult.Text(fmt.Sprintf("%d", args.A+args.B)), nil, nil
 		})
 	})
 
@@ -117,11 +100,7 @@ func NewServer() *mcp.Server {
 				return nil, nil, err
 			}
 
-			return &mcp.CallToolResult{
-				Content: []mcp.Content{
-					&mcp.TextContent{Text: string(text)},
-				},
-			}, nil, nil
+			return mcpresult.Text(string(text)), nil, nil
 		})
 	})
 

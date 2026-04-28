@@ -9,20 +9,17 @@ import (
 
 func TestServerConfigFingerprintChangesWithCommand(t *testing.T) {
 	a := &domain.MCPServer{
-		Transport:      "stdio",
-		Command:        "npx",
-		ArgsJSON:       `["x"]`,
-		EnvJSON:        `{}`,
-		URL:            "",
+		Transport:      "streamable",
+		URL:            "http://127.0.0.1:9/x",
 		HeadersJSON:    `{}`,
 		TimeoutSeconds: 120,
 	}
 
 	fp1 := serverConfigFingerprint(a)
-	a.Command = "node"
+	a.URL = "http://127.0.0.1:9/y"
 	fp2 := serverConfigFingerprint(a)
 	if fp1 == fp2 {
-		t.Fatal("fingerprint should change when command changes")
+		t.Fatal("fingerprint should change when url changes")
 	}
 }
 

@@ -38,11 +38,7 @@ func approxVisionImageTokens(byteLen int) int {
 		maxTokens = 8192
 	)
 
-	t := max(byteLen/16, minTokens)
-
-	if t > maxTokens {
-		t = maxTokens
-	}
+	t := min(max(byteLen/16, minTokens), maxTokens)
 
 	return t
 }

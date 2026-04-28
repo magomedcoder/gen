@@ -11,6 +11,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/magomedcoder/gen/pkg/collections"
+	"github.com/magomedcoder/gen/pkg/mcpresult"
 	"github.com/magomedcoder/gen/pkg/mcpsafe"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -78,7 +80,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 				}
 
 				if len(args.Select) > 0 {
-					payload["select"] = cloneStringSlice(args.Select)
+					payload["select"] = collections.CloneStringSlice(args.Select)
 				}
 
 				resp, err := client.call(ctx, "tasks.task.get", payload)
@@ -104,24 +106,24 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 
 				log.Printf("[b24-mcp] tool=b24_list_tasks redirect_task_id=%d ok", taskID)
 				logToolResult("b24_list_tasks", normalized)
-				return textAndPayloadResult("b24_list_tasks", normalized), nil, nil
+				return mcpresult.TextAndPayload("b24_list_tasks", normalized), nil, nil
 			}
 
 			payload := map[string]any{}
 			if args.Filter != nil {
-				payload["filter"] = cloneAnyMap(args.Filter)
+				payload["filter"] = collections.CloneAnyMap(args.Filter)
 			}
 
 			if len(args.Select) > 0 {
-				payload["select"] = cloneStringSlice(args.Select)
+				payload["select"] = collections.CloneStringSlice(args.Select)
 			}
 
 			if args.Order != nil {
-				payload["order"] = cloneAnyMap(args.Order)
+				payload["order"] = collections.CloneAnyMap(args.Order)
 			}
 
 			if args.Params != nil {
-				payload["params"] = cloneAnyMap(args.Params)
+				payload["params"] = collections.CloneAnyMap(args.Params)
 			}
 
 			if args.Start != nil {
@@ -154,7 +156,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 			log.Printf("[b24-mcp] tool=b24_list_tasks ok")
 			logToolResult("b24_list_tasks", normalized)
 
-			return textAndPayloadResult("b24_list_tasks", normalized), nil, nil
+			return mcpresult.TextAndPayload("b24_list_tasks", normalized), nil, nil
 		})
 	})
 
@@ -176,7 +178,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 			}
 
 			if taskID <= 0 {
-				return nil, nil, fmt.Errorf("task_id must be > 0")
+				return nil, nil, fmt.Errorf("task_id должно быть > 0")
 			}
 			log.Printf("[b24-mcp] tool=b24_get_task task_id=%d select=%d", taskID, len(args.Select))
 
@@ -185,7 +187,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 			}
 
 			if len(args.Select) > 0 {
-				payload["select"] = cloneStringSlice(args.Select)
+				payload["select"] = collections.CloneStringSlice(args.Select)
 			}
 
 			resp, err := client.call(ctx, "tasks.task.get", payload)
@@ -211,7 +213,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 			log.Printf("[b24-mcp] tool=b24_get_task task_id=%d ok", taskID)
 			logToolResult("b24_get_task", normalized)
 
-			return textAndPayloadResult("b24_get_task", normalized), nil, nil
+			return mcpresult.TextAndPayload("b24_get_task", normalized), nil, nil
 		})
 	})
 
@@ -234,12 +236,12 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 			}
 
 			if taskID <= 0 {
-				return nil, nil, fmt.Errorf("task_id must be > 0")
+				return nil, nil, fmt.Errorf("task_id должно быть > 0")
 			}
 
 			log.Printf("[b24-mcp] tool=b24_get_task_comments task_id=%d order_keys=%d filter_keys=%d", taskID, len(args.Order), len(args.Filter))
 
-			resp, err := client.callTaskCommentItemGetList(ctx, taskID, cloneAnyMap(args.Order), cloneAnyMap(args.Filter))
+			resp, err := client.callTaskCommentItemGetList(ctx, taskID, collections.CloneAnyMap(args.Order), collections.CloneAnyMap(args.Filter))
 			if err != nil {
 				log.Printf("[b24-mcp] tool=b24_get_task_comments task_id=%d err=%v", taskID, err)
 				return nil, nil, err
@@ -269,7 +271,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 			log.Printf("[b24-mcp] tool=b24_get_task_comments task_id=%d ok", taskID)
 			logToolResult("b24_get_task_comments", normalized)
 
-			return textAndPayloadResult("b24_get_task_comments", normalized), nil, nil
+			return mcpresult.TextAndPayload("b24_get_task_comments", normalized), nil, nil
 		})
 	})
 
@@ -285,7 +287,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 		return mcpsafe.SafeToolInvoke("mcp-bitrix24", "b24_get_task_timeline", func() (*mcp.CallToolResult, any, error) {
 			if !heavyAnalyticsEnabled {
 				msg := "b24_get_task_timeline отключен feature-flag `DisableHeavyAnalytics`."
-				return textResult(msg), nil, nil
+				return mcpresult.Text(msg), nil, nil
 			}
 
 			ctx, rid := withRequestID(ctx)
@@ -297,13 +299,13 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 			}
 
 			if taskID <= 0 {
-				return nil, nil, fmt.Errorf("task_id must be > 0")
+				return nil, nil, fmt.Errorf("task_id должно быть > 0")
 			}
 
 			limit := 50
 			if args.Limit != nil {
 				if *args.Limit < 1 || *args.Limit > 200 {
-					return nil, nil, fmt.Errorf("limit must be in range [1..200]")
+					return nil, nil, fmt.Errorf("limit должно быть in range [1..200]")
 				}
 				limit = *args.Limit
 			}
@@ -369,7 +371,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 			}
 			log.Printf("[b24-mcp] tool=b24_get_task_timeline task_id=%d ok timeline=%d", taskID, len(timeline))
 			logToolResult("b24_get_task_timeline", payload)
-			return textAndPayloadResult("b24_get_task_timeline", payload), nil, nil
+			return mcpresult.TextAndPayload("b24_get_task_timeline", payload), nil, nil
 		})
 	})
 
@@ -384,7 +386,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 		return mcpsafe.SafeToolInvoke("mcp-bitrix24", "b24_analyze_task_blockers", func() (*mcp.CallToolResult, any, error) {
 			if !heavyAnalyticsEnabled {
 				msg := "b24_analyze_task_blockers отключен feature-flag `DisableHeavyAnalytics`."
-				return textResult(msg), nil, nil
+				return mcpresult.Text(msg), nil, nil
 			}
 
 			ctx, rid := withRequestID(ctx)
@@ -396,13 +398,13 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 			}
 
 			if taskID <= 0 {
-				return nil, nil, fmt.Errorf("task_id must be > 0")
+				return nil, nil, fmt.Errorf("task_id должно быть > 0")
 			}
 
 			limit := 20
 			if args.Limit != nil {
 				if *args.Limit < 1 || *args.Limit > 100 {
-					return nil, nil, fmt.Errorf("limit must be in range [1..100]")
+					return nil, nil, fmt.Errorf("limit должно быть in range [1..100]")
 				}
 				limit = *args.Limit
 			}
@@ -438,7 +440,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 							"insufficient_data": true,
 						},
 					}
-					return textAndPayloadResult("b24_analyze_task_blockers", payload), nil, nil
+					return mcpresult.TextAndPayload("b24_analyze_task_blockers", payload), nil, nil
 				}
 
 				return nil, nil, err
@@ -467,7 +469,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 			}
 			log.Printf("[b24-mcp] tool=b24_analyze_task_blockers task_id=%d ok blockers=%d", taskID, len(signals))
 			logToolResult("b24_analyze_task_blockers", payload)
-			return textAndPayloadResult("b24_analyze_task_blockers", payload), nil, nil
+			return mcpresult.TextAndPayload("b24_analyze_task_blockers", payload), nil, nil
 		})
 	})
 
@@ -481,7 +483,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 		return mcpsafe.SafeToolInvoke("mcp-bitrix24", "b24_analyze_task_execution_drift", func() (*mcp.CallToolResult, any, error) {
 			if !heavyAnalyticsEnabled {
 				msg := "b24_analyze_task_execution_drift отключен feature-flag `DisableHeavyAnalytics`."
-				return textResult(msg), nil, nil
+				return mcpresult.Text(msg), nil, nil
 			}
 			ctx, rid := withRequestID(ctx)
 			log.Printf("[b24-mcp] tool=b24_analyze_task_execution_drift req_id=%s", rid)
@@ -492,7 +494,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 			}
 
 			if taskID <= 0 {
-				return nil, nil, fmt.Errorf("task_id must be > 0")
+				return nil, nil, fmt.Errorf("task_id должно быть > 0")
 			}
 
 			taskResp, err := client.call(ctx, "tasks.task.get", map[string]any{
@@ -534,7 +536,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 
 			log.Printf("[b24-mcp] tool=b24_analyze_task_execution_drift task_id=%d ok drift=%s", taskID, report.DriftLevel)
 			logToolResult("b24_analyze_task_execution_drift", payload)
-			return textAndPayloadResult("b24_analyze_task_execution_drift", payload), nil, nil
+			return mcpresult.TextAndPayload("b24_analyze_task_execution_drift", payload), nil, nil
 		})
 	})
 
@@ -559,14 +561,14 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 				msg := "Для b24_analyze_task нужно передать task_id. " +
 					"Пример: {\"task_id\": 1822404}. " +
 					"Если нужен обзор без конкретной задачи, используйте b24_analyze_tasks_by_query."
-				log.Printf("[b24-mcp] tool=b24_analyze_task missing_task_id")
+				log.Printf("[b24-mcp] tool=b24_analyze_task отсутствует_task_id")
 				logToolResult("b24_analyze_task", msg)
-				return textResult(msg), nil, nil
+				return mcpresult.Text(msg), nil, nil
 			}
 
 			taskID := *taskIDPtr
 			if taskID <= 0 {
-				return nil, nil, fmt.Errorf("task_id must be > 0")
+				return nil, nil, fmt.Errorf("task_id должно быть > 0")
 			}
 
 			includeComments := true
@@ -618,12 +620,12 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 			analysis := analyzeTask(task, comments, time.Now())
 			log.Printf("[b24-mcp] tool=b24_analyze_task task_id=%d ok comments=%d", taskID, len(comments))
 			logToolResult("b24_analyze_task", analysis)
-			return textAndJSONResult("b24_analyze_task", analysis), nil, nil
+			return mcpresult.TextAndJSON("b24_analyze_task", analysis), nil, nil
 		})
 	})
 
 	type analyticsQueryArgs struct {
-		Query           string         `json:"query,omitempty" jsonschema:"Текст запроса по аналитике, например: 'покажи просроченные и блокеры'. Если не задан, будет общий аналитический обзор."`
+		Query           string         `json:"query,omitempty" jsonschema:"Текст requestа по аналитике, например: 'покажи просроченные и блокеры'. Если не задан, будет общий аналитический обзор."`
 		TaskID          any            `json:"task_id,omitempty" jsonschema:"Опционально: анализ конкретной задачи (число или строка с цифрами)"`
 		Filter          map[string]any `json:"filter,omitempty" jsonschema:"Фильтр для tasks.task.list, если нужен анализ набора задач"`
 		Order           map[string]any `json:"order,omitempty" jsonschema:"Сортировка для tasks.task.list"`
@@ -633,7 +635,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 	}
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "b24_analyze_tasks_by_query",
-		Description: "Выполнить пользовательский запрос по аналитике задач (просрочки, риски, блокеры, активность, read-only)",
+		Description: "Выполнить пользовательский request по аналитике задач (просрочки, риски, блокеры, активность, read-only)",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, args analyticsQueryArgs) (*mcp.CallToolResult, any, error) {
 		return mcpsafe.SafeToolInvoke("mcp-bitrix24", "b24_analyze_tasks_by_query", func() (*mcp.CallToolResult, any, error) {
 			ctx, rid := withRequestID(ctx)
@@ -659,7 +661,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 			}
 
 			logToolResult("b24_analyze_tasks_by_query", result)
-			return textAndJSONResult("b24_analyze_tasks_by_query", result), nil, nil
+			return mcpresult.TextAndJSON("b24_analyze_tasks_by_query", result), nil, nil
 		})
 	})
 
@@ -673,7 +675,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 	}
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "b24_analyze_tasks_portfolio",
-		Description: "Портфельная аналитика задач: сводка по ответственным/постановщикам, просрочки и риски (read-only)",
+		Description: "Портфельная аналитика задач: сводка по responseственным/постановщикам, просрочки и риски (read-only)",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, args portfolioArgs) (*mcp.CallToolResult, any, error) {
 		return mcpsafe.SafeToolInvoke("mcp-bitrix24", "b24_analyze_tasks_portfolio", func() (*mcp.CallToolResult, any, error) {
 			ctx, rid := withRequestID(ctx)
@@ -689,7 +691,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 			}
 
 			logToolResult("b24_analyze_tasks_portfolio", result)
-			return textAndJSONResult("b24_analyze_tasks_portfolio", result), nil, nil
+			return mcpresult.TextAndJSON("b24_analyze_tasks_portfolio", result), nil, nil
 		})
 	})
 
@@ -719,7 +721,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 			}
 
 			logToolResult("b24_analyze_tasks_executive_summary", result)
-			return textAndJSONResult("b24_analyze_tasks_executive_summary", result), nil, nil
+			return mcpresult.TextAndJSON("b24_analyze_tasks_executive_summary", result), nil, nil
 		})
 	})
 
@@ -749,7 +751,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 			}
 
 			logToolResult("b24_analyze_tasks_sla", result)
-			return textAndJSONResult("b24_analyze_tasks_sla", result), nil, nil
+			return mcpresult.TextAndJSON("b24_analyze_tasks_sla", result), nil, nil
 		})
 	})
 
@@ -759,11 +761,11 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 		Start           *int           `json:"start,omitempty" jsonschema:"Смещение в tasks.task.list"`
 		Limit           *int           `json:"limit,omitempty" jsonschema:"Макс. задач (1..50), по умолчанию 40"`
 		IncludeComments *bool          `json:"include_comments,omitempty" jsonschema:"Подтягивать комментарии для оценки блокеров (по умолчанию false)"`
-		OverloadTasks   *int           `json:"overload_tasks,omitempty" jsonschema:"Порог перегруза по числу активных задач на ответственного (1..100), по умолчанию 12"`
+		OverloadTasks   *int           `json:"overload_tasks,omitempty" jsonschema:"Порог перегруза по числу активных задач на responseственного (1..100), по умолчанию 12"`
 	}
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "b24_analyze_tasks_workload",
-		Description: "Анализ нагрузки по ответственным: объем, риски, зоны перегруза и рекомендации по выравниванию (read-only)",
+		Description: "Анализ нагрузки по responseственным: объем, риски, зоны перегруза и рекомендации по выравниванию (read-only)",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, args workloadArgs) (*mcp.CallToolResult, any, error) {
 		return mcpsafe.SafeToolInvoke("mcp-bitrix24", "b24_analyze_tasks_workload", func() (*mcp.CallToolResult, any, error) {
 			ctx, rid := withRequestID(ctx)
@@ -779,7 +781,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 			}
 
 			logToolResult("b24_analyze_tasks_workload", result)
-			return textAndJSONResult("b24_analyze_tasks_workload", result), nil, nil
+			return mcpresult.TextAndJSON("b24_analyze_tasks_workload", result), nil, nil
 		})
 	})
 
@@ -808,12 +810,12 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 			}
 
 			logToolResult("b24_analyze_tasks_status_trends", result)
-			return textAndJSONResult("b24_analyze_tasks_status_trends", result), nil, nil
+			return mcpresult.TextAndJSON("b24_analyze_tasks_status_trends", result), nil, nil
 		})
 	})
 
 	type responsiblePerformanceArgs struct {
-		ResponsibleID   string         `json:"responsible_id" jsonschema:"ID ответственного (обязателен)"`
+		ResponsibleID   string         `json:"responsible_id" jsonschema:"ID responseственного (обязателен)"`
 		Filter          map[string]any `json:"filter,omitempty" jsonschema:"Доп. фильтр задач для выборки"`
 		Order           map[string]any `json:"order,omitempty" jsonschema:"Сортировка tasks.task.list"`
 		Start           *int           `json:"start,omitempty" jsonschema:"Смещение в tasks.task.list"`
@@ -822,7 +824,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 	}
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "b24_analyze_responsible_performance",
-		Description: "Сводка по ответственному: объем, просрочки, high-risk, блокеры (read-only)",
+		Description: "Сводка по responseственному: объем, просрочки, high-risk, блокеры (read-only)",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, args responsiblePerformanceArgs) (*mcp.CallToolResult, any, error) {
 		return mcpsafe.SafeToolInvoke("mcp-bitrix24", "b24_analyze_responsible_performance", func() (*mcp.CallToolResult, any, error) {
 			ctx, rid := withRequestID(ctx)
@@ -838,7 +840,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 			}
 
 			logToolResult("b24_analyze_responsible_performance", result)
-			return textAndJSONResult("b24_analyze_responsible_performance", result), nil, nil
+			return mcpresult.TextAndJSON("b24_analyze_responsible_performance", result), nil, nil
 		})
 	})
 
@@ -856,7 +858,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 		return mcpsafe.SafeToolInvoke("mcp-bitrix24", "b24_analyze_project_health", func() (*mcp.CallToolResult, any, error) {
 			if !heavyAnalyticsEnabled {
 				msg := "b24_analyze_project_health отключен feature-flag `DisableHeavyAnalytics`."
-				return textResult(msg), nil, nil
+				return mcpresult.Text(msg), nil, nil
 			}
 
 			ctx, rid := withRequestID(ctx)
@@ -872,54 +874,11 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 			}
 
 			logToolResult("b24_analyze_project_health", result)
-			return textAndJSONResult("b24_analyze_project_health", result), nil, nil
+			return mcpresult.TextAndJSON("b24_analyze_project_health", result), nil, nil
 		})
 	})
 
 	return srv, nil
-}
-
-func prettyJSON(data any) string {
-	b, err := json.MarshalIndent(data, "", "  ")
-	if err != nil {
-		return fmt.Sprintf("%v", data)
-	}
-
-	return string(b)
-}
-
-func textResult(text string) *mcp.CallToolResult {
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{Text: text},
-		},
-	}
-}
-
-func textAndJSONResult(tool, text string) *mcp.CallToolResult {
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{Text: text},
-		},
-		StructuredContent: map[string]any{
-			"tool":         tool,
-			"report_text":  text,
-			"generated_at": time.Now().UTC().Format(time.RFC3339),
-		},
-	}
-}
-
-func textAndPayloadResult(tool string, payload any) *mcp.CallToolResult {
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{Text: prettyJSON(payload)},
-		},
-		StructuredContent: map[string]any{
-			"tool":         tool,
-			"payload":      payload,
-			"generated_at": time.Now().UTC().Format(time.RFC3339),
-		},
-	}
 }
 
 func extractTask(resp map[string]any) (map[string]any, error) {
@@ -935,7 +894,7 @@ func extractTask(resp map[string]any) (map[string]any, error) {
 
 	taskRaw, ok := asMap["task"]
 	if !ok {
-		return nil, fmt.Errorf("bitrix result.task is missing")
+		return nil, fmt.Errorf("bitrix result.task is отсутствует")
 	}
 
 	task, ok := taskRaw.(map[string]any)
@@ -1084,7 +1043,7 @@ func parseTaskID(v any) (int, error) {
 
 		n, err := strconv.Atoi(s)
 		if err != nil {
-			return 0, fmt.Errorf("task_id must be integer-like, got %q", typed)
+			return 0, fmt.Errorf("task_id должно быть integer-like, got %q", typed)
 		}
 		return n, nil
 	default:
@@ -1208,7 +1167,7 @@ func validateOptionalNonNegativeInt(field string, value *int) error {
 	}
 
 	if *value < 0 {
-		return fmt.Errorf("%s must be >= 0", field)
+		return fmt.Errorf("%s должно быть >= 0", field)
 	}
 
 	return nil
@@ -1219,7 +1178,7 @@ func validateOptionalIntRange(field string, value *int, min, max int) error {
 		return nil
 	}
 	if *value < min || *value > max {
-		return fmt.Errorf("%s must be in range [%d..%d]", field, min, max)
+		return fmt.Errorf("%s должно быть in range [%d..%d]", field, min, max)
 	}
 	return nil
 }
@@ -1236,7 +1195,7 @@ func validateOptionalEnum(field, value string, allowed ...string) error {
 		}
 	}
 
-	return fmt.Errorf("%s must be one of: %s", field, strings.Join(allowed, ", "))
+	return fmt.Errorf("%s должно быть one of: %s", field, strings.Join(allowed, ", "))
 }
 
 func validateListTasksArgs(start *int, filter map[string]any) error {

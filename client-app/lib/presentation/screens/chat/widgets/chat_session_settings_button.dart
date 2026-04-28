@@ -78,7 +78,7 @@ class ChatSessionSettingsButton extends StatelessWidget {
       selectedProfile = profileKey;
       switch (profileKey) {
         case 'code':
-          promptController.text = 'Ты опытный инженер-программист. Давай короткие и точные ответы, показывай рабочие примеры кода, отмечай риски и edge cases.';
+          promptController.text = 'Ты опытный инженер-программист. Давай короткие и точные responseы, показывай рабочие примеры кода, отмечай риски и edge cases.';
           timeoutController.text = '120';
           temperatureController.text = '0.2';
           topPController.text = '0.9';
@@ -263,7 +263,7 @@ class ChatSessionSettingsButton extends StatelessWidget {
                         maxLines: 6,
                         decoration: const InputDecoration(
                           labelText: 'Системный промпт',
-                          helperText: 'Инструкции для модели в рамках этого чата. Применяются ко всем следующим ответам',
+                          helperText: 'Инструкции для модели в рамках этого чата. Применяются ко всем следующим responseам',
                           helperMaxLines: 3,
                           border: OutlineInputBorder(),
                         ),
@@ -275,13 +275,13 @@ class ChatSessionSettingsButton extends StatelessWidget {
                     ] else ...[
                       _settingsSection(
                         ctx,
-                        title: 'Таймаут',
+                        title: 'Timeout',
                         child: TextField(
                           controller: timeoutController,
                           keyboardType: TextInputType.number,
                           decoration: const InputDecoration(
-                            labelText: 'Таймаут (секунды)',
-                            helperText: 'Максимальное время ожидания ответа. 0 - без дополнительного ограничения',
+                            labelText: 'Timeout (секунды)',
+                            helperText: 'Максимальное время ожидания responseа. 0 - без дополнительного ограничения',
                             helperMaxLines: 3,
                             border: OutlineInputBorder(),
                           ),

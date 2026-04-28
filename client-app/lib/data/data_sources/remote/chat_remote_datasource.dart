@@ -267,7 +267,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
         return false;
       }
       Logs().e('ChatRemote: checkConnection', exception: e);
-      throw NetworkFailure('Ошибка подключения');
+      throw NetworkFailure('Error подключения');
     } catch (e) {
       Logs().e('ChatRemote: checkConnection', exception: e);
       return false;
@@ -345,7 +345,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
           onError: (Object e, StackTrace st) async {
             if (e is GrpcError && e.code == StatusCode.deadlineExceeded) {
               await closeWithError(
-                NetworkFailure('Таймаут запроса (код ${e.code})'),
+                NetworkFailure('Timeout requestа (код ${e.code})'),
                 st,
               );
               return;
@@ -360,7 +360,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
               } else if (e.code == StatusCode.invalidArgument) {
                 _logGrpcServerMessage(e, 'sendMessage invalidArgument');
                 await closeWithError(
-                  ApiFailure('Некорректный запрос (код ${e.code})'),
+                  ApiFailure('Invalid request (код ${e.code})'),
                   st,
                 );
               } else if (e.code == StatusCode.failedPrecondition) {
@@ -375,14 +375,14 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
                 );
               } else {
                 await closeWithError(
-                  NetworkFailure('Ошибка сервера (код ${e.code})'),
+                  NetworkFailure('Error сервера (код ${e.code})'),
                   st,
                 );
               }
               return;
             }
             await closeWithError(
-              ApiFailure('Ошибка отправки сообщения: $e'),
+              ApiFailure('Error отправки сообщения: $e'),
               st,
             );
           },
@@ -397,7 +397,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
       } on GrpcError catch (e) {
         if (e.code == StatusCode.deadlineExceeded) {
           await closeWithError(
-            NetworkFailure('Таймаут запроса (код ${e.code})'),
+            NetworkFailure('Timeout requestа (код ${e.code})'),
           );
           return;
         }
@@ -407,7 +407,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
         } else if (e.code == StatusCode.invalidArgument) {
           _logGrpcServerMessage(e, 'sendMessage invalidArgument');
           await closeWithError(
-            ApiFailure('Некорректный запрос (код ${e.code})'),
+            ApiFailure('Invalid request (код ${e.code})'),
           );
         } else if (e.code == StatusCode.failedPrecondition) {
           final m = e.message?.trim();
@@ -420,14 +420,14 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
           );
         } else {
           await closeWithError(
-            NetworkFailure('Ошибка сервера (код ${e.code})'),
+            NetworkFailure('Error сервера (код ${e.code})'),
           );
         }
       } on Failure catch (e, st) {
         await closeWithError(e, st);
       } catch (e, st) {
         Logs().e('ChatRemote: sendMessage', exception: e);
-        await closeWithError(ApiFailure('Ошибка отправки сообщения: $e'), st);
+        await closeWithError(ApiFailure('Error отправки сообщения: $e'), st);
       }
     }();
 
@@ -463,7 +463,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
     () async {
       try {
         if (assistantMessageId <= 0) {
-          throw ApiFailure('Некорректный идентификатор сообщения');
+          throw ApiFailure('Invalid идентификатор сообщения');
         }
         final request = grpc.RegenerateAssistantRequest()
           ..sessionId = Int64(sessionId)
@@ -488,7 +488,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
           onError: (Object e, StackTrace st) async {
             if (e is GrpcError && e.code == StatusCode.deadlineExceeded) {
               await closeWithError(
-                NetworkFailure('Таймаут запроса (код ${e.code})'),
+                NetworkFailure('Timeout requestа (код ${e.code})'),
                 st,
               );
               return;
@@ -503,7 +503,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
               } else if (e.code == StatusCode.invalidArgument) {
                 _logGrpcServerMessage(e, 'regenerate invalidArgument');
                 await closeWithError(
-                  ApiFailure('Некорректный запрос (код ${e.code})'),
+                  ApiFailure('Invalid request (код ${e.code})'),
                   st,
                 );
               } else if (e.code == StatusCode.failedPrecondition) {
@@ -514,13 +514,13 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
                 );
               } else {
                 await closeWithError(
-                  NetworkFailure('Ошибка сервера (код ${e.code})'),
+                  NetworkFailure('Error сервера (код ${e.code})'),
                   st,
                 );
               }
               return;
             }
-            await closeWithError(ApiFailure('Ошибка перегенерации ответа'), st);
+            await closeWithError(ApiFailure('Error перегенерации responseа'), st);
           },
           onDone: () async {
             if (!controller.isClosed) {
@@ -533,7 +533,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
       } on GrpcError catch (e) {
         if (e.code == StatusCode.deadlineExceeded) {
           await closeWithError(
-            NetworkFailure('Таймаут запроса (код ${e.code})'),
+            NetworkFailure('Timeout requestа (код ${e.code})'),
           );
           return;
         }
@@ -543,7 +543,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
         } else if (e.code == StatusCode.invalidArgument) {
           _logGrpcServerMessage(e, 'regenerate invalidArgument');
           await closeWithError(
-            ApiFailure('Некорректный запрос (код ${e.code})'),
+            ApiFailure('Invalid request (код ${e.code})'),
           );
         } else if (e.code == StatusCode.failedPrecondition) {
           _logGrpcServerMessage(e, 'regenerate failedPrecondition');
@@ -552,14 +552,14 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
           );
         } else {
           await closeWithError(
-            NetworkFailure('Ошибка сервера (код ${e.code})'),
+            NetworkFailure('Error сервера (код ${e.code})'),
           );
         }
       } on Failure catch (e, st) {
         await closeWithError(e, st);
       } catch (e, st) {
         Logs().e('ChatRemote: regenerateAssistantResponse', exception: e);
-        await closeWithError(ApiFailure('Ошибка перегенерации ответа'), st);
+        await closeWithError(ApiFailure('Error перегенерации responseа'), st);
       }
     }();
 
@@ -595,7 +595,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
     () async {
       try {
         if (assistantMessageId <= 0) {
-          throw ApiFailure('Некорректный идентификатор сообщения');
+          throw ApiFailure('Invalid идентификатор сообщения');
         }
         final request = grpc.ContinueAssistantRequest()
           ..sessionId = Int64(sessionId)
@@ -620,7 +620,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
           onError: (Object e, StackTrace st) async {
             if (e is GrpcError && e.code == StatusCode.deadlineExceeded) {
               await closeWithError(
-                NetworkFailure('Таймаут запроса (код ${e.code})'),
+                NetworkFailure('Timeout requestа (код ${e.code})'),
                 st,
               );
               return;
@@ -635,7 +635,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
               } else if (e.code == StatusCode.invalidArgument) {
                 _logGrpcServerMessage(e, 'continue invalidArgument');
                 await closeWithError(
-                  ApiFailure('Некорректный запрос (код ${e.code})'),
+                  ApiFailure('Invalid request (код ${e.code})'),
                   st,
                 );
               } else if (e.code == StatusCode.failedPrecondition) {
@@ -646,13 +646,13 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
                 );
               } else {
                 await closeWithError(
-                  NetworkFailure('Ошибка сервера (код ${e.code})'),
+                  NetworkFailure('Error сервера (код ${e.code})'),
                   st,
                 );
               }
               return;
             }
-            await closeWithError(ApiFailure('Ошибка продолжения ответа'), st);
+            await closeWithError(ApiFailure('Error продолжения responseа'), st);
           },
           onDone: () async {
             if (!controller.isClosed) {
@@ -665,7 +665,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
       } on GrpcError catch (e) {
         if (e.code == StatusCode.deadlineExceeded) {
           await closeWithError(
-            NetworkFailure('Таймаут запроса (код ${e.code})'),
+            NetworkFailure('Timeout requestа (код ${e.code})'),
           );
           return;
         }
@@ -675,7 +675,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
         } else if (e.code == StatusCode.invalidArgument) {
           _logGrpcServerMessage(e, 'continue invalidArgument');
           await closeWithError(
-            ApiFailure('Некорректный запрос (код ${e.code})'),
+            ApiFailure('Invalid request (код ${e.code})'),
           );
         } else if (e.code == StatusCode.failedPrecondition) {
           _logGrpcServerMessage(e, 'continue failedPrecondition');
@@ -684,14 +684,14 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
           );
         } else {
           await closeWithError(
-            NetworkFailure('Ошибка сервера (код ${e.code})'),
+            NetworkFailure('Error сервера (код ${e.code})'),
           );
         }
       } on Failure catch (e, st) {
         await closeWithError(e, st);
       } catch (e, st) {
         Logs().e('ChatRemote: continueAssistantResponse', exception: e);
-        await closeWithError(ApiFailure('Ошибка продолжения ответа'), st);
+        await closeWithError(ApiFailure('Error продолжения responseа'), st);
       }
     }();
 
@@ -729,7 +729,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
     () async {
       try {
         if (userMessageId <= 0) {
-          throw ApiFailure('Некорректный идентификатор сообщения');
+          throw ApiFailure('Invalid идентификатор сообщения');
         }
 
         final content = newContent.trim();
@@ -763,7 +763,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
           onError: (Object e, StackTrace st) async {
             if (e is GrpcError && e.code == StatusCode.deadlineExceeded) {
               await closeWithError(
-                NetworkFailure('Таймаут запроса (код ${e.code})'),
+                NetworkFailure('Timeout requestа (код ${e.code})'),
                 st,
               );
               return;
@@ -779,7 +779,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
               } else if (e.code == StatusCode.invalidArgument) {
                 _logGrpcServerMessage(e, 'editMessage invalidArgument');
                 await closeWithError(
-                  ApiFailure('Некорректный запрос (код ${e.code})'),
+                  ApiFailure('Invalid request (код ${e.code})'),
                   st,
                 );
               } else if (e.code == StatusCode.permissionDenied) {
@@ -790,14 +790,14 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
                 );
               } else {
                 await closeWithError(
-                  NetworkFailure('Ошибка сервера (код ${e.code})'),
+                  NetworkFailure('Error сервера (код ${e.code})'),
                   st,
                 );
               }
               return;
             }
             await closeWithError(
-              ApiFailure('Ошибка редактирования сообщения'),
+              ApiFailure('Error редактирования сообщения'),
               st,
             );
           },
@@ -812,7 +812,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
       } on GrpcError catch (e) {
         if (e.code == StatusCode.deadlineExceeded) {
           await closeWithError(
-            NetworkFailure('Таймаут запроса (код ${e.code})'),
+            NetworkFailure('Timeout requestа (код ${e.code})'),
           );
           return;
         }
@@ -823,21 +823,21 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
         } else if (e.code == StatusCode.invalidArgument) {
           _logGrpcServerMessage(e, 'editMessage invalidArgument');
           await closeWithError(
-            ApiFailure('Некорректный запрос (код ${e.code})'),
+            ApiFailure('Invalid request (код ${e.code})'),
           );
         } else if (e.code == StatusCode.permissionDenied) {
           _logGrpcServerMessage(e, 'editMessage permissionDenied');
           await closeWithError(ApiFailure('Нет доступа (код ${e.code})'));
         } else {
           await closeWithError(
-            NetworkFailure('Ошибка сервера (код ${e.code})'),
+            NetworkFailure('Error сервера (код ${e.code})'),
           );
         }
       } on Failure catch (e, st) {
         await closeWithError(e, st);
       } catch (e, st) {
         Logs().e('ChatRemote: editUserMessageAndContinue', exception: e);
-        await closeWithError(ApiFailure('Ошибка редактирования сообщения'), st);
+        await closeWithError(ApiFailure('Error редактирования сообщения'), st);
       }
     }();
 
@@ -885,7 +885,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
 
       if (e.code == StatusCode.invalidArgument) {
         _logGrpcServerMessage(e, 'getUserMessageEdits');
-        throw ApiFailure('Некорректный запрос (код ${e.code})');
+        throw ApiFailure('Invalid request (код ${e.code})');
       }
       if (e.code == StatusCode.permissionDenied) {
         _logGrpcServerMessage(e, 'getUserMessageEdits denied');
@@ -894,7 +894,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
       throwGrpcError(e, 'история правок');
     } catch (e) {
       if (e is Failure) rethrow;
-      throw ApiFailure('Ошибка получения истории правок');
+      throw ApiFailure('Error получения истории правок');
     }
   }
 
@@ -925,7 +925,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
 
       if (e.code == StatusCode.invalidArgument) {
         _logGrpcServerMessage(e, 'getSessionMessagesForUserMessageVersion');
-        throw ApiFailure('Некорректный запрос (код ${e.code})');
+        throw ApiFailure('Invalid request (код ${e.code})');
       }
 
       if (e.code == StatusCode.permissionDenied) {
@@ -939,7 +939,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
       throwGrpcError(e, 'версия истории сообщений');
     } catch (e) {
       if (e is Failure) rethrow;
-      throw ApiFailure('Ошибка получения версии истории');
+      throw ApiFailure('Error получения версии истории');
     }
   }
 
@@ -975,7 +975,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
 
       if (e.code == StatusCode.invalidArgument) {
         _logGrpcServerMessage(e, 'getAssistantMessageRegenerations');
-        throw ApiFailure('Некорректный запрос (код ${e.code})');
+        throw ApiFailure('Invalid request (код ${e.code})');
       }
 
       if (e.code == StatusCode.permissionDenied) {
@@ -986,7 +986,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
       throwGrpcError(e, 'история перегенераций');
     } catch (e) {
       if (e is Failure) rethrow;
-      throw ApiFailure('Ошибка получения истории перегенераций');
+      throw ApiFailure('Error получения истории перегенераций');
     }
   }
 
@@ -1020,7 +1020,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
           e,
           'getSessionMessagesForAssistantMessageVersion',
         );
-        throw ApiFailure('Некорректный запрос (код ${e.code})');
+        throw ApiFailure('Invalid request (код ${e.code})');
       }
 
       if (e.code == StatusCode.permissionDenied) {
@@ -1031,10 +1031,10 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
         throw ApiFailure('Нет доступа (код ${e.code})');
       }
 
-      throwGrpcError(e, 'версия ответа ассистента');
+      throwGrpcError(e, 'версия responseа ассистента');
     } catch (e) {
       if (e is Failure) rethrow;
-      throw ApiFailure('Ошибка получения версии ответа');
+      throw ApiFailure('Error получения версии responseа');
     }
   }
 
@@ -1054,7 +1054,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
       throwGrpcError(e, 'создание сессии');
     } catch (e) {
       Logs().e('ChatRemote: createSession', exception: e);
-      throw ApiFailure('Ошибка создания сессии');
+      throw ApiFailure('Error создания сессии');
     }
   }
 
@@ -1074,7 +1074,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
       throwGrpcError(e, 'список сессий');
     } catch (e) {
       Logs().e('ChatRemote: getSessions', exception: e);
-      throw ApiFailure('Ошибка получения списка сессий');
+      throw ApiFailure('Error получения списка сессий');
     }
   }
 
@@ -1109,7 +1109,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
         stackTrace: st,
       );
       throw ApiFailure(
-        userSafeErrorMessage(e, fallback: 'Ошибка получения сообщений'),
+        userSafeErrorMessage(e, fallback: 'Error получения сообщений'),
       );
     }
   }
@@ -1125,7 +1125,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
     } catch (e, st) {
       Logs().e('ChatRemote: deleteSession', exception: e, stackTrace: st);
       throw ApiFailure(
-        userSafeErrorMessage(e, fallback: 'Ошибка удаления сессии'),
+        userSafeErrorMessage(e, fallback: 'Error удаления сессии'),
       );
     }
   }
@@ -1148,7 +1148,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
     } catch (e, st) {
       Logs().e('ChatRemote: updateSessionTitle', exception: e, stackTrace: st);
       throw ApiFailure(
-        userSafeErrorMessage(e, fallback: 'Ошибка обновления заголовка'),
+        userSafeErrorMessage(e, fallback: 'Error обновления заголовка'),
       );
     }
   }
@@ -1286,7 +1286,7 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
     } catch (e) {
       if (e is Failure) rethrow;
       Logs().e('ChatRemote: putSessionFile', exception: e);
-      throw ApiFailure('Ошибка загрузки файла сессии');
+      throw ApiFailure('Error загрузки файла сессии');
     }
   }
 
@@ -1321,12 +1321,12 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
       }
 
       if (e.code == StatusCode.invalidArgument) {
-        throw ApiFailure('Некорректный запрос (код ${e.code})');
+        throw ApiFailure('Invalid request (код ${e.code})');
       }
       throwGrpcError(e, 'статус индексации файла');
     } catch (e) {
       if (e is Failure) rethrow;
-      throw ApiFailure('Ошибка статуса индексации');
+      throw ApiFailure('Error статуса индексации');
     }
   }
 
@@ -1361,13 +1361,13 @@ class ChatRemoteDataSource implements IChatRemoteDataSource {
       }
       if (e.code == StatusCode.invalidArgument) {
         _logGrpcServerMessage(e, 'getSessionFile invalidArgument');
-        throw ApiFailure('Некорректный запрос (код ${e.code})');
+        throw ApiFailure('Invalid request (код ${e.code})');
       }
       throwGrpcError(e, 'получение файла сессии');
     } catch (e) {
       if (e is Failure) rethrow;
       Logs().e('ChatRemote: getSessionFile', exception: e);
-      throw ApiFailure('Ошибка получения файла сессии');
+      throw ApiFailure('Error получения файла сессии');
     }
   }
 

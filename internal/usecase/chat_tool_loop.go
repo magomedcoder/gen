@@ -818,7 +818,7 @@ func (c *ChatUseCase) sendMessageWithToolLoop(
 	ragStream *ragStreamMeta,
 ) (chan ChatStreamChunk, error) {
 	if genParams == nil || len(genParams.Tools) == 0 {
-		return nil, fmt.Errorf("внутренняя ошибка: tool loop без tools")
+		return nil, fmt.Errorf("внутренняя error: tool loop без tools")
 	}
 
 	out := make(chan ChatStreamChunk, 64)
@@ -861,7 +861,7 @@ func (c *ChatUseCase) runChatToolLoop(
 		logger.W("ChatUseCase tool-loop: session_id=%d user_id=%d phase=client_error err=%v", sessionID, userID, err)
 		s := err.Error()
 		if s == "" {
-			s = "ошибка"
+			s = "error"
 		}
 
 		_ = send(ChatStreamChunk{
@@ -873,7 +873,7 @@ func (c *ChatUseCase) runChatToolLoop(
 	defer func() {
 		if r := recover(); r != nil {
 			logger.E("ChatUseCase tool-loop panic: session_id=%d user_id=%d panic=%v", sessionID, userID, r)
-			sendErr(fmt.Errorf("внутренняя ошибка обработки инструментов"))
+			sendErr(fmt.Errorf("внутренняя error обработки инструментов"))
 		}
 	}()
 
@@ -932,7 +932,7 @@ func (c *ChatUseCase) runChatToolLoop(
 		logger.I("ChatUseCase tool-loop: session_id=%d round=%d phase=llm_stream_done streamed=%t assistant_text_runes=%d", sessionID, round+1, streamed, utf8.RuneCountInString(full))
 		if full == "" {
 			logger.W("ChatUseCase tool-loop: session_id=%d round=%d phase=llm_empty_response", sessionID, round+1)
-			sendErr(fmt.Errorf("модель вернула пустой ответ (tool loop)"))
+			sendErr(fmt.Errorf("модель вернула empty response (tool loop)"))
 			return
 		}
 
@@ -958,7 +958,7 @@ func (c *ChatUseCase) runChatToolLoop(
 
 		rows, err := parseCohereActionList(blob)
 		if err != nil {
-			logger.W("ChatUseCase tool-loop: session_id=%d round=%d phase=parse_tools err=%v (ответ как финальный текст)", sessionID, round+1, err)
+			logger.W("ChatUseCase tool-loop: session_id=%d round=%d phase=parse_tools err=%v (response как финальный текст)", sessionID, round+1, err)
 			am := domain.NewMessage(sessionID, full, domain.MessageRoleAssistant)
 			if err := c.messageRepo.Create(ctx, am); err != nil {
 				sendErr(err)
@@ -970,7 +970,7 @@ func (c *ChatUseCase) runChatToolLoop(
 		}
 
 		if len(rows) == 0 {
-			logger.I("ChatUseCase tool-loop: session_id=%d round=%d phase=parse_tools rows=0 (пустой список вызовов)", sessionID, round+1)
+			logger.I("ChatUseCase tool-loop: session_id=%d round=%d phase=parse_tools rows=0 (empty список вызовов)", sessionID, round+1)
 			am := domain.NewMessage(sessionID, full, domain.MessageRoleAssistant)
 			if err := c.messageRepo.Create(ctx, am); err != nil {
 				sendErr(err)
@@ -1115,7 +1115,7 @@ func (c *ChatUseCase) runChatToolLoop(
 
 		if failCount > 0 {
 			logger.I("ChatUseCase tool-loop: session_id=%d round=%d phase=tool_errors_as_tool_msgs failed=%d/%d (следующий LLM-раунд)", sessionID, round+1, failCount, len(execCalls))
-			_ = send(ChatStreamChunk{Kind: StreamChunkKindNotice, Text: "Один или несколько инструментов завершились с ошибкой. Формирую понятный ответ…"})
+			_ = send(ChatStreamChunk{Kind: StreamChunkKindNotice, Text: "Один или несколько инструментов завершились с ошибкой. Формирую понятный response…"})
 		}
 
 		assist := domain.NewMessage(sessionID, full, domain.MessageRoleAssistant)
@@ -1161,10 +1161,10 @@ func (c *ChatUseCase) runChatToolLoop(
 
 func toolLoopErrorToolMessage(call executableToolCall, err error, partialResult string, deadlineExceeded bool) string {
 	var b strings.Builder
-	b.WriteString("Статус: ошибка выполнения инструмента.\n")
-	b.WriteString("Твоя задача: кратко и по-русски объясни пользователю, что пошло не так и что можно сделать (повторить запрос, проверить права, уточнить параметры).\n\n")
+	b.WriteString("Статус: error выполнения инструмента.\n")
+	b.WriteString("Твоя задача: кратко и по-русски объясни пользователю, что пошло не так и что можно сделать (повторить request, проверить права, уточнить параметры).\n\n")
 	if deadlineExceeded {
-		b.WriteString("Причина: истёк таймаут ожидания ответа инструмента.\n")
+		b.WriteString("Причина: истёк timeout ожидания responseа инструмента.\n")
 	} else if err != nil {
 		b.WriteString("Причина (технически): ")
 		b.WriteString(strings.TrimSpace(err.Error()))
@@ -1227,8 +1227,8 @@ func (c *ChatUseCase) toolProgressDisplayName(ctx context.Context, sessionID int
 func webSearchToolDefinition() domain.Tool {
 	return domain.Tool{
 		Name:           "web_search",
-		Description:    "Поиск актуальной информации в интернете: новости, цены, погода, документация, свежие факты. Используй, когда ответ зависит от текущих данных или знания модели могут быть устаревшими. Передай короткий точный запрос на языке пользователя или на английском.",
-		ParametersJSON: `{"type":"object","properties":{"query":{"type":"string","description":"Поисковый запрос: несколько ключевых слов или короткая фраза."}},"required":["query"]}`,
+		Description:    "Поиск актуальной информации в интернете: новости, цены, погода, документация, свежие факты. Используй, когда response зависит от текущих данных или знания модели могут быть устаревшими. Передай короткий точный request на языке пользователя или на английском.",
+		ParametersJSON: `{"type":"object","properties":{"query":{"type":"string","description":"Поисковый request: несколько ключевых слов или короткая фраза."}},"required":["query"]}`,
 	}
 }
 
@@ -1537,7 +1537,7 @@ func (c *ChatUseCase) toolPutSessionFile(ctx context.Context, userID int, sessio
 	}
 
 	if len(body) == 0 {
-		return "", fmt.Errorf("пустой content")
+		return "", fmt.Errorf("empty content")
 	}
 
 	var ttl int32

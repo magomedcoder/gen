@@ -321,7 +321,7 @@ func (p *Pool) waitRunnerIdleForUnload(ctx context.Context, address string) {
 func (p *Pool) UnloadModelOnRunner(ctx context.Context, address string) error {
 	address = strings.TrimSpace(address)
 	if address == "" {
-		return fmt.Errorf("пустой адрес раннера")
+		return fmt.Errorf("empty адрес раннера")
 	}
 
 	p.waitRunnerIdleForUnload(ctx, address)
@@ -337,7 +337,7 @@ func (p *Pool) UnloadModelOnRunner(ctx context.Context, address string) error {
 func (p *Pool) ResetMemoryOnRunner(ctx context.Context, address string) error {
 	address = strings.TrimSpace(address)
 	if address == "" {
-		return fmt.Errorf("пустой адрес раннера")
+		return fmt.Errorf("empty адрес раннера")
 	}
 
 	p.waitRunnerIdleForUnload(ctx, address)
@@ -353,7 +353,7 @@ func (p *Pool) ResetMemoryOnRunner(ctx context.Context, address string) error {
 func (p *Pool) GetModelsOnRunner(ctx context.Context, address string) ([]string, error) {
 	address = strings.TrimSpace(address)
 	if address == "" {
-		return nil, fmt.Errorf("пустой адрес раннера")
+		return nil, fmt.Errorf("empty адрес раннера")
 	}
 
 	c, err := p.getClient(address)
@@ -378,7 +378,7 @@ func (p *Pool) WarmModelOnRunner(ctx context.Context, address string, model stri
 	address = strings.TrimSpace(address)
 	model = strings.TrimSpace(model)
 	if address == "" {
-		return fmt.Errorf("пустой адрес раннера")
+		return fmt.Errorf("empty адрес раннера")
 	}
 
 	if model == "" || model == "default" {

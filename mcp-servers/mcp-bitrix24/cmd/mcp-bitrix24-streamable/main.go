@@ -4,9 +4,7 @@ import (
 	"flag"
 	"log"
 	"net/http"
-	"os"
-	"strconv"
-	"strings"
+	"sync"
 
 	"github.com/magomedcoder/gen/mcp-servers/mcp-bitrix24/internal/bitrix24server"
 	"github.com/magomedcoder/gen/pkg/mcpsafe"
@@ -16,64 +14,43 @@ import (
 func main() {
 	addr := flag.String("listen", "127.0.0.1:8786", "адрес HTTP (POST JSON-RPC, при необходимости GET SSE)")
 	flag.Parse()
-	webhookBase := os.Getenv("B24_WEBHOOK_BASE")
-	logLevel := getenvDefault("B24_LOG_LEVEL", "info")
-	retryMax := getenvIntDefault("B24_RETRY_MAX", 1)
-	retryBackoffMS := getenvIntDefault("B24_RETRY_BACKOFF_MS", 300)
-	disableHeavyAnalytics := getenvBoolDefault("B24_DISABLE_HEAVY_ANALYTICS", false)
-	log.Printf("MCP Bitrix24 streamable: starting webhook_base_set=%t listen=%s", webhookBase != "", *addr)
+	defaultCfg := bitrix24server.Config{}
+	log.Printf("MCP Bitrix24 streamable: starting listen=%s", *addr)
 
-	srv, err := bitrix24server.NewServer(bitrix24server.Config{
-		WebhookBase:           webhookBase,
-		LogLevel:              logLevel,
-		RetryMax:              retryMax,
-		RetryBackoffMS:        retryBackoffMS,
-		DisableHeavyAnalytics: disableHeavyAnalytics,
-	})
-	if err != nil {
-		log.Fatalf("init bitrix24 server: %v", err)
-	}
+	var (
+		mu      sync.Mutex
+		servers = map[string]*mcp.Server{}
+	)
 
-	h := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
+	h := mcp.NewStreamableHTTPHandler(func(r *http.Request) *mcp.Server {
+		cfg, err := bitrix24server.ConfigFromHTTPRequest(r, defaultCfg)
+		if err != nil {
+			log.Printf("MCP Bitrix24 streamable: invalid request config: %v; fallback to defaults", err)
+			cfg = defaultCfg
+		}
+
+		key := bitrix24server.ConfigCacheKey(cfg)
+		mu.Lock()
+		defer mu.Unlock()
+
+		if srv, ok := servers[key]; ok {
+			return srv
+		}
+
+		srv, err := bitrix24server.NewServer(cfg)
+		if err != nil {
+			log.Printf("MCP Bitrix24 streamable: init server by request config failed: %v; fallback to defaults", err)
+			srv, err = bitrix24server.NewServer(defaultCfg)
+			if err != nil {
+				log.Printf("MCP Bitrix24 streamable: fallback init failed: %v", err)
+				return mcp.NewServer(&mcp.Implementation{Name: "bitrix24", Version: "1.0.0"}, nil)
+			}
+		}
+
+		servers[key] = srv
 		return srv
 	}, nil)
 
 	log.Printf("MCP Bitrix24 streamable: transport=streamable url=http://%s/", *addr)
 	log.Fatal(http.ListenAndServe(*addr, mcpsafe.RecoverPanic("mcp-bitrix24-streamable", h)))
-}
-
-func getenvDefault(key, fallback string) string {
-	v := os.Getenv(key)
-	if v == "" {
-		return fallback
-	}
-	return v
-}
-
-func getenvIntDefault(key string, fallback int) int {
-	v := os.Getenv(key)
-	if v == "" {
-		return fallback
-	}
-	n, err := strconv.Atoi(v)
-	if err != nil {
-		return fallback
-	}
-	return n
-}
-
-func getenvBoolDefault(key string, fallback bool) bool {
-	v := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
-	if v == "" {
-		return fallback
-	}
-
-	switch v {
-	case "1", "true", "yes", "on":
-		return true
-	case "0", "false", "no", "off":
-		return false
-	default:
-		return fallback
-	}
 }

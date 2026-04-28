@@ -87,10 +87,6 @@ class McpConnectionJsonDialogSection extends StatelessWidget {
           runSpacing: 0,
           children: [
             TextButton(
-              onPressed: () => _applyExample(McpConnectionConfig.exampleJsonStdio),
-              child: const Text('stdio'),
-            ),
-            TextButton(
               onPressed: () => _applyExample(McpConnectionConfig.exampleJsonSse),
               child: const Text('sse'),
             ),
@@ -113,10 +109,6 @@ class McpConnectionJsonDialogSection extends StatelessWidget {
           runSpacing: 0,
           children: [
             TextButton(
-              onPressed: () => _applyExample(McpConnectionConfig.exampleJsonFullStdio),
-              child: const Text('Полный stdio'),
-            ),
-            TextButton(
               onPressed: () => _applyExample(McpConnectionConfig.exampleJsonFullRemote),
               child: const Text('Полный HTTP'),
             ),
@@ -137,7 +129,7 @@ class McpConnectionJsonDialogSection extends StatelessWidget {
             alignLabelWithHint: true,
             labelText: 'transport, command, args, env, url, headers, timeoutSeconds',
             helperText: isNew
-              ? 'Короткие примеры stdio/sse/streamable'
+              ? 'Короткие примеры sse/streamable'
               : 'Секреты в env/headers могут отображаться как *** оставьте как есть, чтобы не менять на сервере',
             border: const OutlineInputBorder(),
           ),

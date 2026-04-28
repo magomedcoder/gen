@@ -477,7 +477,7 @@ func (c *ToolsListCache) InvalidateServerID(id int64) {
 		return
 	}
 
-	logger.I("MCP cache InvalidateServerID: server_id=%d (pool_close+cache)", id)
+	logger.I("MCP cache invalidateServerID: server_id=%d (pool_close+cache)", id)
 	closePooledHTTPSession(id)
 
 	if c == nil {

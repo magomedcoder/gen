@@ -132,7 +132,8 @@ func TestCommentDiagnostics(t *testing.T) {
 	}
 }
 
-func pint(v int) *int { return &v }
+//go:fix inline
+func pint(v int) *int { return new(v) }
 
 func TestValidateAnalyzeToolsArgs(t *testing.T) {
 	tests := []struct {
@@ -141,58 +142,58 @@ func TestValidateAnalyzeToolsArgs(t *testing.T) {
 		wantErr bool
 	}{
 		{"list-valid", func() error {
-			return validateListTasksArgs(pint(0), nil)
+			return validateListTasksArgs(new(0), nil)
 		}, false},
 		{"list-invalid", func() error {
-			return validateListTasksArgs(pint(-1), nil)
+			return validateListTasksArgs(new(-1), nil)
 		}, true},
 		{"list-valid-consistent-task-id-filter", func() error {
-			return validateListTasksArgs(pint(0), map[string]any{"ID": "123", "taskId": 123})
+			return validateListTasksArgs(new(0), map[string]any{"ID": "123", "taskId": 123})
 		}, false},
 		{"list-invalid-conflicting-task-id-filter", func() error {
-			return validateListTasksArgs(pint(0), map[string]any{"ID": "123", "taskId": 124})
+			return validateListTasksArgs(new(0), map[string]any{"ID": "123", "taskId": 124})
 		}, true},
 		{"query-valid", func() error {
-			return validateAnalyzeTasksByQueryArgs(pint(0), pint(20))
+			return validateAnalyzeTasksByQueryArgs(new(0), new(20))
 		}, false},
 		{"query-invalid-limit", func() error {
-			return validateAnalyzeTasksByQueryArgs(pint(0), pint(51))
+			return validateAnalyzeTasksByQueryArgs(new(0), new(51))
 		}, true},
 		{"portfolio-valid", func() error {
-			return validatePortfolioArgs(pint(0), pint(30), "responsible")
+			return validatePortfolioArgs(new(0), new(30), "responsible")
 		}, false},
 		{"portfolio-invalid-group", func() error {
-			return validatePortfolioArgs(pint(0), pint(30), "team")
+			return validatePortfolioArgs(new(0), new(30), "team")
 		}, true},
 		{"exec-valid", func() error {
-			return validateExecutiveSummaryArgs(pint(0), pint(40), pint(7))
+			return validateExecutiveSummaryArgs(new(0), new(40), new(7))
 		}, false},
 		{"exec-invalid-period", func() error {
-			return validateExecutiveSummaryArgs(pint(0), pint(40), pint(31))
+			return validateExecutiveSummaryArgs(new(0), new(40), new(31))
 		}, true},
 		{"sla-valid", func() error {
-			return validateSLAArgs(pint(0), pint(40), pint(24))
+			return validateSLAArgs(new(0), new(40), new(24))
 		}, false},
 		{"sla-invalid-threshold", func() error {
-			return validateSLAArgs(pint(0), pint(40), pint(169))
+			return validateSLAArgs(new(0), new(40), new(169))
 		}, true},
 		{"workload-valid", func() error {
-			return validateWorkloadArgs(pint(0), pint(40), pint(12))
+			return validateWorkloadArgs(new(0), new(40), new(12))
 		}, false},
 		{"workload-invalid-overload", func() error {
-			return validateWorkloadArgs(pint(0), pint(40), pint(101))
+			return validateWorkloadArgs(new(0), new(40), new(101))
 		}, true},
 		{"status-valid", func() error {
-			return validateStatusTrendsArgs(pint(0), pint(50), pint(7))
+			return validateStatusTrendsArgs(new(0), new(50), new(7))
 		}, false},
 		{"status-invalid-limit", func() error {
-			return validateStatusTrendsArgs(pint(0), pint(0), pint(7))
+			return validateStatusTrendsArgs(new(0), new(0), new(7))
 		}, true},
 		{"responsible-performance-valid", func() error {
-			return validateResponsiblePerformanceArgs(pint(0), pint(20), "21")
+			return validateResponsiblePerformanceArgs(new(0), new(20), "21")
 		}, false},
 		{"responsible-performance-invalid-empty", func() error {
-			return validateResponsiblePerformanceArgs(pint(0), pint(20), " ")
+			return validateResponsiblePerformanceArgs(new(0), new(20), " ")
 		}, true},
 	}
 
@@ -204,7 +205,7 @@ func TestValidateAnalyzeToolsArgs(t *testing.T) {
 			}
 
 			if !tc.wantErr && err != nil {
-				t.Fatalf("unexpected error: %v", err)
+				t.Fatalf("неожиданный error: %v", err)
 			}
 		})
 	}
@@ -218,18 +219,18 @@ func TestValidateOptionalNonNegativeInt(t *testing.T) {
 
 	zero := 0
 	if err := validateOptionalNonNegativeInt("start", &zero); err != nil {
-		t.Fatalf("unexpected error for zero: %v", err)
+		t.Fatalf("неожиданный error for zero: %v", err)
 	}
 
 	if err := validateOptionalNonNegativeInt("start", nil); err != nil {
-		t.Fatalf("unexpected error for nil: %v", err)
+		t.Fatalf("неожиданный error for nil: %v", err)
 	}
 }
 
 func TestValidateOptionalIntRange(t *testing.T) {
 	inside := 10
 	if err := validateOptionalIntRange("limit", &inside, 1, 50); err != nil {
-		t.Fatalf("unexpected error for inside value: %v", err)
+		t.Fatalf("неожиданный error for inside value: %v", err)
 	}
 
 	tooLow := 0
@@ -245,15 +246,15 @@ func TestValidateOptionalIntRange(t *testing.T) {
 
 func TestValidateOptionalEnum(t *testing.T) {
 	if err := validateOptionalEnum("group_by", "responsible", "responsible", "creator", "status"); err != nil {
-		t.Fatalf("unexpected error for allowed enum: %v", err)
+		t.Fatalf("неожиданный error for allowed enum: %v", err)
 	}
 
 	if err := validateOptionalEnum("group_by", "STATUS", "responsible", "creator", "status"); err != nil {
-		t.Fatalf("unexpected error for case-insensitive enum: %v", err)
+		t.Fatalf("неожиданный error for case-insensitive enum: %v", err)
 	}
 
 	if err := validateOptionalEnum("group_by", "", "responsible", "creator", "status"); err != nil {
-		t.Fatalf("unexpected error for empty enum: %v", err)
+		t.Fatalf("неожиданный error for empty enum: %v", err)
 	}
 
 	if err := validateOptionalEnum("group_by", "team", "responsible", "creator", "status"); err == nil {
@@ -274,7 +275,7 @@ func TestWithRequestID_AssignsAndReuses(t *testing.T) {
 	}
 
 	if got != id1 {
-		t.Fatalf("unexpected id from context: %q != %q", got, id1)
+		t.Fatalf("неожиданный id from context: %q != %q", got, id1)
 	}
 
 	ctx2, id2 := withRequestID(ctx1)
@@ -351,7 +352,7 @@ func TestDetectBlockerSignals_FindsKeywordsAndSortsByAge(t *testing.T) {
 			TaskID:    1001,
 			AuthorID:  "7",
 			CreatedAt: "2026-04-28T14:00:00Z",
-			Message:   "Жду ответ от клиента",
+			Message:   "Жду response от клиента",
 		},
 		{
 			ID:        2,
@@ -390,7 +391,7 @@ func TestBuildExecutionDriftReport_HighDriftOnOverrunAndSilence(t *testing.T) {
 	}
 	report := buildExecutionDriftReport(task, comments, now)
 	if report.DriftLevel != "high" || report.OverrunSeconds <= 0 {
-		t.Fatalf("unexpected report: %+v", report)
+		t.Fatalf("неожиданный report: %+v", report)
 	}
 }
 
@@ -398,7 +399,7 @@ func TestNormalizeTaskSnapshot(t *testing.T) {
 	task := map[string]any{"ID": "1001", "TITLE": "Demo task", "STATUS": "3", "RESPONSIBLE_ID": "21", "TIME_ESTIMATE": "3600", "TIME_SPENT_IN_LOGS": "1200"}
 	s := normalizeTaskSnapshot(task)
 	if s.ID != 1001 || s.Title != "Demo task" || s.ResponsibleID != "21" {
-		t.Fatalf("unexpected snapshot: %+v", s)
+		t.Fatalf("неожиданный snapshot: %+v", s)
 	}
 }
 
@@ -420,7 +421,7 @@ func TestBuildTaskTimeline_SortsByDateDesc(t *testing.T) {
 	}
 	events := buildTaskTimeline(task, comments)
 	if len(events) < 3 || events[0].Details != "latest" {
-		t.Fatalf("unexpected first event: %+v", events)
+		t.Fatalf("неожиданный first event: %+v", events)
 	}
 }
 
@@ -454,7 +455,7 @@ func TestRunAnalyticsQuery_CommentErrorDoesNotFail(t *testing.T) {
 	}
 
 	if !strings.Contains(result, "Найдено задач: 1") {
-		t.Fatalf("unexpected analytics output: %s", result)
+		t.Fatalf("неожиданный analytics output: %s", result)
 	}
 }
 
@@ -477,7 +478,7 @@ func TestBitrixClientCall_DecodesWindows1251JSON(t *testing.T) {
 
 	resp, err := client.call(context.Background(), "tasks.task.get", map[string]any{"taskId": 1001})
 	if err != nil || nestedTaskTitle(resp) != "Привет" {
-		t.Fatalf("unexpected response: err=%v title=%q", err, nestedTaskTitle(resp))
+		t.Fatalf("неожиданный response: err=%v title=%q", err, nestedTaskTitle(resp))
 	}
 }
 
@@ -512,7 +513,7 @@ func TestCallTaskCommentItemGetList_UsesStablePayloadOrder(t *testing.T) {
 	idxOrder := strings.Index(gotBody, `"ORDER"`)
 	idxFilter := strings.Index(gotBody, `"FILTER"`)
 	if !(idxTask != -1 && idxOrder != -1 && idxFilter != -1 && idxTask < idxOrder && idxOrder < idxFilter) {
-		t.Fatalf("unexpected key order: %s", gotBody)
+		t.Fatalf("неожиданный key order: %s", gotBody)
 	}
 }
 
@@ -536,7 +537,7 @@ func TestBitrixClientCall_BlocksWriteMethodsByReadOnlyPolicy(t *testing.T) {
 	}
 
 	if atomic.LoadInt32(&hitCount) != 0 {
-		t.Fatalf("write method must be blocked before HTTP call")
+		t.Fatalf("write method должно быть blocked before HTTP call")
 	}
 }
 
@@ -552,7 +553,7 @@ func TestContract_LoadTaskList_WithMockServer(t *testing.T) {
 
 	tasks, err := loadTaskList(context.Background(), client, nil, nil, nil, 50)
 	if err != nil || len(tasks) == 0 {
-		t.Fatalf("loadTaskList failed: err=%v len=%d", err, len(tasks))
+		t.Fatalf("loadTaskList не удалось: err=%v len=%d", err, len(tasks))
 	}
 }
 
@@ -568,7 +569,7 @@ func TestContract_LoadTaskComments_WithMockServer(t *testing.T) {
 
 	comments, err := loadTaskComments(context.Background(), client, 1001)
 	if err != nil || len(comments) == 0 {
-		t.Fatalf("loadTaskComments failed: err=%v len=%d", err, len(comments))
+		t.Fatalf("loadTaskComments не удалось: err=%v len=%d", err, len(comments))
 	}
 }
 
@@ -584,7 +585,7 @@ func TestContract_RunExecutiveSummary_WithMockServer(t *testing.T) {
 
 	report, err := runExecutiveSummary(context.Background(), client, nil, nil, nil, nil, nil, nil)
 	if err != nil || !strings.Contains(report, "Executive summary") || !strings.Contains(report, "=== Вывод ===") {
-		t.Fatalf("unexpected report: err=%v report=%s", err, report)
+		t.Fatalf("неожиданный report: err=%v report=%s", err, report)
 	}
 }
 
@@ -600,7 +601,7 @@ func TestRunProjectHealth_WithMockServer(t *testing.T) {
 
 	report, err := runProjectHealth(context.Background(), client, nil, nil, nil, nil, nil)
 	if err != nil || !strings.Contains(report, "Project health summary") || !strings.Contains(report, "Health score:") {
-		t.Fatalf("unexpected report: err=%v report=%s", err, report)
+		t.Fatalf("неожиданный report: err=%v report=%s", err, report)
 	}
 }
 
@@ -615,8 +616,8 @@ func TestRunResponsiblePerformance_WithMockServer(t *testing.T) {
 	}
 
 	report, err := runResponsiblePerformance(context.Background(), client, "21", nil, nil, nil, nil, nil)
-	if err != nil || !strings.Contains(report, "Performance по ответственному 21") || !strings.Contains(report, "=== Вывод ===") {
-		t.Fatalf("unexpected report: err=%v report=%s", err, report)
+	if err != nil || !strings.Contains(report, "Performance по responseственному 21") || !strings.Contains(report, "=== Вывод ===") {
+		t.Fatalf("неожиданный report: err=%v report=%s", err, report)
 	}
 }
 

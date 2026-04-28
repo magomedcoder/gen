@@ -16,28 +16,35 @@
 - executive summary (`b24_analyze_tasks_executive_summary`)
 - SLA-аналитика (`b24_analyze_tasks_sla`)
 
-## Переменные окружения
+## Персональный конфиг через SSE/streamable
 
-| Переменная                    | Назначение                                                                                                         |
-|-------------------------------|--------------------------------------------------------------------------------------------------------------------|
-| `B24_WEBHOOK_BASE`            | Базовый URL webhook, например `https://bitrix24.example.com/rest/43176/00000000`                                   |
-| `B24_DISABLE_HEAVY_ANALYTICS` | Если `1/true`, отключает тяжелые аналитические tools (`timeline`, `blockers`, `execution_drift`, `project_health`) |
+Поддерживаемые входные заголовки:
 
----
+| Заголовок                       | Назначение                                                                       |
+|---------------------------------|----------------------------------------------------------------------------------|
+| `X-B24-Base`                    | Базовый URL webhook, например `https://bitrix24.example.com/rest/43176/00000000` |
+| `X-B24-Log-Level`               | Уровень логов (`info`, `debug`)                                                  |
+| `X-B24-Retry-Max`               | Число ретраев HTTP-запросов к Bitrix24                                           |
+| `X-B24-Retry-Backoff-Ms`        | Базовый backoff в миллисекундах                                                  |
+| `X-B24-Disable-Heavy-Analytics` | `true/false`, отключение тяжелой аналитики                                       |
 
-## Transport stdio
+Все параметры задаются через `headers` в конфиге MCP-сервера.
 
-Сборка:
+Пример записи MCP-сервера в GEN (SSE):
 
-```bash
-go build -o ./build/mcp-bitrix24-stdio ./mcp-servers/mcp-bitrix24/cmd/mcp-bitrix24-stdio
+```json
+{
+  "transport": "sse",
+  "url": "http://127.0.0.1:8785/",
+  "headers": {
+    "X-B24-Base": "https://bitrix24.example.com/rest/43176/00000000",
+    "X-B24-Retry-Max": "2",
+    "X-B24-Retry-Backoff-Ms": "400",
+    "X-B24-Disable-Heavy-Analytics": "false"
+  },
+  "timeoutSeconds": 120
+}
 ```
-
-В GEN:
-
-- `transport = stdio`
-- `command` - путь к бинарнику
-- `args` - обычно пустой массив (URL задаётся через `B24_WEBHOOK_BASE`)
 
 ---
 
@@ -52,7 +59,6 @@ go build -o ./build/mcp-bitrix24-sse ./mcp-servers/mcp-bitrix24/cmd/mcp-bitrix24
 Запуск:
 
 ```bash
-export B24_WEBHOOK_BASE="https://bitrix24.example.com/rest/1/00000000"
 ./build/mcp-bitrix24-sse -listen 127.0.0.1:8785
 ```
 
@@ -75,7 +81,6 @@ go build -o ./build/mcp-bitrix24-streamable ./mcp-servers/mcp-bitrix24/cmd/mcp-b
 Запуск:
 
 ```bash
-export B24_WEBHOOK_BASE="https://bitrix24.example.com/rest/1/00000000"
 ./build/mcp-bitrix24-streamable -listen 127.0.0.1:8786
 ```
 
@@ -108,101 +113,6 @@ url = http://127.0.0.1:8786/
 | `b24_analyze_tasks_sla`               | SLA-контроль (`filter`, `order`, `start`, `limit`, `soon_hours_threshold`, `include_comments`)                                             |
 | `b24_analyze_tasks_workload`          | Баланс нагрузки по ответственным (`filter`, `order`, `start`, `limit`, `include_comments`, `overload_tasks`)                               |
 | `b24_analyze_tasks_status_trends`     | Тренды по статусам (`filter`, `order`, `start`, `limit`, `period_days`)                                                                    |
-
-Примечания:
-
-- `task_id` в tools принимает как число, так и строку с цифрами.
-- Для `task.commentitem.getlist` используется безопасный вызов с фиксированным порядком параметров (`TASKID`, `ORDER`, `FILTER`).
-- Если комментарии недоступны (например, ограничения новой карточки задач), аналитика продолжает работать в soft-режиме без падения tool.
-
-### Формат финального вывода аналитики
-
-Во всех аналитических tools итог содержит унифицированный блок:
-
-```text
-=== Вывод ===
-Статус: ...
-Главный риск: ...
-Приоритетное действие: ...
-Срок реакции: ...
-```
-
-### Логирование
-
-В логах сервера фиксируются:
-
-- входные аргументы каждого tool (`tool=... args=...`);
-- итоговый результат каждого tool (`tool=... result=...`);
-- исходящий REST-запрос в Bitrix (`request_body`);
-- входящий REST-ответ от Bitrix (`response_body`).
-
-## Примеры запросов
-
-Ниже примеры аргументов для вызова tools:
-
-```json
-{
-  "tool": "b24_analyze_task",
-  "arguments": {
-    "task_id": "1822404",
-    "include_comments": true
-  }
-}
-```
-
-```json
-{
-  "tool": "b24_analyze_tasks_by_query",
-  "arguments": {
-    "query": "покажи просроченные задачи с блокерами",
-    "filter": {
-      "RESPONSIBLE_ID": 547
-    },
-    "limit": 20
-  }
-}
-```
-
-```json
-{
-  "tool": "b24_analyze_tasks_sla",
-  "arguments": {
-    "filter": {
-      "!STATUS": 5
-    },
-    "soon_hours_threshold": 24,
-    "limit": 40
-  }
-}
-```
-
-```json
-{
-  "tool": "b24_analyze_tasks_workload",
-  "arguments": {
-    "overload_tasks": 12,
-    "limit": 50
-  }
-}
-```
-
-## Рекомендованные сценарии
-
-- **SLA-контроль**: `b24_analyze_tasks_sla` ежедневно для P0/P1 очереди реакции.
-- **Портфель команды**: `b24_analyze_tasks_portfolio` для weekly-обзора по ответственным.
-- **Executive summary**: `b24_analyze_tasks_executive_summary` для управленческого отчета по периоду.
-- **Точечный разбор**: `b24_analyze_task` по конкретной задаче с финальным actionable-выводом.
-- **Тренды статусов**: `b24_analyze_tasks_status_trends` для контроля накопления open/deferred.
-- **Баланс нагрузки**: `b24_analyze_tasks_workload` для выявления перегруза и перераспределения.
-
-## Известные ограничения Bitrix24
-
-- `task.commentitem.getlist` имеет ограничения в новой карточке задач и может возвращать ошибки на части задач.
-- Для `task.commentitem.getlist` важен порядок параметров (`TASKID`, `ORDER`, `FILTER`), в сервере он фиксируется принудительно.
-- Права вебхука/пользователя напрямую влияют на полноту данных по задачам и комментариям.
-- Возможны лимиты интенсивности запросов (`QUERY_LIMIT_EXCEEDED`) и временные server-side сбои.
-
----
 
 ## Mock REST (локальная отладка)
 

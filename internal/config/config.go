@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -43,8 +42,6 @@ type MCPConfig struct {
 	LogServerMessages                   bool     `yaml:"log_server_messages"`
 	HTTPReuseSessions                   bool     `yaml:"http_reuse_sessions"`
 	HTTPSessionMaxIdleSeconds           int      `yaml:"http_session_max_idle_seconds"`
-	StdioDisabled                       bool     `yaml:"stdio_disabled"`
-	StdioCommandPrefixes                []string `yaml:"stdio_command_prefixes"`
 	MaxMCPServersPerUser                int      `yaml:"max_mcp_servers_per_user"`
 	MaxTrackedServerIDsForCallStats     int      `yaml:"max_tracked_server_ids_for_call_stats"`
 	ToolsAllowlistWhenUserImageAttached []string `yaml:"tools_allowlist_when_user_image_attached"`
@@ -576,69 +573,8 @@ func (c *Config) ValidateMCPServerHTTP(s *domain.MCPServer) error {
 	return nil
 }
 
-func StdioCommandAllowed(command string, prefixes []string) bool {
-	cmd := strings.TrimSpace(command)
-	if cmd == "" {
-		return false
-	}
-
-	if len(prefixes) == 0 {
-		return true
-	}
-
-	cleaned := filepath.Clean(cmd)
-	for _, p := range prefixes {
-		p = strings.TrimSpace(p)
-		if p == "" {
-			continue
-		}
-
-		prefix := filepath.Clean(p)
-		if cleaned == prefix {
-			return true
-		}
-
-		sep := string(filepath.Separator)
-		if strings.HasPrefix(cleaned, prefix+sep) {
-			return true
-		}
-	}
-
-	return false
-}
-
-func (c *Config) ValidateMCPServerStdio(s *domain.MCPServer) error {
-	if c == nil || s == nil {
-		return nil
-	}
-
-	tr := strings.ToLower(strings.TrimSpace(s.Transport))
-	if tr != "stdio" {
-		return nil
-	}
-
-	if c.MCP.StdioDisabled {
-		return fmt.Errorf("транспорт stdio отключён в конфигурации (mcp.stdio_disabled)")
-	}
-
-	cmd := strings.TrimSpace(s.Command)
-	if cmd == "" {
-		return fmt.Errorf("stdio: пустая команда")
-	}
-
-	if !StdioCommandAllowed(cmd, c.MCP.StdioCommandPrefixes) {
-		return fmt.Errorf("команда stdio не разрешена политикой mcp.stdio_command_prefixes")
-	}
-
-	return nil
-}
-
 func (c *Config) ValidateMCPServer(s *domain.MCPServer) error {
 	if err := c.ValidateMCPServerHTTP(s); err != nil {
-		return err
-	}
-
-	if err := c.ValidateMCPServerStdio(s); err != nil {
 		return err
 	}
 	return nil

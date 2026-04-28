@@ -44,20 +44,9 @@ func New(ctx context.Context, cfg *config.Config) (*Container, error) {
 	mcpclient.SetHTTPHostPolicy(func(host string) bool {
 		return cfg.MCPHTTPHostAllowed(host)
 	})
-	mcpclient.SetStdioServerValidator(func(s *domain.MCPServer) error {
-		return cfg.ValidateMCPServerStdio(s)
-	})
 
 	if cfg.MCP.HTTPAllowAny {
 		logger.W("MCP: mcp.http_allow_any включён - разрешены любые исходящие HTTP(S) хосты (не для продакшена)")
-	}
-
-	if cfg.MCP.StdioDisabled {
-		logger.W("MCP: stdio_disabled=true - транспорт stdio отключён (создание/вызов через запись сервера будет отклоняться)")
-	}
-
-	if len(cfg.MCP.StdioCommandPrefixes) > 0 {
-		logger.I("MCP: включён allowlist команд stdio (stdio_command_prefixes): %d префиксов", len(cfg.MCP.StdioCommandPrefixes))
 	}
 
 	if cfg.MCP.MaxMCPServersPerUser > 0 {

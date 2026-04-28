@@ -56,7 +56,7 @@ class UserRemoteDataSource implements IUserRemoteDataSource {
       throwGrpcError(e, 'список пользователей');
     } catch (e) {
       Logs().e('UserRemote: getUsers', exception: e);
-      throw ApiFailure('Ошибка получения пользователей');
+      throw ApiFailure('Error получения пользователей');
     }
   }
 
@@ -93,7 +93,7 @@ class UserRemoteDataSource implements IUserRemoteDataSource {
       throwGrpcError(e, 'создание пользователя');
     } catch (e) {
       Logs().e('UserRemote: createUser', exception: e);
-      throw ApiFailure('Ошибка создания пользователя');
+      throw ApiFailure('Error создания пользователя');
     }
   }
 
@@ -132,7 +132,7 @@ class UserRemoteDataSource implements IUserRemoteDataSource {
       throwGrpcError(e, 'обновление пользователя');
     } catch (e) {
       Logs().e('UserRemote: editUser', exception: e);
-      throw ApiFailure('Ошибка обновления пользователя');
+      throw ApiFailure('Error обновления пользователя');
     }
   }
 }

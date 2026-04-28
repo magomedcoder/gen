@@ -602,7 +602,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
           state.copyWith(
             error: chatHeadlineIfBackendReachable(
               e,
-              'Не удалось загрузить версию ответа',
+              'Не удалось загрузить версию responseа',
             ),
           ),
         );
@@ -877,7 +877,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
             ),
           );
         } catch (e) {
-          Logs().e('ChatBloc: ошибка загрузки сессий', exception: e);
+          Logs().e('ChatBloc: error загрузки сессий', exception: e);
           requestLogoutIfUnauthorized(e, authBloc);
           _reportServerUnreachableIfNeeded(e);
           emit(
@@ -909,7 +909,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         );
       }
     } catch (e) {
-      Logs().e('ChatBloc: ошибка подключения', exception: e);
+      Logs().e('ChatBloc: error подключения', exception: e);
       requestLogoutIfUnauthorized(e, authBloc);
       _reportServerUnreachableIfNeeded(e);
       emit(
@@ -1111,7 +1111,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       }
     } catch (e) {
       Logs().e(
-        'ChatBloc: ошибка обновления после восстановления связи',
+        'ChatBloc: error обновления после восстановления связи',
         exception: e,
       );
       requestLogoutIfUnauthorized(e, authBloc);
@@ -1472,7 +1472,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
           resolvedAttachmentFileIds.add(uploadedFileId);
         }
       } on Object catch (e) {
-        Logs().e('ChatBloc: ошибка загрузки вложения', exception: e);
+        Logs().e('ChatBloc: error загрузки вложения', exception: e);
         requestLogoutIfUnauthorized(e, authBloc);
         _reportServerUnreachableIfNeeded(e);
         final msg = chatHeadlineIfBackendReachable(
@@ -1629,7 +1629,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
           emit(_copyAfterAssistantStreamSuccess());
         }
       } else {
-        Logs().w('ChatBloc: пустой ответ от сервера при отправке сообщения');
+        Logs().w('ChatBloc: empty response от сервера при отправке сообщения');
         emit(
           state.copyWith(
             isLoading: false,
@@ -1653,7 +1653,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         );
       }
     } on Object catch (e) {
-      Logs().e('ChatBloc: ошибка отправки сообщения', exception: e);
+      Logs().e('ChatBloc: error отправки сообщения', exception: e);
       requestLogoutIfUnauthorized(e, authBloc);
       _reportServerUnreachableIfNeeded(e);
       emit(
@@ -1809,7 +1809,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
           );
         }
       } else {
-        Logs().w('ChatBloc: пустой ответ при перегенерации');
+        Logs().w('ChatBloc: empty response при перегенерации');
         emit(
           state.copyWith(
             messages: state.currentSessionId == sessionId
@@ -1829,7 +1829,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         );
       }
     } on Object catch (e) {
-      Logs().e('ChatBloc: ошибка перегенерации', exception: e);
+      Logs().e('ChatBloc: error перегенерации', exception: e);
       requestLogoutIfUnauthorized(e, authBloc);
       _reportServerUnreachableIfNeeded(e);
       emit(
@@ -1844,7 +1844,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
           currentStreamingReasoning: null,
           error: chatStreamErrorForState(
             e,
-            lead: 'Не удалось перегенерировать ответ',
+            lead: 'Не удалось перегенерировать response',
           ),
           ragPreviewBySessionFile: _ragPreviewAfterClear(state),
           clearRagDocumentPreview: true,
@@ -1963,7 +1963,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
           emit(_copyAfterAssistantStreamSuccess());
         }
       } else {
-        Logs().w('ChatBloc: пустой ответ при продолжении');
+        Logs().w('ChatBloc: empty response при продолжении');
         emit(
           state.copyWith(
             messages: state.currentSessionId == sessionId
@@ -1987,7 +1987,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         );
       }
     } on Object catch (e) {
-      Logs().e('ChatBloc: ошибка продолжения ответа', exception: e);
+      Logs().e('ChatBloc: error продолжения responseа', exception: e);
       requestLogoutIfUnauthorized(e, authBloc);
       _reportServerUnreachableIfNeeded(e);
       emit(
@@ -2003,7 +2003,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
           currentStreamingReasoning: null,
           error: chatStreamErrorForState(
             e,
-            lead: 'Не удалось продолжить ответ',
+            lead: 'Не удалось продолжить response',
           ),
           partialAssistantMessageId:
               state.currentSessionId == sessionId && previousAssistant.id > 0
@@ -2092,7 +2092,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
               ? null
               : userSafeErrorMessage(
                   e,
-                  fallback: 'Ошибка сохранения настроек чата',
+                  fallback: 'Error сохранения настроек чата',
                 ),
         ),
       );

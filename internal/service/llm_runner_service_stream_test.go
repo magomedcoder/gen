@@ -142,8 +142,3 @@ func TestSendMessageWithRunnerToolAction_bufconn_visionRequestAndStream(t *testi
 		t.Fatalf("tool blob: %q", toolFn())
 	}
 }
-
-//go:fix inline
-func ptrStr(s string) *string {
-	return new(s)
-}

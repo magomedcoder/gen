@@ -183,7 +183,7 @@ class _RagContextPreviewBannerState extends State<RagContextPreviewBanner> {
               Padding(
                 padding: const EdgeInsets.only(left: 38, right: 10),
                 child: Text(
-                  'Ниже - то, как модель «видит» вложение при этой отправке (текст в промпте, не ответ).',
+                  'Ниже - то, как модель «видит» вложение при этой отправке (текст в промпте, не response).',
                   style: theme.textTheme.labelSmall?.copyWith(
                     color: fg.withValues(alpha: 0.82),
                     height: 1.35,

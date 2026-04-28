@@ -23,8 +23,8 @@ class EditorRepositoryImpl implements EditorRepository {
       );
     } catch (e) {
       if (e is Failure) rethrow;
-      Logs().e('EditorRepository: неожиданная ошибка transform', exception: e);
-      throw ApiFailure('Ошибка обработки текста');
+      Logs().e('EditorRepository: неожиданная error transform', exception: e);
+      throw ApiFailure('Error обработки текста');
     }
   }
 

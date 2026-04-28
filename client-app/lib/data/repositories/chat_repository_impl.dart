@@ -27,7 +27,7 @@ class ChatRepositoryImpl implements ChatRepository {
       if (e is Failure) rethrow;
       Logs().e('ChatRepository: checkConnection', exception: e, stackTrace: st);
       throw NetworkFailure(
-        userSafeErrorMessage(e, fallback: 'Ошибка проверки подключения'),
+        userSafeErrorMessage(e, fallback: 'Error проверки подключения'),
       );
     }
   }
@@ -43,7 +43,7 @@ class ChatRepositoryImpl implements ChatRepository {
       if (e is Failure) rethrow;
       Logs().e('ChatRepository: sendMessage stream', exception: e, stackTrace: st);
       throw ApiFailure(
-        userSafeErrorMessage(e, fallback: 'Ошибка создания потока сообщений'),
+        userSafeErrorMessage(e, fallback: 'Error создания потока сообщений'),
       );
     }
   }
@@ -61,7 +61,7 @@ class ChatRepositoryImpl implements ChatRepository {
     } catch (e, st) {
       if (e is Failure) rethrow;
       Logs().e('ChatRepository: regenerate', exception: e, stackTrace: st);
-      throw ApiFailure(userSafeErrorMessage(e, fallback: 'Ошибка перегенерации'));
+      throw ApiFailure(userSafeErrorMessage(e, fallback: 'Error перегенерации'));
     }
   }
 
@@ -79,7 +79,7 @@ class ChatRepositoryImpl implements ChatRepository {
       if (e is Failure) rethrow;
       Logs().e('ChatRepository: continueAssistant', exception: e, stackTrace: st);
       throw ApiFailure(
-        userSafeErrorMessage(e, fallback: 'Ошибка продолжения ответа'),
+        userSafeErrorMessage(e, fallback: 'Error продолжения responseа'),
       );
     }
   }
@@ -100,7 +100,7 @@ class ChatRepositoryImpl implements ChatRepository {
       if (e is Failure) rethrow;
       Logs().e('ChatRepository: editUserMessage', exception: e, stackTrace: st);
       throw ApiFailure(
-        userSafeErrorMessage(e, fallback: 'Ошибка редактирования сообщения'),
+        userSafeErrorMessage(e, fallback: 'Error редактирования сообщения'),
       );
     }
   }
@@ -119,7 +119,7 @@ class ChatRepositoryImpl implements ChatRepository {
       if (e is Failure) rethrow;
       Logs().e('ChatRepository: getUserMessageEdits', exception: e, stackTrace: st);
       throw ApiFailure(
-        userSafeErrorMessage(e, fallback: 'Ошибка загрузки истории правок'),
+        userSafeErrorMessage(e, fallback: 'Error загрузки истории правок'),
       );
     }
   }
@@ -140,7 +140,7 @@ class ChatRepositoryImpl implements ChatRepository {
       if (e is Failure) rethrow;
       Logs().e('ChatRepository: getSessionMessagesForUserMessageVersion', exception: e, stackTrace: st);
       throw ApiFailure(
-        userSafeErrorMessage(e, fallback: 'Ошибка загрузки ветки сообщений'),
+        userSafeErrorMessage(e, fallback: 'Error загрузки ветки сообщений'),
       );
     }
   }
@@ -159,7 +159,7 @@ class ChatRepositoryImpl implements ChatRepository {
       if (e is Failure) rethrow;
       Logs().e('ChatRepository: getAssistantMessageRegenerations', exception: e, stackTrace: st);
       throw ApiFailure(
-        userSafeErrorMessage(e, fallback: 'Ошибка загрузки истории перегенераций'),
+        userSafeErrorMessage(e, fallback: 'Error загрузки истории перегенераций'),
       );
     }
   }
@@ -180,7 +180,7 @@ class ChatRepositoryImpl implements ChatRepository {
       if (e is Failure) rethrow;
       Logs().e('ChatRepository: getSessionMessagesForAssistantMessageVersion', exception: e, stackTrace: st);
       throw ApiFailure(
-        userSafeErrorMessage(e, fallback: 'Ошибка загрузки версии ответа'),
+        userSafeErrorMessage(e, fallback: 'Error загрузки версии responseа'),
       );
     }
   }
@@ -192,7 +192,7 @@ class ChatRepositoryImpl implements ChatRepository {
     } catch (e, st) {
       if (e is Failure) rethrow;
       Logs().e('ChatRepository: createSession', exception: e, stackTrace: st);
-      throw ApiFailure(userSafeErrorMessage(e, fallback: 'Ошибка создания сессии'));
+      throw ApiFailure(userSafeErrorMessage(e, fallback: 'Error создания сессии'));
     }
   }
 
@@ -204,7 +204,7 @@ class ChatRepositoryImpl implements ChatRepository {
       if (e is Failure) rethrow;
       Logs().e('ChatRepository: listSessions', exception: e, stackTrace: st);
       throw ApiFailure(
-        userSafeErrorMessage(e, fallback: 'Ошибка получения списка сессий'),
+        userSafeErrorMessage(e, fallback: 'Error получения списка сессий'),
       );
     }
   }
@@ -225,7 +225,7 @@ class ChatRepositoryImpl implements ChatRepository {
       if (e is Failure) rethrow;
       Logs().e('ChatRepository: getSessionMessagesPage', exception: e, stackTrace: st);
       throw ApiFailure(
-        userSafeErrorMessage(e, fallback: 'Ошибка получения сообщений сессии'),
+        userSafeErrorMessage(e, fallback: 'Error получения сообщений сессии'),
       );
     }
   }
@@ -237,7 +237,7 @@ class ChatRepositoryImpl implements ChatRepository {
     } catch (e, st) {
       if (e is Failure) rethrow;
       Logs().e('ChatRepository: deleteSession', exception: e, stackTrace: st);
-      throw ApiFailure(userSafeErrorMessage(e, fallback: 'Ошибка удаления сессии'));
+      throw ApiFailure(userSafeErrorMessage(e, fallback: 'Error удаления сессии'));
     }
   }
 
@@ -249,7 +249,7 @@ class ChatRepositoryImpl implements ChatRepository {
       if (e is Failure) rethrow;
       Logs().e('ChatRepository: updateSessionTitle', exception: e, stackTrace: st);
       throw ApiFailure(
-        userSafeErrorMessage(e, fallback: 'Ошибка обновления заголовка сессии'),
+        userSafeErrorMessage(e, fallback: 'Error обновления заголовка сессии'),
       );
     }
   }
@@ -262,7 +262,7 @@ class ChatRepositoryImpl implements ChatRepository {
       if (e is Failure) rethrow;
       Logs().e('ChatRepository: getSessionSettings', exception: e, stackTrace: st);
       throw ApiFailure(
-        userSafeErrorMessage(e, fallback: 'Ошибка загрузки настроек чата'),
+        userSafeErrorMessage(e, fallback: 'Error загрузки настроек чата'),
       );
     }
   }
@@ -303,7 +303,7 @@ class ChatRepositoryImpl implements ChatRepository {
       if (e is Failure) rethrow;
       Logs().e('ChatRepository: updateSessionSettings', exception: e, stackTrace: st);
       throw ApiFailure(
-        userSafeErrorMessage(e, fallback: 'Ошибка сохранения настроек чата'),
+        userSafeErrorMessage(e, fallback: 'Error сохранения настроек чата'),
       );
     }
   }
@@ -316,7 +316,7 @@ class ChatRepositoryImpl implements ChatRepository {
       if (e is Failure) rethrow;
       Logs().e('ChatRepository: getSelectedRunner', exception: e, stackTrace: st);
       throw ApiFailure(
-        userSafeErrorMessage(e, fallback: 'Ошибка получения выбранного раннера'),
+        userSafeErrorMessage(e, fallback: 'Error получения выбранного раннера'),
       );
     }
   }
@@ -329,7 +329,7 @@ class ChatRepositoryImpl implements ChatRepository {
       if (e is Failure) rethrow;
       Logs().e('ChatRepository: setSelectedRunner', exception: e, stackTrace: st);
       throw ApiFailure(
-        userSafeErrorMessage(e, fallback: 'Ошибка сохранения выбранного раннера'),
+        userSafeErrorMessage(e, fallback: 'Error сохранения выбранного раннера'),
       );
     }
   }
@@ -348,7 +348,7 @@ class ChatRepositoryImpl implements ChatRepository {
       if (e is Failure) rethrow;
       Logs().e('ChatRepository: getFileIngestionStatus', exception: e, stackTrace: st);
       throw ApiFailure(
-        userSafeErrorMessage(e, fallback: 'Ошибка статуса индексации'),
+        userSafeErrorMessage(e, fallback: 'Error статуса индексации'),
       );
     }
   }
@@ -371,7 +371,7 @@ class ChatRepositoryImpl implements ChatRepository {
       if (e is Failure) rethrow;
       Logs().e('ChatRepository: putSessionFile', exception: e, stackTrace: st);
       throw ApiFailure(
-        userSafeErrorMessage(e, fallback: 'Ошибка загрузки файла сессии'),
+        userSafeErrorMessage(e, fallback: 'Error загрузки файла сессии'),
       );
     }
   }
@@ -390,7 +390,7 @@ class ChatRepositoryImpl implements ChatRepository {
       if (e is Failure) rethrow;
       Logs().e('ChatRepository: getSessionFile', exception: e, stackTrace: st);
       throw ApiFailure(
-        userSafeErrorMessage(e, fallback: 'Ошибка получения файла сессии'),
+        userSafeErrorMessage(e, fallback: 'Error получения файла сессии'),
       );
     }
   }

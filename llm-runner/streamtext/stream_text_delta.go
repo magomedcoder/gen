@@ -21,10 +21,7 @@ func StreamTextDelta(prev, next string) string {
 	pr := []rune(prev)
 	nx := []rune(next)
 	i := 0
-	ml := len(pr)
-	if len(nx) < ml {
-		ml = len(nx)
-	}
+	ml := min(len(nx), len(pr))
 
 	for i < ml && pr[i] == nx[i] {
 		i++

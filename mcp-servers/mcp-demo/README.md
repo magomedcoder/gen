@@ -1,20 +1,6 @@
 # MCP demo
 
-Минимальный пример MCP-сервера: stdio, SSE, streamable HTTP.
-
----
-
-## Transport stdio
-
-Сборка:
-
-```bash
-go build -o ./build/mcp-stdio-demo ./mcp-servers/mcp-demo/cmd/mcp-stdio-demo
-```
-
-- `transport = stdio`
-- `command` - путь к бинарнику
-- `args` - обычно пустой массив
+Минимальный пример MCP-сервера: SSE и streamable HTTP.
 
 ---
 

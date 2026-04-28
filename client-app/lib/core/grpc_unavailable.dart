@@ -61,7 +61,7 @@ bool isPersistentServerAvailabilityTopNoticeText(String message) {
     return true;
   }
 
-  if (t.contains('Ошибка проверки подключения')) {
+  if (t.contains('Error проверки подключения')) {
     return true;
   }
 

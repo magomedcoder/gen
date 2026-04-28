@@ -21,14 +21,14 @@ class McpConnectionConfig {
   final Map<String, String> headers;
   final int timeoutSeconds;
 
-  static const Set<String> _transports = {'stdio', 'sse', 'streamable'};
+  static const Set<String> _transports = {'sse', 'streamable'};
 
   static String defaultJsonPretty() {
     return const JsonEncoder.withIndent('  ').convert(_defaultMap());
   }
 
   static Map<String, Object> _defaultMap() => {
-    'transport': 'stdio',
+    'transport': 'sse',
     'command': '',
     'args': <String>[],
     'env': <String, String>{},
@@ -38,22 +38,6 @@ class McpConnectionConfig {
   };
 
   static String _pretty(Map<String, Object> m) => const JsonEncoder.withIndent('  ').convert(m);
-
-  static String exampleJsonStdio() {
-    return _pretty({
-      'transport': 'stdio',
-      'command': 'npx',
-      'args': <String>[
-        '-y',
-        '@modelcontextprotocol/server-filesystem',
-        '/путь/путь'
-      ],
-      'env': <String, String>{},
-      'url': '',
-      'headers': <String, String>{},
-      'timeoutSeconds': 120,
-    });
-  }
 
   static String exampleJsonSse() {
     return _pretty({
@@ -81,29 +65,6 @@ class McpConnectionConfig {
     });
   }
 
-  static String exampleJsonFullStdio() {
-    return _pretty({
-      'transport': 'stdio',
-      'command': 'npx',
-      'args': <String>[
-        '-y',
-        '@modelcontextprotocol/server-filesystem',
-        '/путь/путь',
-      ],
-      'env': <String, String>{
-        'NODE_ENV': 'production',
-        'NODE_OPTIONS': '--no-warnings --max-old-space-size=512',
-        'PATH': '/usr/local/bin:/usr/bin:/bin',
-        'LANG': 'ru_RU.UTF-8',
-        'TMPDIR': '/tmp',
-        'HOME': '/home/user',
-      },
-      'url': '',
-      'headers': <String, String>{},
-      'timeoutSeconds': 600,
-    });
-  }
-
   static String exampleJsonFullRemote() {
     return _pretty({
       'transport': 'streamable',
@@ -126,28 +87,26 @@ class McpConnectionConfig {
   static const String documentation = ''
       'Поля:\n'
       ' transport - способ подключения:\n'
-      '   - stdio - запуск локального процесса, stdin/stdout по протоколу MCP\n'
       '   - sse - сервер по HTTP, обычно с Server-Sent Events\n'
       '   - streamable - HTTP-транспорт с потоковой передачей\n'
-      ' command - для stdio: исполняемый файл (первый элемент argv), например npx, uvx, python3 или абсолютный путь.\n'
-      ' args - массив строк: все аргументы после command, по порядку (флаги, пакет npm, путь к каталогу и тд).\n'
-      ' env - переменные окружения для процесса stdio: {"ИМЯ": "значение"}. Для API-ключей в HTTP часто удобнее поле headers.\n'
-      ' url - полный URL для sse/streamable (схема https:// или http://, путь к endpoint). Для stdio оставьте пустую строку "".\n'
+      ' command - для HTTP не используется, оставьте пустую строку "".\n'
+      ' args - для HTTP не используется, оставьте empty массив [].\n'
+      ' env - для HTTP не используется, оставьте empty объект {}.\n'
+      ' url - полный URL для sse/streamable (схема https:// или http://, путь к endpoint).\n'
       ' headers - заголовки HTTP для sse/streamable (например Authorization, X-Api-Key). Значения - строки.\n'
-      ' timeoutSeconds - таймаут вызовов инструментов, целое число от 1 до 600 (секунды).\n'
+      ' timeoutSeconds - timeout вызовов инструментов, целое число от 1 до 600 (секунды).\n'
       '\n'
       'Режимы:\n'
-      ' stdio: задайте transport, command, args, при необходимости env, url, headers\n'
-      '  Удалённый сервер transport (sse или streamable) и url, при необходимости headers - command и args не используются.\n'
+      '  Удалённый сервер: transport (sse или streamable) и url, при необходимости headers.\n'
       '\n'
-      'Кнопки stdio, sse и streamable - короткие примеры. пример stdio и пример HTTP - развёрнутые образцы с несколькими аргументами/переменными или заголовками и таймаутом 600 с. '
+      'Кнопки sse и streamable - короткие примеры. Полный HTTP - развёрнутый образец с несколькими заголовками и timeoutом 600 с. '
       'Замените пути, хосты и секреты на свои.\n'
       '\n'
       'При редактировании сохранённого сервера значения секретов в env и headers на сервере могут отображаться как *** - не меняйте эти строки, если не хотите перезаписать секрет.';
 
   static String prettyFromEntity(McpServerEntity e) {
     return const JsonEncoder.withIndent('  ').convert({
-      'transport': e.transport.trim().isEmpty ? 'stdio' : e.transport.trim(),
+      'transport': e.transport.trim().isEmpty ? 'sse' : e.transport.trim(),
       'command': e.command,
       'args': e.args,
       'env': e.env,
@@ -170,7 +129,7 @@ class McpConnectionConfig {
 
     final map = decoded.cast<String, dynamic>();
 
-    final transport = (map['transport'] as String?)?.trim() ?? 'stdio';
+    final transport = (map['transport'] as String?)?.trim() ?? 'sse';
     if (!_transports.contains(transport)) {
       throw FormatException('transport должен быть одним из: ${_transports.join(", ")}.');
     }

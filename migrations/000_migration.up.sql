@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS mcp_servers
     user_id         INTEGER      NULL REFERENCES users (id) ON DELETE CASCADE,
     name            VARCHAR(255) NOT NULL DEFAULT '',
     enabled         BOOLEAN      NOT NULL DEFAULT TRUE,
-    transport       VARCHAR(32)  NOT NULL DEFAULT 'stdio',
+    transport       VARCHAR(32)  NOT NULL DEFAULT 'sse',
     command         TEXT         NOT NULL DEFAULT '',
     args_json       TEXT         NOT NULL DEFAULT '[]',
     env_json        TEXT         NOT NULL DEFAULT '{}',

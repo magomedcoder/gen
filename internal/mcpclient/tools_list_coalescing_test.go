@@ -41,7 +41,6 @@ func runConcurrentListToolsWave(t *testing.T, c *ToolsListCache, srv *domain.MCP
 	durations := make([]time.Duration, workers)
 	errCh := make(chan error, workers)
 	for i := range workers {
-		i := i
 		go func() {
 			defer wg.Done()
 			start := time.Now()
