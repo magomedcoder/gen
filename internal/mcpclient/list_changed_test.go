@@ -68,10 +68,8 @@ func TestListChangedNotificationsInvalidateToolsListCache(t *testing.T) {
 
 	dummy := &domain.MCPServer{
 		ID:             701,
-		Transport:      "stdio",
-		Command:        "/bin/true",
-		ArgsJSON:       `[]`,
-		EnvJSON:        `{}`,
+		Transport:      "streamable",
+		URL:            "http://127.0.0.1:9/x",
 		HeadersJSON:    `{}`,
 		TimeoutSeconds: 120,
 	}
@@ -140,10 +138,8 @@ func TestListChangedNotificationsInvalidateResourcesCache(t *testing.T) {
 
 	dummy := &domain.MCPServer{
 		ID:             702,
-		Transport:      "stdio",
-		Command:        "/bin/true",
-		ArgsJSON:       `[]`,
-		EnvJSON:        `{}`,
+		Transport:      "streamable",
+		URL:            "http://127.0.0.1:9/x",
 		HeadersJSON:    `{}`,
 		TimeoutSeconds: 120,
 	}
@@ -207,10 +203,8 @@ func TestListChangedNotificationsInvalidatePromptsCache(t *testing.T) {
 
 	dummy := &domain.MCPServer{
 		ID:             703,
-		Transport:      "stdio",
-		Command:        "/bin/true",
-		ArgsJSON:       `[]`,
-		EnvJSON:        `{}`,
+		Transport:      "streamable",
+		URL:            "http://127.0.0.1:9/x",
 		HeadersJSON:    `{}`,
 		TimeoutSeconds: 120,
 	}

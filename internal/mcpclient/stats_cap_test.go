@@ -35,7 +35,7 @@ func TestRecordCallToolServerRespectsMaxDistinct(t *testing.T) {
 
 	for k := range m {
 		if strings.Contains(k, "call_tool_server_30_") {
-			t.Fatalf("unexpected key for capped server: %s", k)
+			t.Fatalf("неожиданный key for capped server: %s", k)
 		}
 	}
 }

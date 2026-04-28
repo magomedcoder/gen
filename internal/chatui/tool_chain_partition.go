@@ -34,20 +34,20 @@ func PartitionMessagesForToolChainUI(msgs []*domain.Message) []PartitionElement 
 	for i < n {
 		m := msgs[i]
 		if m == nil {
-			out = append(out, PartitionElement{SingleIndex: intPtr(i)})
+			out = append(out, PartitionElement{SingleIndex: new(i)})
 			i++
 			continue
 		}
 
 		if !assistantHasToolCalls(m) {
-			out = append(out, PartitionElement{SingleIndex: intPtr(i)})
+			out = append(out, PartitionElement{SingleIndex: new(i)})
 			i++
 			continue
 		}
 
 		group, next := consumeToolChain(msgs, i)
 		if group == nil {
-			out = append(out, PartitionElement{SingleIndex: intPtr(i)})
+			out = append(out, PartitionElement{SingleIndex: new(i)})
 			i = next
 			continue
 		}
@@ -59,8 +59,9 @@ func PartitionMessagesForToolChainUI(msgs []*domain.Message) []PartitionElement 
 	return out
 }
 
+//go:fix inline
 func intPtr(v int) *int {
-	return &v
+	return new(v)
 }
 
 func consumeToolChain(msgs []*domain.Message, start int) (group *ToolChainGroup, nextIndex int) {

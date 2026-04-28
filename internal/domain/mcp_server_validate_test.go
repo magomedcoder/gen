@@ -4,7 +4,7 @@ import "testing"
 
 func TestValidateMCPServerStructure_transport(t *testing.T) {
 	if err := ValidateMCPServerStructure(&MCPServer{
-		Transport:      "stdio",
+		Transport:      "streamable",
 		TimeoutSeconds: 120,
 	}); err != nil {
 		t.Fatal(err)
@@ -18,6 +18,13 @@ func TestValidateMCPServerStructure_transport(t *testing.T) {
 	}
 
 	if err := ValidateMCPServerStructure(&MCPServer{
+		Transport:      "stdio",
+		TimeoutSeconds: 120,
+	}); err == nil {
+		t.Fatal("expected error for stdio transport")
+	}
+
+	if err := ValidateMCPServerStructure(&MCPServer{
 		Transport:      "bad",
 		TimeoutSeconds: 1,
 	}); err == nil {
@@ -27,14 +34,14 @@ func TestValidateMCPServerStructure_transport(t *testing.T) {
 
 func TestValidateMCPServerStructure_timeout(t *testing.T) {
 	if err := ValidateMCPServerStructure(&MCPServer{
-		Transport:      "stdio",
+		Transport:      "streamable",
 		TimeoutSeconds: 0,
 	}); err != nil {
 		t.Fatal(err)
 	}
 
 	if err := ValidateMCPServerStructure(&MCPServer{
-		Transport:      "stdio",
+		Transport:      "streamable",
 		TimeoutSeconds: 601,
 	}); err == nil {
 		t.Fatal("expected error for timeout > 600")

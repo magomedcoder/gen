@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/magomedcoder/gen/internal/delivery/mappers"
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -16,6 +16,7 @@ import (
 	"github.com/magomedcoder/gen/api/pb/app/chatpb"
 	"github.com/magomedcoder/gen/api/pb/app/commonpb"
 	"github.com/magomedcoder/gen/internal/config"
+	"github.com/magomedcoder/gen/internal/delivery/mappers"
 	"github.com/magomedcoder/gen/internal/domain"
 	"github.com/magomedcoder/gen/internal/rpcmeta"
 	"github.com/magomedcoder/gen/internal/usecase"
@@ -249,13 +250,7 @@ func (c *ChatHandler) SendMessage(req *chatpb.SendMessageRequest, stream chatpb.
 	}
 
 	for _, fid := range req.GetAttachmentFileIds() {
-		duplicate := false
-		for _, existing := range attachmentFileIDs {
-			if existing == fid {
-				duplicate = true
-				break
-			}
-		}
+		duplicate := slices.Contains(attachmentFileIDs, fid)
 
 		if !duplicate {
 			attachmentFileIDs = append(attachmentFileIDs, fid)

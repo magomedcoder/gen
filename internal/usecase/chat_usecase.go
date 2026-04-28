@@ -178,7 +178,10 @@ func genParamsFromSessionSettings(settings *domain.ChatSessionSettings) (stopSeq
 		return nil, 0, nil
 	}
 
-	stopSequences = settings.StopSequences
+	if len(settings.StopSequences) > 0 {
+		stopSequences = append([]string(nil), settings.StopSequences...)
+	}
+
 	timeoutSeconds = settings.TimeoutSeconds
 	et := settings.ModelReasoningEnabled
 	genParams = &domain.GenerationParams{
@@ -459,10 +462,12 @@ func (c *ChatUseCase) UpdateSessionSettings(
 	if stopSequences == nil {
 		stopSequences = []string{}
 	}
+	stopSequences = append([]string(nil), stopSequences...)
 
 	if mcpServerIDs == nil {
 		mcpServerIDs = []int64{}
 	}
+	mcpServerIDs = append([]int64(nil), mcpServerIDs...)
 
 	for _, mid := range mcpServerIDs {
 		if mid <= 0 {

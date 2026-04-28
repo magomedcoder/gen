@@ -42,7 +42,7 @@ func TestEmbeddedResourceImageBlob_placeholderNoBase64(t *testing.T) {
 		Blob:     []byte{1, 2, 3, 4, 5},
 	})
 	if strings.Contains(s, "base64") {
-		t.Fatalf("unexpected base64: %q", s)
+		t.Fatalf("неожиданный base64: %q", s)
 	}
 
 	if !strings.Contains(s, "image_bytes") {

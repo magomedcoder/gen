@@ -52,7 +52,7 @@ func isRetryableTransportError(parentCtx context.Context, err error) bool {
 		"broken pipe",
 		"connection reset",
 		"connection aborted",
-		"unexpected eof",
+		"неожиданный eof",
 		"stream closed",
 		"transport is closing",
 		"http2: client connection lost",

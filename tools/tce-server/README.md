@@ -12,7 +12,7 @@ go run ./tools/tce-server/cmd
 
 Переменные окружения:
 
-- `PORT` - HTTP порт сервера
+- `TCE_SERVER_HOST` - HTTP сервер
 - `GEN_RUNNER_ADDR` - адрес gen-раннера
 - `GEN_MODEL` - идентификатор модели для запросов
 

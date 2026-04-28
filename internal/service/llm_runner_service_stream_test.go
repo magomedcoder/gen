@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/magomedcoder/en-runner//api/pb/llm-runner/llmrunnerpb"
+	"github.com/magomedcoder/gen-runner/pb/llm-runner/llmrunnerpb"
 	"github.com/magomedcoder/gen/internal/domain"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -141,9 +141,4 @@ func TestSendMessageWithRunnerToolAction_bufconn_visionRequestAndStream(t *testi
 	if toolFn == nil || toolFn() != `[]` {
 		t.Fatalf("tool blob: %q", toolFn())
 	}
-}
-
-//go:fix inline
-func ptrStr(s string) *string {
-	return new(s)
 }

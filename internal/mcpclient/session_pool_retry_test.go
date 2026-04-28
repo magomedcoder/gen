@@ -41,7 +41,7 @@ func TestShouldRetryPooledSessionError(t *testing.T) {
 		t.Fatal("connection reset should be retried")
 	}
 
-	if shouldRetryPooledSessionError(context.Background(), errors.New("validation failed")) {
+	if shouldRetryPooledSessionError(context.Background(), errors.New("validation не удалось")) {
 		t.Fatal("business errors must not be retried")
 	}
 }

@@ -562,12 +562,6 @@ func (h *RunnerHandler) CreateMCPServer(ctx context.Context, req *runnerpb.Creat
 
 	h.mcpToolsListCache.InvalidateServerID(s.ID)
 
-	if u, err := GetUserFromContext(ctx, h.authUseCase); err == nil && u != nil {
-		logMCPServerStdioAudit("create", s, u.Id)
-	} else {
-		logMCPServerStdioAudit("create", s, 0)
-	}
-
 	return mapDomainMCPServerToProto(s), nil
 }
 
@@ -653,12 +647,6 @@ func (h *RunnerHandler) UpdateMCPServer(ctx context.Context, req *runnerpb.Updat
 	}
 
 	h.mcpToolsListCache.InvalidateServerID(req.GetId())
-
-	if u, err := GetUserFromContext(ctx, h.authUseCase); err == nil && u != nil {
-		logMCPServerStdioAudit("update", s, u.Id)
-	} else {
-		logMCPServerStdioAudit("update", s, 0)
-	}
 
 	return mapDomainMCPServerToProto(s), nil
 }
@@ -750,8 +738,6 @@ func (h *RunnerHandler) CreateUserMCPServer(ctx context.Context, req *runnerpb.C
 	}
 
 	h.mcpToolsListCache.InvalidateServerID(s.ID)
-	logMCPServerStdioAudit("create", s, user.Id)
-
 	return mapDomainMCPServerToProto(s), nil
 }
 
@@ -843,8 +829,6 @@ func (h *RunnerHandler) UpdateUserMCPServer(ctx context.Context, req *runnerpb.U
 	}
 
 	h.mcpToolsListCache.InvalidateServerID(req.GetId())
-	logMCPServerStdioAudit("update", s, user.Id)
-
 	return mapDomainMCPServerToProto(s), nil
 }
 

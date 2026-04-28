@@ -72,7 +72,7 @@ func (r *chatSessionSettingsRepository) Upsert(ctx context.Context, settings *do
 func chatRowToSessionSettings(m *model.Chat) *domain.ChatSessionSettings {
 	var seq []string
 	if m.StopSequences != nil {
-		seq = []string(m.StopSequences)
+		seq = append([]string(nil), []string(m.StopSequences)...)
 	}
 
 	mcpEnabled, mcpIDs, err := domain.UnmarshalMCPSessionSettings(m.MCPSettings)
@@ -96,6 +96,6 @@ func chatRowToSessionSettings(m *model.Chat) *domain.ChatSessionSettings {
 		WebSearchEnabled:      m.WebSearchEnabled,
 		WebSearchProvider:     m.WebSearchProvider,
 		MCPEnabled:            mcpEnabled,
-		MCPServerIDs:          mcpIDs,
+		MCPServerIDs:          append([]int64(nil), mcpIDs...),
 	}
 }

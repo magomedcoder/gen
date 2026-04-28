@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS users
     updated_at      TIMESTAMP           NOT NULL DEFAULT NOW(),
     last_visited_at TIMESTAMP           NULL,
     deleted_at      TIMESTAMP           NULL
-);
+    );
 
 CREATE TABLE IF NOT EXISTS user_sessions
 (
@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS user_sessions
     expires_at TIMESTAMP   NOT NULL,
     created_at TIMESTAMP   NOT NULL DEFAULT NOW(),
     deleted_at TIMESTAMP   NULL
-);
+    );
 
 CREATE TABLE IF NOT EXISTS runners
 (
@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS runners
     created_at     TIMESTAMP    NOT NULL DEFAULT NOW(),
     updated_at     TIMESTAMP    NOT NULL DEFAULT NOW(),
     UNIQUE (host, port)
-);
+    );
 
 CREATE INDEX IF NOT EXISTS idx_runners_enabled ON runners (enabled);
 
@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS mcp_servers
     user_id         INTEGER      NULL REFERENCES users (id) ON DELETE CASCADE,
     name            VARCHAR(255) NOT NULL DEFAULT '',
     enabled         BOOLEAN      NOT NULL DEFAULT TRUE,
-    transport       VARCHAR(32)  NOT NULL DEFAULT 'stdio',
+    transport       VARCHAR(32)  NOT NULL DEFAULT 'sse',
     command         TEXT         NOT NULL DEFAULT '',
     args_json       TEXT         NOT NULL DEFAULT '[]',
     env_json        TEXT         NOT NULL DEFAULT '{}',
@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS mcp_servers
     timeout_seconds INTEGER      NOT NULL DEFAULT 120,
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
-);
+    );
 
 CREATE INDEX IF NOT EXISTS idx_mcp_servers_enabled ON mcp_servers (enabled);
 CREATE INDEX IF NOT EXISTS idx_mcp_servers_user_id ON mcp_servers (user_id);
@@ -81,7 +81,7 @@ CREATE TABLE IF NOT EXISTS chats
     created_at              TIMESTAMP    NOT NULL DEFAULT NOW(),
     updated_at              TIMESTAMP    NOT NULL DEFAULT NOW(),
     deleted_at              TIMESTAMP    NULL
-);
+    );
 
 CREATE TABLE IF NOT EXISTS files
 (
@@ -97,7 +97,7 @@ CREATE TABLE IF NOT EXISTS files
     created_at                    TIMESTAMP    NOT NULL DEFAULT NOW(),
     extracted_text                TEXT         NULL,
     extracted_text_content_sha256 VARCHAR(64)  NULL
-);
+    );
 
 CREATE TABLE IF NOT EXISTS messages
 (
@@ -112,7 +112,7 @@ CREATE TABLE IF NOT EXISTS messages
     created_at         TIMESTAMP   NOT NULL DEFAULT NOW(),
     updated_at         TIMESTAMP   NOT NULL DEFAULT NOW(),
     deleted_at         TIMESTAMP   NULL
-);
+    );
 
 CREATE TABLE IF NOT EXISTS editor_text_history
 (
@@ -121,7 +121,7 @@ CREATE TABLE IF NOT EXISTS editor_text_history
     runner_id  BIGINT    NULL REFERENCES runners (id) ON DELETE SET NULL,
     text       TEXT      NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
-);
+    );
 
 CREATE TABLE IF NOT EXISTS message_edits
 (
@@ -136,7 +136,7 @@ CREATE TABLE IF NOT EXISTS message_edits
     soft_deleted_to_id   BIGINT      NULL,
     created_at           TIMESTAMP   NOT NULL DEFAULT NOW(),
     reverted_at          TIMESTAMP   NULL
-);
+    );
 
 CREATE TABLE IF NOT EXISTS web_search_settings
 (
@@ -152,11 +152,11 @@ CREATE TABLE IF NOT EXISTS web_search_settings
     google_enabled          BOOLEAN     NOT NULL DEFAULT FALSE,
     brave_enabled           BOOLEAN     NOT NULL DEFAULT FALSE,
     updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+    );
 
 INSERT INTO web_search_settings (id)
 VALUES (1)
-ON CONFLICT (id) DO NOTHING;
+    ON CONFLICT (id) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS document_rag_chunks
 (
@@ -175,7 +175,7 @@ CREATE TABLE IF NOT EXISTS document_rag_chunks
     embedding             BYTEA       NOT NULL,
     created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (file_id, embedding_model, pipeline_version, chunk_index)
-);
+    );
 
 CREATE TABLE IF NOT EXISTS file_rag_index
 (
@@ -187,7 +187,7 @@ CREATE TABLE IF NOT EXISTS file_rag_index
     embedding_model       VARCHAR(512) NOT NULL DEFAULT '',
     chunk_count           INTEGER      NOT NULL DEFAULT 0,
     updated_at            TIMESTAMPTZ  NOT NULL DEFAULT NOW()
-);
+    );
 
 CREATE INDEX IF NOT EXISTS idx_users_username ON users (username);
 CREATE INDEX IF NOT EXISTS idx_users_role ON users (role);
