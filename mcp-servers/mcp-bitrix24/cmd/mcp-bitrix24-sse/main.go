@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/magomedcoder/gen/mcp-servers/mcp-bitrix24/internal/bitrix24server"
 	"github.com/magomedcoder/gen/pkg/mcpsafe"
@@ -19,13 +20,15 @@ func main() {
 	logLevel := getenvDefault("B24_LOG_LEVEL", "info")
 	retryMax := getenvIntDefault("B24_RETRY_MAX", 1)
 	retryBackoffMS := getenvIntDefault("B24_RETRY_BACKOFF_MS", 300)
+	disableHeavyAnalytics := getenvBoolDefault("B24_DISABLE_HEAVY_ANALYTICS", false)
 	log.Printf("MCP Bitrix24 SSE: starting webhook_base_set=%t listen=%s", webhookBase != "", *addr)
 
 	srv, err := bitrix24server.NewServer(bitrix24server.Config{
-		WebhookBase:    webhookBase,
-		LogLevel:       logLevel,
-		RetryMax:       retryMax,
-		RetryBackoffMS: retryBackoffMS,
+		WebhookBase:           webhookBase,
+		LogLevel:              logLevel,
+		RetryMax:              retryMax,
+		RetryBackoffMS:        retryBackoffMS,
+		DisableHeavyAnalytics: disableHeavyAnalytics,
 	})
 	if err != nil {
 		log.Fatalf("init bitrix24 server: %v", err)
@@ -57,4 +60,20 @@ func getenvIntDefault(key string, fallback int) int {
 		return fallback
 	}
 	return n
+}
+
+func getenvBoolDefault(key string, fallback bool) bool {
+	v := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
+	if v == "" {
+		return fallback
+	}
+
+	switch v {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return fallback
+	}
 }

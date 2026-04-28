@@ -11,11 +11,19 @@ func TestValidateAnalyzeToolsArgs(t *testing.T) {
 		wantErr bool
 	}{
 		{"list-valid", func() error {
-			return validateListTasksArgs(pint(0))
+			return validateListTasksArgs(pint(0), nil)
 		}, false},
 
 		{"list-invalid", func() error {
-			return validateListTasksArgs(pint(-1))
+			return validateListTasksArgs(pint(-1), nil)
+		}, true},
+
+		{"list-valid-consistent-task-id-filter", func() error {
+			return validateListTasksArgs(pint(0), map[string]any{"ID": "123", "taskId": 123})
+		}, false},
+
+		{"list-invalid-conflicting-task-id-filter", func() error {
+			return validateListTasksArgs(pint(0), map[string]any{"ID": "123", "taskId": 124})
 		}, true},
 
 		{"query-valid", func() error {
@@ -64,6 +72,14 @@ func TestValidateAnalyzeToolsArgs(t *testing.T) {
 
 		{"status-invalid-limit", func() error {
 			return validateStatusTrendsArgs(pint(0), pint(0), pint(7))
+		}, true},
+
+		{"responsible-performance-valid", func() error {
+			return validateResponsiblePerformanceArgs(pint(0), pint(20), "21")
+		}, false},
+
+		{"responsible-performance-invalid-empty", func() error {
+			return validateResponsiblePerformanceArgs(pint(0), pint(20), " ")
 		}, true},
 	}
 

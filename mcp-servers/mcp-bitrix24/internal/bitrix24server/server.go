@@ -14,10 +14,11 @@ import (
 )
 
 type Config struct {
-	WebhookBase    string
-	LogLevel       string
-	RetryMax       int
-	RetryBackoffMS int
+	WebhookBase           string
+	LogLevel              string
+	RetryMax              int
+	RetryBackoffMS        int
+	DisableHeavyAnalytics bool
 }
 
 func NewServer(cfg Config) (*mcp.Server, error) {
@@ -41,6 +42,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 	if err != nil {
 		return nil, err
 	}
+	heavyAnalyticsEnabled := !cfg.DisableHeavyAnalytics
 
 	srv := mcp.NewServer(&mcp.Implementation{
 		Name:    "bitrix24",
@@ -56,33 +58,68 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 	}
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "b24_list_tasks",
-		Description: "Получить список задач Bitrix24 (tasks.task.list)",
+		Description: "Получить список задач Bitrix24 (tasks.task.list, read-only). Если нужен конкретный ID задачи — используйте b24_get_task.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, args listTasksArgs) (*mcp.CallToolResult, any, error) {
 		return mcpsafe.SafeToolInvoke("mcp-bitrix24", "b24_list_tasks", func() (*mcp.CallToolResult, any, error) {
 			ctx, rid := withRequestID(ctx)
 			log.Printf("[b24-mcp] tool=b24_list_tasks req_id=%s", rid)
 			logToolArgs("b24_list_tasks", args)
-			if err := validateListTasksArgs(args.Start); err != nil {
+			if err := validateListTasksArgs(args.Start, args.Filter); err != nil {
 				return nil, nil, err
 			}
 
 			log.Printf("[b24-mcp] tool=b24_list_tasks filter_keys=%d select=%d order_keys=%d has_start=%t", len(args.Filter), len(args.Select), len(args.Order), args.Start != nil)
+			if taskID, ok := extractTaskIDFromListFilter(args.Filter); ok {
+				log.Printf("[b24-mcp] tool=b24_list_tasks redirect=tasks.task.get task_id=%d reason=explicit_id_filter", taskID)
+				payload := map[string]any{
+					"taskId": taskID,
+				}
+
+				if len(args.Select) > 0 {
+					payload["select"] = cloneStringSlice(args.Select)
+				}
+
+				resp, err := client.call(ctx, "tasks.task.get", payload)
+				if err != nil {
+					log.Printf("[b24-mcp] tool=b24_list_tasks redirect_task_id=%d err=%v", taskID, err)
+					return nil, nil, err
+				}
+
+				task, err := extractTask(resp)
+				if err != nil {
+					log.Printf("[b24-mcp] tool=b24_list_tasks redirect_task_id=%d stage=extract_task err=%v", taskID, err)
+					return nil, nil, err
+				}
+
+				normalized := map[string]any{
+					"result": map[string]any{
+						"mode":            "single_task_by_id_filter",
+						"task":            task,
+						"task_normalized": normalizeTaskSnapshot(task),
+					},
+					"raw": resp,
+				}
+
+				log.Printf("[b24-mcp] tool=b24_list_tasks redirect_task_id=%d ok", taskID)
+				logToolResult("b24_list_tasks", normalized)
+				return textAndPayloadResult("b24_list_tasks", normalized), nil, nil
+			}
 
 			payload := map[string]any{}
 			if args.Filter != nil {
-				payload["filter"] = args.Filter
+				payload["filter"] = cloneAnyMap(args.Filter)
 			}
 
 			if len(args.Select) > 0 {
-				payload["select"] = args.Select
+				payload["select"] = cloneStringSlice(args.Select)
 			}
 
 			if args.Order != nil {
-				payload["order"] = args.Order
+				payload["order"] = cloneAnyMap(args.Order)
 			}
 
 			if args.Params != nil {
-				payload["params"] = args.Params
+				payload["params"] = cloneAnyMap(args.Params)
 			}
 
 			if args.Start != nil {
@@ -94,10 +131,28 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 				log.Printf("[b24-mcp] tool=b24_list_tasks err=%v", err)
 				return nil, nil, err
 			}
-			log.Printf("[b24-mcp] tool=b24_list_tasks ok")
-			logToolResult("b24_list_tasks", resp)
 
-			return textResult(prettyJSON(resp)), nil, nil
+			tasks, _ := extractTaskListPage(resp)
+			normalizedTasks := make([]TaskSnapshot, 0, len(tasks))
+			for _, task := range tasks {
+				normalizedTasks = append(normalizedTasks, normalizeTaskSnapshot(task))
+			}
+
+			normalized := map[string]any{
+				"result": map[string]any{
+					"mode":             "task_list",
+					"tasks":            tasks,
+					"tasks_normalized": normalizedTasks,
+					"count":            len(tasks),
+					"next":             resp["next"],
+				},
+				"raw": resp,
+			}
+
+			log.Printf("[b24-mcp] tool=b24_list_tasks ok")
+			logToolResult("b24_list_tasks", normalized)
+
+			return textAndPayloadResult("b24_list_tasks", normalized), nil, nil
 		})
 	})
 
@@ -107,7 +162,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 	}
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "b24_get_task",
-		Description: "Получить задачу по ID (tasks.task.get)",
+		Description: "Получить задачу по ID (tasks.task.get, read-only)",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, args getTaskArgs) (*mcp.CallToolResult, any, error) {
 		return mcpsafe.SafeToolInvoke("mcp-bitrix24", "b24_get_task", func() (*mcp.CallToolResult, any, error) {
 			ctx, rid := withRequestID(ctx)
@@ -128,7 +183,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 			}
 
 			if len(args.Select) > 0 {
-				payload["select"] = args.Select
+				payload["select"] = cloneStringSlice(args.Select)
 			}
 
 			resp, err := client.call(ctx, "tasks.task.get", payload)
@@ -136,10 +191,25 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 				log.Printf("[b24-mcp] tool=b24_get_task task_id=%d err=%v", taskID, err)
 				return nil, nil, err
 			}
-			log.Printf("[b24-mcp] tool=b24_get_task task_id=%d ok", taskID)
-			logToolResult("b24_get_task", resp)
 
-			return textResult(prettyJSON(resp)), nil, nil
+			task, err := extractTask(resp)
+			if err != nil {
+				log.Printf("[b24-mcp] tool=b24_get_task task_id=%d stage=extract_task err=%v", taskID, err)
+				return nil, nil, err
+			}
+
+			normalized := map[string]any{
+				"result": map[string]any{
+					"task":            task,
+					"task_normalized": normalizeTaskSnapshot(task),
+				},
+				"raw": resp,
+			}
+
+			log.Printf("[b24-mcp] tool=b24_get_task task_id=%d ok", taskID)
+			logToolResult("b24_get_task", normalized)
+
+			return textAndPayloadResult("b24_get_task", normalized), nil, nil
 		})
 	})
 
@@ -150,7 +220,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 	}
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "b24_get_task_comments",
-		Description: "Получить комментарии задачи (task.commentitem.getlist)",
+		Description: "Получить комментарии задачи (task.commentitem.getlist, read-only)",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, args getCommentsArgs) (*mcp.CallToolResult, any, error) {
 		return mcpsafe.SafeToolInvoke("mcp-bitrix24", "b24_get_task_comments", func() (*mcp.CallToolResult, any, error) {
 			ctx, rid := withRequestID(ctx)
@@ -167,16 +237,302 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 
 			log.Printf("[b24-mcp] tool=b24_get_task_comments task_id=%d order_keys=%d filter_keys=%d", taskID, len(args.Order), len(args.Filter))
 
-			resp, err := client.callTaskCommentItemGetList(ctx, taskID, args.Order, args.Filter)
+			resp, err := client.callTaskCommentItemGetList(ctx, taskID, cloneAnyMap(args.Order), cloneAnyMap(args.Filter))
 			if err != nil {
 				log.Printf("[b24-mcp] tool=b24_get_task_comments task_id=%d err=%v", taskID, err)
 				return nil, nil, err
 			}
 
-			log.Printf("[b24-mcp] tool=b24_get_task_comments task_id=%d ok", taskID)
-			logToolResult("b24_get_task_comments", resp)
+			comments := extractComments(resp)
+			normalizedComments := normalizeCommentSnapshots(comments, taskID)
+			commentsTotal := commentsTotalFromResponse(resp)
+			parseWarnings := commentParseWarnings(commentsTotal, len(normalizedComments))
+			normalized := map[string]any{
+				"result": map[string]any{
+					"comments":                comments,
+					"comments_normalized":     normalizedComments,
+					"count":                   len(comments),
+					"count_normalized":        len(normalizedComments),
+					"comments_total":          commentsTotal,
+					"comments_parsed":         len(normalizedComments),
+					"comments_parse_warnings": parseWarnings,
+				},
+				"raw": resp,
+			}
 
-			return textResult(prettyJSON(resp)), nil, nil
+			if len(comments) == 0 {
+				log.Printf("[b24-mcp] tool=b24_get_task_comments task_id=%d warn=comments_empty raw_result_type=%T", taskID, resp["result"])
+			}
+
+			log.Printf("[b24-mcp] tool=b24_get_task_comments task_id=%d ok", taskID)
+			logToolResult("b24_get_task_comments", normalized)
+
+			return textAndPayloadResult("b24_get_task_comments", normalized), nil, nil
+		})
+	})
+
+	type getTaskTimelineArgs struct {
+		TaskID          any   `json:"task_id" jsonschema:"ID задачи (число или строка с цифрами)"`
+		IncludeComments *bool `json:"include_comments,omitempty" jsonschema:"Включать комментарии в ленту (по умолчанию true)"`
+		Limit           *int  `json:"limit,omitempty" jsonschema:"Макс. событий в ленте (1..200), по умолчанию 50"`
+	}
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "b24_get_task_timeline",
+		Description: "Получить таймлайн задачи: ключевые события + комментарии (read-only)",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, args getTaskTimelineArgs) (*mcp.CallToolResult, any, error) {
+		return mcpsafe.SafeToolInvoke("mcp-bitrix24", "b24_get_task_timeline", func() (*mcp.CallToolResult, any, error) {
+			if !heavyAnalyticsEnabled {
+				msg := "b24_get_task_timeline отключен feature-flag `DisableHeavyAnalytics`."
+				return textResult(msg), nil, nil
+			}
+
+			ctx, rid := withRequestID(ctx)
+			log.Printf("[b24-mcp] tool=b24_get_task_timeline req_id=%s", rid)
+			logToolArgs("b24_get_task_timeline", args)
+			taskID, err := parseTaskID(args.TaskID)
+			if err != nil {
+				return nil, nil, err
+			}
+
+			if taskID <= 0 {
+				return nil, nil, fmt.Errorf("task_id must be > 0")
+			}
+
+			limit := 50
+			if args.Limit != nil {
+				if *args.Limit < 1 || *args.Limit > 200 {
+					return nil, nil, fmt.Errorf("limit must be in range [1..200]")
+				}
+				limit = *args.Limit
+			}
+
+			includeComments := true
+			if args.IncludeComments != nil {
+				includeComments = *args.IncludeComments
+			}
+
+			taskResp, err := client.call(ctx, "tasks.task.get", map[string]any{
+				"taskId": taskID,
+				"select": []string{
+					"ID", "TITLE", "STATUS", "CREATED_DATE", "CHANGED_DATE", "DEADLINE", "CLOSED_DATE", "ACTIVITY_DATE", "CREATED_BY", "RESPONSIBLE_ID", "PRIORITY",
+				},
+			})
+
+			if err != nil {
+				log.Printf("[b24-mcp] tool=b24_get_task_timeline task_id=%d stage=task_get err=%v", taskID, err)
+				return nil, nil, err
+			}
+
+			taskRaw, err := extractTask(taskResp)
+			if err != nil {
+				log.Printf("[b24-mcp] tool=b24_get_task_timeline task_id=%d stage=extract_task err=%v", taskID, err)
+				return nil, nil, err
+			}
+
+			taskNormalized := normalizeTaskSnapshot(taskRaw)
+
+			var commentsRaw []map[string]any
+			var commentsNormalized []CommentSnapshot
+			if includeComments {
+				commentsResp, err := client.callTaskCommentItemGetList(ctx, taskID, map[string]any{"POST_DATE": "desc"}, nil)
+				if err != nil {
+					if isIgnorableCommentError(err) {
+						log.Printf("[b24-mcp] tool=b24_get_task_timeline task_id=%d stage=comments soft_skip err=%v", taskID, err)
+					} else {
+						log.Printf("[b24-mcp] tool=b24_get_task_timeline task_id=%d stage=comments err=%v", taskID, err)
+						return nil, nil, err
+					}
+				} else {
+					commentsRaw = extractComments(commentsResp)
+					commentsNormalized = normalizeCommentSnapshots(commentsRaw, taskID)
+				}
+			}
+
+			timeline := buildTaskTimeline(taskNormalized, commentsNormalized)
+			if len(timeline) > limit {
+				timeline = timeline[:limit]
+			}
+
+			payload := map[string]any{
+				"result": map[string]any{
+					"task":                taskRaw,
+					"task_normalized":     taskNormalized,
+					"comments":            commentsRaw,
+					"comments_normalized": commentsNormalized,
+					"timeline":            timeline,
+					"timeline_count":      len(timeline),
+					"include_comments":    includeComments,
+					"limit":               limit,
+				},
+			}
+			log.Printf("[b24-mcp] tool=b24_get_task_timeline task_id=%d ok timeline=%d", taskID, len(timeline))
+			logToolResult("b24_get_task_timeline", payload)
+			return textAndPayloadResult("b24_get_task_timeline", payload), nil, nil
+		})
+	})
+
+	type analyzeBlockersArgs struct {
+		TaskID any  `json:"task_id" jsonschema:"ID задачи (число или строка с цифрами)"`
+		Limit  *int `json:"limit,omitempty" jsonschema:"Макс. найденных блокеров (1..100), по умолчанию 20"`
+	}
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "b24_analyze_task_blockers",
+		Description: "Анализ блокеров по задаче на основе комментариев (read-only)",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, args analyzeBlockersArgs) (*mcp.CallToolResult, any, error) {
+		return mcpsafe.SafeToolInvoke("mcp-bitrix24", "b24_analyze_task_blockers", func() (*mcp.CallToolResult, any, error) {
+			if !heavyAnalyticsEnabled {
+				msg := "b24_analyze_task_blockers отключен feature-flag `DisableHeavyAnalytics`."
+				return textResult(msg), nil, nil
+			}
+
+			ctx, rid := withRequestID(ctx)
+			log.Printf("[b24-mcp] tool=b24_analyze_task_blockers req_id=%s", rid)
+			logToolArgs("b24_analyze_task_blockers", args)
+			taskID, err := parseTaskID(args.TaskID)
+			if err != nil {
+				return nil, nil, err
+			}
+
+			if taskID <= 0 {
+				return nil, nil, fmt.Errorf("task_id must be > 0")
+			}
+
+			limit := 20
+			if args.Limit != nil {
+				if *args.Limit < 1 || *args.Limit > 100 {
+					return nil, nil, fmt.Errorf("limit must be in range [1..100]")
+				}
+				limit = *args.Limit
+			}
+
+			taskResp, err := client.call(ctx, "tasks.task.get", map[string]any{
+				"taskId": taskID,
+				"select": []string{"ID", "TITLE", "STATUS", "DEADLINE", "RESPONSIBLE_ID", "CREATED_BY"},
+			})
+			if err != nil {
+				log.Printf("[b24-mcp] tool=b24_analyze_task_blockers task_id=%d stage=task_get err=%v", taskID, err)
+				return nil, nil, err
+			}
+
+			taskRaw, err := extractTask(taskResp)
+			if err != nil {
+				log.Printf("[b24-mcp] tool=b24_analyze_task_blockers task_id=%d stage=extract_task err=%v", taskID, err)
+				return nil, nil, err
+			}
+
+			taskNormalized := normalizeTaskSnapshot(taskRaw)
+
+			commentsResp, err := client.callTaskCommentItemGetList(ctx, taskID, map[string]any{"POST_DATE": "desc"}, nil)
+			if err != nil {
+				if isIgnorableCommentError(err) {
+					log.Printf("[b24-mcp] tool=b24_analyze_task_blockers task_id=%d stage=comments soft_skip err=%v", taskID, err)
+					payload := map[string]any{
+						"result": map[string]any{
+							"task_normalized":   taskNormalized,
+							"blockers":          []BlockerSignal{},
+							"blockers_count":    0,
+							"blocker_owners":    []string{},
+							"summary":           "Комментарии недоступны, блокеры не могут быть достоверно определены.",
+							"insufficient_data": true,
+						},
+					}
+					return textAndPayloadResult("b24_analyze_task_blockers", payload), nil, nil
+				}
+
+				return nil, nil, err
+			}
+
+			commentsRaw := extractComments(commentsResp)
+			commentsNormalized := normalizeCommentSnapshots(commentsRaw, taskID)
+			signals := detectBlockerSignals(commentsNormalized, time.Now())
+			if len(signals) > limit {
+				signals = signals[:limit]
+			}
+
+			owners := blockerOwners(signals)
+
+			payload := map[string]any{
+				"result": map[string]any{
+					"task":              taskRaw,
+					"task_normalized":   taskNormalized,
+					"comments_count":    len(commentsNormalized),
+					"blockers":          signals,
+					"blockers_count":    len(signals),
+					"blocker_owners":    owners,
+					"summary":           blockerSummary(signals),
+					"insufficient_data": false,
+				},
+			}
+			log.Printf("[b24-mcp] tool=b24_analyze_task_blockers task_id=%d ok blockers=%d", taskID, len(signals))
+			logToolResult("b24_analyze_task_blockers", payload)
+			return textAndPayloadResult("b24_analyze_task_blockers", payload), nil, nil
+		})
+	})
+
+	type analyzeExecutionDriftArgs struct {
+		TaskID any `json:"task_id" jsonschema:"ID задачи (число или строка с цифрами)"`
+	}
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "b24_analyze_task_execution_drift",
+		Description: "Анализ дрифта исполнения задачи: факт/план времени и коммуникационная тишина (read-only)",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, args analyzeExecutionDriftArgs) (*mcp.CallToolResult, any, error) {
+		return mcpsafe.SafeToolInvoke("mcp-bitrix24", "b24_analyze_task_execution_drift", func() (*mcp.CallToolResult, any, error) {
+			if !heavyAnalyticsEnabled {
+				msg := "b24_analyze_task_execution_drift отключен feature-flag `DisableHeavyAnalytics`."
+				return textResult(msg), nil, nil
+			}
+			ctx, rid := withRequestID(ctx)
+			log.Printf("[b24-mcp] tool=b24_analyze_task_execution_drift req_id=%s", rid)
+			logToolArgs("b24_analyze_task_execution_drift", args)
+			taskID, err := parseTaskID(args.TaskID)
+			if err != nil {
+				return nil, nil, err
+			}
+
+			if taskID <= 0 {
+				return nil, nil, fmt.Errorf("task_id must be > 0")
+			}
+
+			taskResp, err := client.call(ctx, "tasks.task.get", map[string]any{
+				"taskId": taskID,
+				"select": []string{
+					"ID", "TITLE", "STATUS", "DEADLINE", "RESPONSIBLE_ID", "CREATED_BY", "TIME_ESTIMATE", "TIME_SPENT_IN_LOGS", "CHANGED_DATE",
+				},
+			})
+			if err != nil {
+				log.Printf("[b24-mcp] tool=b24_analyze_task_execution_drift task_id=%d stage=task_get err=%v", taskID, err)
+				return nil, nil, err
+			}
+
+			taskRaw, err := extractTask(taskResp)
+			if err != nil {
+				return nil, nil, err
+			}
+
+			taskNorm := normalizeTaskSnapshot(taskRaw)
+
+			var commentsNorm []CommentSnapshot
+			commentsResp, err := client.callTaskCommentItemGetList(ctx, taskID, map[string]any{"POST_DATE": "desc"}, nil)
+			if err == nil {
+				commentsNorm = normalizeCommentSnapshots(extractComments(commentsResp), taskID)
+			} else if isIgnorableCommentError(err) {
+				log.Printf("[b24-mcp] tool=b24_analyze_task_execution_drift task_id=%d stage=comments soft_skip err=%v", taskID, err)
+			} else {
+				return nil, nil, err
+			}
+
+			report := buildExecutionDriftReport(taskNorm, commentsNorm, time.Now())
+			payload := map[string]any{
+				"result": map[string]any{
+					"task_normalized": taskNorm,
+					"drift_report":    report,
+					"actions":         executionDriftActions(report),
+				},
+			}
+
+			log.Printf("[b24-mcp] tool=b24_analyze_task_execution_drift task_id=%d ok drift=%s", taskID, report.DriftLevel)
+			logToolResult("b24_analyze_task_execution_drift", payload)
+			return textAndPayloadResult("b24_analyze_task_execution_drift", payload), nil, nil
 		})
 	})
 
@@ -186,7 +542,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 	}
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "b24_analyze_task",
-		Description: "Быстрый анализ задачи: статус, дедлайн, активность, риски",
+		Description: "Быстрый анализ задачи: статус, дедлайн, активность, риски (read-only)",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, args analyzeArgs) (*mcp.CallToolResult, any, error) {
 		return mcpsafe.SafeToolInvoke("mcp-bitrix24", "b24_analyze_task", func() (*mcp.CallToolResult, any, error) {
 			ctx, rid := withRequestID(ctx)
@@ -275,7 +631,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 	}
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "b24_analyze_tasks_by_query",
-		Description: "Выполнить пользовательский запрос по аналитике задач (просрочки, риски, блокеры, активность)",
+		Description: "Выполнить пользовательский запрос по аналитике задач (просрочки, риски, блокеры, активность, read-only)",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, args analyticsQueryArgs) (*mcp.CallToolResult, any, error) {
 		return mcpsafe.SafeToolInvoke("mcp-bitrix24", "b24_analyze_tasks_by_query", func() (*mcp.CallToolResult, any, error) {
 			ctx, rid := withRequestID(ctx)
@@ -315,7 +671,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 	}
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "b24_analyze_tasks_portfolio",
-		Description: "Портфельная аналитика задач: сводка по ответственным/постановщикам, просрочки и риски",
+		Description: "Портфельная аналитика задач: сводка по ответственным/постановщикам, просрочки и риски (read-only)",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, args portfolioArgs) (*mcp.CallToolResult, any, error) {
 		return mcpsafe.SafeToolInvoke("mcp-bitrix24", "b24_analyze_tasks_portfolio", func() (*mcp.CallToolResult, any, error) {
 			ctx, rid := withRequestID(ctx)
@@ -345,7 +701,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 	}
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "b24_analyze_tasks_executive_summary",
-		Description: "Управленческая сводка по задачам за период с трендами и ключевыми рисками",
+		Description: "Управленческая сводка по задачам за период с трендами и ключевыми рисками (read-only)",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, args executiveSummaryArgs) (*mcp.CallToolResult, any, error) {
 		return mcpsafe.SafeToolInvoke("mcp-bitrix24", "b24_analyze_tasks_executive_summary", func() (*mcp.CallToolResult, any, error) {
 			ctx, rid := withRequestID(ctx)
@@ -375,7 +731,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 	}
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "b24_analyze_tasks_sla",
-		Description: "SLA-контроль задач: просрочки, дедлайн-сегодня/скоро, приоритет реакции",
+		Description: "SLA-контроль задач: просрочки, дедлайн-сегодня/скоро, приоритет реакции (read-only)",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, args slaArgs) (*mcp.CallToolResult, any, error) {
 		return mcpsafe.SafeToolInvoke("mcp-bitrix24", "b24_analyze_tasks_sla", func() (*mcp.CallToolResult, any, error) {
 			ctx, rid := withRequestID(ctx)
@@ -405,7 +761,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 	}
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "b24_analyze_tasks_workload",
-		Description: "Анализ нагрузки по ответственным: объем, риски, зоны перегруза и рекомендации по выравниванию",
+		Description: "Анализ нагрузки по ответственным: объем, риски, зоны перегруза и рекомендации по выравниванию (read-only)",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, args workloadArgs) (*mcp.CallToolResult, any, error) {
 		return mcpsafe.SafeToolInvoke("mcp-bitrix24", "b24_analyze_tasks_workload", func() (*mcp.CallToolResult, any, error) {
 			ctx, rid := withRequestID(ctx)
@@ -434,7 +790,7 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 	}
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "b24_analyze_tasks_status_trends",
-		Description: "Трендовая аналитика по статусам задач за период: open/in-progress/done/deferred",
+		Description: "Трендовая аналитика по статусам задач за период: open/in-progress/done/deferred (read-only)",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, args statusTrendsArgs) (*mcp.CallToolResult, any, error) {
 		return mcpsafe.SafeToolInvoke("mcp-bitrix24", "b24_analyze_tasks_status_trends", func() (*mcp.CallToolResult, any, error) {
 			ctx, rid := withRequestID(ctx)
@@ -451,6 +807,70 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 
 			logToolResult("b24_analyze_tasks_status_trends", result)
 			return textAndJSONResult("b24_analyze_tasks_status_trends", result), nil, nil
+		})
+	})
+
+	type responsiblePerformanceArgs struct {
+		ResponsibleID   string         `json:"responsible_id" jsonschema:"ID ответственного (обязателен)"`
+		Filter          map[string]any `json:"filter,omitempty" jsonschema:"Доп. фильтр задач для выборки"`
+		Order           map[string]any `json:"order,omitempty" jsonschema:"Сортировка tasks.task.list"`
+		Start           *int           `json:"start,omitempty" jsonschema:"Смещение в tasks.task.list"`
+		Limit           *int           `json:"limit,omitempty" jsonschema:"Макс. задач (1..50), по умолчанию 30"`
+		IncludeComments *bool          `json:"include_comments,omitempty" jsonschema:"Подтягивать комментарии (по умолчанию false)"`
+	}
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "b24_analyze_responsible_performance",
+		Description: "Сводка по ответственному: объем, просрочки, high-risk, блокеры (read-only)",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, args responsiblePerformanceArgs) (*mcp.CallToolResult, any, error) {
+		return mcpsafe.SafeToolInvoke("mcp-bitrix24", "b24_analyze_responsible_performance", func() (*mcp.CallToolResult, any, error) {
+			ctx, rid := withRequestID(ctx)
+			log.Printf("[b24-mcp] tool=b24_analyze_responsible_performance req_id=%s", rid)
+			logToolArgs("b24_analyze_responsible_performance", args)
+			if err := validateResponsiblePerformanceArgs(args.Start, args.Limit, args.ResponsibleID); err != nil {
+				return nil, nil, err
+			}
+
+			result, err := runResponsiblePerformance(ctx, client, strings.TrimSpace(args.ResponsibleID), args.Filter, args.Order, args.Start, args.Limit, args.IncludeComments)
+			if err != nil {
+				return nil, nil, err
+			}
+
+			logToolResult("b24_analyze_responsible_performance", result)
+			return textAndJSONResult("b24_analyze_responsible_performance", result), nil, nil
+		})
+	})
+
+	type projectHealthArgs struct {
+		Filter          map[string]any `json:"filter,omitempty" jsonschema:"Фильтр задач для health-аналитики"`
+		Order           map[string]any `json:"order,omitempty" jsonschema:"Сортировка tasks.task.list"`
+		Start           *int           `json:"start,omitempty" jsonschema:"Смещение в tasks.task.list"`
+		Limit           *int           `json:"limit,omitempty" jsonschema:"Макс. задач (1..50), по умолчанию 30"`
+		IncludeComments *bool          `json:"include_comments,omitempty" jsonschema:"Подтягивать комментарии (по умолчанию false)"`
+	}
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "b24_analyze_project_health",
+		Description: "Health-score портфеля задач: оценка состояния и драйверов риска (read-only)",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, args projectHealthArgs) (*mcp.CallToolResult, any, error) {
+		return mcpsafe.SafeToolInvoke("mcp-bitrix24", "b24_analyze_project_health", func() (*mcp.CallToolResult, any, error) {
+			if !heavyAnalyticsEnabled {
+				msg := "b24_analyze_project_health отключен feature-flag `DisableHeavyAnalytics`."
+				return textResult(msg), nil, nil
+			}
+
+			ctx, rid := withRequestID(ctx)
+			log.Printf("[b24-mcp] tool=b24_analyze_project_health req_id=%s", rid)
+			logToolArgs("b24_analyze_project_health", args)
+			if err := validatePortfolioArgs(args.Start, args.Limit, ""); err != nil {
+				return nil, nil, err
+			}
+
+			result, err := runProjectHealth(ctx, client, args.Filter, args.Order, args.Start, args.Limit, args.IncludeComments)
+			if err != nil {
+				return nil, nil, err
+			}
+
+			logToolResult("b24_analyze_project_health", result)
+			return textAndJSONResult("b24_analyze_project_health", result), nil, nil
 		})
 	})
 
@@ -482,6 +902,19 @@ func textAndJSONResult(tool, text string) *mcp.CallToolResult {
 		StructuredContent: map[string]any{
 			"tool":         tool,
 			"report_text":  text,
+			"generated_at": time.Now().UTC().Format(time.RFC3339),
+		},
+	}
+}
+
+func textAndPayloadResult(tool string, payload any) *mcp.CallToolResult {
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: prettyJSON(payload)},
+		},
+		StructuredContent: map[string]any{
+			"tool":         tool,
+			"payload":      payload,
 			"generated_at": time.Now().UTC().Format(time.RFC3339),
 		},
 	}
@@ -521,12 +954,19 @@ func extractComments(resp map[string]any) []map[string]any {
 		return toMapSlice(typed)
 	case map[string]any:
 		if comments, ok := typed["comments"]; ok {
-			if arr, ok := comments.([]any); ok {
-				return toMapSlice(arr)
+			if out := collectCommentsFromAny(comments); len(out) > 0 {
+				return out
 			}
 		}
-		if arr, ok := typed["items"].([]any); ok {
-			return toMapSlice(arr)
+
+		if items, ok := typed["items"]; ok {
+			if out := collectCommentsFromAny(items); len(out) > 0 {
+				return out
+			}
+		}
+
+		if out := collectCommentsFromAny(typed); len(out) > 0 {
+			return out
 		}
 	}
 
@@ -543,6 +983,87 @@ func toMapSlice(items []any) []map[string]any {
 	}
 
 	return out
+}
+
+func collectCommentsFromAny(v any) []map[string]any {
+	switch typed := v.(type) {
+	case []any:
+		return toMapSlice(typed)
+	case map[string]any:
+		direct := map[string]any{"AUTHOR_ID": nil, "POST_MESSAGE": nil}
+		if hasAnyKey(typed, direct) {
+			return []map[string]any{typed}
+		}
+
+		out := make([]map[string]any, 0, len(typed))
+		for _, vv := range typed {
+			switch nested := vv.(type) {
+			case map[string]any:
+				out = append(out, nested)
+			case []any:
+				out = append(out, toMapSlice(nested)...)
+			}
+		}
+
+		return out
+	default:
+		return nil
+	}
+}
+
+func commentsTotalFromResponse(resp map[string]any) int {
+	result, ok := resp["result"]
+	if !ok {
+		return 0
+	}
+
+	comments := collectCommentsFromAny(result)
+	return len(comments)
+}
+
+func commentParseWarnings(total, parsed int) []string {
+	var warnings []string
+	if total > 0 && parsed == 0 {
+		warnings = append(warnings, "all_comments_skipped_after_parse")
+	}
+
+	if total > parsed {
+		warnings = append(warnings, fmt.Sprintf("partial_parse: parsed=%d total=%d", parsed, total))
+	}
+
+	return warnings
+}
+
+func hasAnyKey(m map[string]any, keys map[string]any) bool {
+	for key := range keys {
+		if _, ok := m[key]; ok {
+			return true
+		}
+	}
+
+	return false
+}
+
+func extractTaskIDFromListFilter(filter map[string]any) (int, bool) {
+	if len(filter) == 0 {
+		return 0, false
+	}
+
+	for _, key := range []string{"ID", "id", "=ID", "=id", "TASK_ID", "task_id", "taskId"} {
+		raw, ok := filter[key]
+		if !ok {
+			continue
+		}
+
+		taskID, err := parseTaskID(raw)
+		if err != nil || taskID <= 0 {
+			return 0, false
+		}
+
+		return taskID, true
+	}
+
+	return 0, false
 }
 
 func parseTaskID(v any) (int, error) {
@@ -588,6 +1109,7 @@ func logToolArgs(tool string, args any) {
 		log.Printf("[b24-mcp] tool=%s args_marshal_err=%v", tool, err)
 		return
 	}
+
 	log.Printf("[b24-mcp] tool=%s args=%s", tool, truncateForLog(prettyJSONString(raw), 3000))
 }
 
@@ -597,5 +1119,6 @@ func logToolResult(tool string, result any) {
 		log.Printf("[b24-mcp] tool=%s result_marshal_err=%v", tool, err)
 		return
 	}
+
 	log.Printf("[b24-mcp] tool=%s result=%s", tool, truncateForLog(prettyJSONString(raw), 3000))
 }

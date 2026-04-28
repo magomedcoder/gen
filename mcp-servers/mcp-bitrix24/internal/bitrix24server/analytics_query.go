@@ -137,6 +137,10 @@ func isIgnorableCommentError(err error) bool {
 }
 
 func loadTaskList(ctx context.Context, client *bitrixClient, filter, order map[string]any, start *int, limit int) ([]map[string]any, error) {
+	if limit <= 0 {
+		return nil, nil
+	}
+
 	payload := map[string]any{
 		"select": []string{
 			"ID", "TITLE", "STATUS", "CREATED_DATE", "CHANGED_DATE", "DEADLINE", "CREATED_BY", "RESPONSIBLE_ID", "PRIORITY", "TIME_ESTIMATE", "TIME_SPENT_IN_LOGS", "ACTIVITY_DATE",
@@ -144,44 +148,116 @@ func loadTaskList(ctx context.Context, client *bitrixClient, filter, order map[s
 	}
 
 	if filter != nil {
-		payload["filter"] = filter
+		payload["filter"] = cloneAnyMap(filter)
 	}
 
 	if order != nil {
-		payload["order"] = order
+		payload["order"] = cloneAnyMap(order)
 	}
 
+	currentStart := 0
 	if start != nil {
-		payload["start"] = *start
+		currentStart = *start
 	}
 
-	resp, err := client.call(ctx, "tasks.task.list", payload)
-	if err != nil {
-		return nil, err
-	}
+	all := make([]map[string]any, 0, limit)
+	seenIDs := make(map[int]struct{}, limit)
+	for {
+		payload["start"] = currentStart
+		resp, err := client.call(ctx, "tasks.task.list", payload)
+		if err != nil {
+			return nil, err
+		}
 
-	result, _ := resp["result"].(map[string]any)
-	rawTasks, _ := result["tasks"].([]any)
-	all := toMapSlice(rawTasks)
-	if len(all) > limit {
-		all = all[:limit]
+		pageTasks, nextStart := extractTaskListPage(resp)
+		if len(pageTasks) == 0 {
+			break
+		}
+
+		for _, task := range pageTasks {
+			id := numberLike(field(task, "id", "ID"))
+			if id > 0 {
+				if _, exists := seenIDs[id]; exists {
+					continue
+				}
+				seenIDs[id] = struct{}{}
+			}
+
+			all = append(all, task)
+			if len(all) >= limit {
+				return all[:limit], nil
+			}
+		}
+
+		if nextStart == nil || *nextStart <= currentStart {
+			break
+		}
+		currentStart = *nextStart
 	}
 
 	return all, nil
 }
 
+func extractTaskListPage(resp map[string]any) ([]map[string]any, *int) {
+	var tasks []map[string]any
+	result, ok := resp["result"]
+	if !ok {
+		return nil, extractNextStart(resp)
+	}
+
+	switch typed := result.(type) {
+	case map[string]any:
+		if rawTasks, ok := typed["tasks"].([]any); ok {
+			tasks = toMapSlice(rawTasks)
+		} else if rawItems, ok := typed["items"].([]any); ok {
+			tasks = toMapSlice(rawItems)
+		} else {
+			tasks = collectCommentsFromAny(typed)
+		}
+	case []any:
+		tasks = toMapSlice(typed)
+	}
+
+	return tasks, extractNextStart(resp)
+}
+
+func extractNextStart(resp map[string]any) *int {
+	rawNext, ok := resp["next"]
+	if !ok {
+		return nil
+	}
+
+	switch n := rawNext.(type) {
+	case float64:
+		next := int(n)
+		return &next
+	case int:
+		next := n
+		return &next
+	case int64:
+		next := int(n)
+		return &next
+	case string:
+		next := numberLike(n)
+		if next > 0 {
+			return &next
+		}
+	}
+	return nil
+}
+
 func buildAnalyticsItem(task map[string]any, comments []map[string]any, now time.Time) taskAnalyticsItem {
-	id := numberLike(field(task, "id", "ID"))
-	statusCode := numberLike(field(task, "status", "STATUS"))
-	createdAt := parseBitrixTime(stringField(task, "createdDate", "CREATED_DATE"))
-	deadline := parseBitrixTime(stringField(task, "deadline", "DEADLINE"))
+	id := taskID(task)
+	statusCode := taskStatusCode(task)
+	createdAt := parseBitrixTime(taskCreatedAtRaw(task))
+	deadline := parseBitrixTime(taskDeadlineRaw(task))
 	lastComment := lastCommentTime(comments)
 	hasBlockers := scoreMentionsBlockers(comments)
 	noComments := len(comments) == 0
 	noDeadline := deadline.IsZero()
 	isOverdue := !deadline.IsZero() && deadline.Before(now) && statusCode != 5 && statusCode != 7
-	timeEstimate := numberLike(field(task, "timeEstimate", "TIME_ESTIMATE"))
-	timeSpent := numberLike(field(task, "timeSpentInLogs", "TIME_SPENT_IN_LOGS"))
+	timeEstimate := taskTimeEstimate(task)
+	timeSpent := taskTimeSpent(task)
 
 	score, _, _ := evaluateRisk(RiskInput{
 		Now:           now,
@@ -1216,4 +1292,247 @@ func statusTrendConclusion(current, previous statusCounters) string {
 	}
 
 	return formatConclusion(status, criticalRisk, action, reaction)
+}
+
+func runResponsiblePerformance(ctx context.Context, client *bitrixClient, responsibleID string, filter map[string]any, order map[string]any, start *int, limit *int, includeComments *bool) (string, error) {
+	maxTasks := 30
+	if limit != nil {
+		if *limit < 1 {
+			maxTasks = 1
+		} else if *limit > 50 {
+			maxTasks = 50
+		} else {
+			maxTasks = *limit
+		}
+	}
+
+	responsibleFilter := cloneAnyMap(filter)
+	if responsibleFilter == nil {
+		responsibleFilter = map[string]any{}
+	}
+	responsibleFilter["RESPONSIBLE_ID"] = responsibleID
+
+	withComments := false
+	if includeComments != nil {
+		withComments = *includeComments
+	}
+
+	ac, err := buildAnalyticsContextForTaskList(ctx, client, responsibleFilter, order, start, maxTasks, withComments)
+	if err != nil {
+		return "", err
+	}
+
+	if len(ac.Items) == 0 {
+		return fmt.Sprintf("По ответственному %s задачи не найдены.", responsibleID), nil
+	}
+
+	items := ac.Items
+	if len(items) == 0 {
+		return fmt.Sprintf("По ответственному %s задачи не найдены.", responsibleID), nil
+	}
+
+	total := len(items)
+	active := 0
+	overdue := 0
+	highRisk := 0
+	blockers := 0
+	for _, it := range items {
+		if it.StatusCode != 5 && it.StatusCode != 7 {
+			active++
+		}
+
+		if it.IsOverdue {
+			overdue++
+		}
+
+		if it.RiskScore >= 5 {
+			highRisk++
+		}
+
+		if it.HasBlockers {
+			blockers++
+		}
+	}
+
+	sort.SliceStable(items, func(i, j int) bool { return items[i].RiskScore > items[j].RiskScore })
+	lines := []string{
+		fmt.Sprintf("Performance по ответственному %s", responsibleID),
+		fmt.Sprintf("Всего задач: %d | Активных: %d | Просрочено: %d | High-risk: %d | Блокеры: %d", total, active, overdue, highRisk, blockers),
+		"",
+		"Топ задач по риску:",
+	}
+
+	top := items
+	if len(top) > 10 {
+		top = top[:10]
+	}
+
+	for _, it := range top {
+		risk := "низкий"
+		if it.RiskScore >= 5 {
+			risk = "высокий"
+		} else if it.RiskScore >= 2 {
+			risk = "средний"
+		}
+
+		lines = append(lines, fmt.Sprintf("- #%d %s | статус=%s | риск=%s | просрочено=%t", it.TaskID, emptyIfBlank(it.Title, "(без названия)"), it.StatusLabel, risk, it.IsOverdue))
+	}
+
+	lines = append(lines, "", "=== Вывод ===")
+	if overdue > 0 || highRisk > 0 {
+		lines = append(lines, formatConclusion("критично", fmt.Sprintf("просрочено %d, high-risk %d", overdue, highRisk), "сфокусировать работу на критичных задачах и перепланировании", "сегодня"))
+	} else if blockers > 0 {
+		lines = append(lines, formatConclusion("под контролем", fmt.Sprintf("обнаружены блокеры: %d", blockers), "снять блокеры и назначить сроки снятия", "в течение 1 рабочего дня"))
+	} else {
+		lines = append(lines, formatConclusion("стабильно", "критичных отклонений не выявлено", "поддерживать текущий ритм управления", "по текущему регламенту"))
+	}
+
+	return strings.Join(lines, "\n"), nil
+}
+
+func cloneAnyMap(src map[string]any) map[string]any {
+	if src == nil {
+		return nil
+	}
+
+	dst := make(map[string]any, len(src))
+	for k, v := range src {
+		dst[k] = v
+	}
+
+	return dst
+}
+
+func cloneStringSlice(src []string) []string {
+	if len(src) == 0 {
+		return nil
+	}
+
+	dst := make([]string, len(src))
+	copy(dst, src)
+	return dst
+}
+
+func runProjectHealth(ctx context.Context, client *bitrixClient, filter map[string]any, order map[string]any, start *int, limit *int, includeComments *bool) (string, error) {
+	maxTasks := 30
+	if limit != nil {
+		if *limit < 1 {
+			maxTasks = 1
+		} else if *limit > 50 {
+			maxTasks = 50
+		} else {
+			maxTasks = *limit
+		}
+	}
+
+	withComments := false
+	if includeComments != nil {
+		withComments = *includeComments
+	}
+
+	ac, err := buildAnalyticsContextForTaskList(ctx, client, filter, order, start, maxTasks, withComments)
+	if err != nil {
+		return "", err
+	}
+
+	if len(ac.Items) == 0 {
+		return "По заданным условиям задачи не найдены.", nil
+	}
+
+	items := ac.Items
+	if len(items) == 0 {
+		return "По заданным условиям задачи не найдены.", nil
+	}
+
+	total := len(items)
+	overdue := 0
+	noDeadline := 0
+	highRisk := 0
+	blockers := 0
+	for _, it := range items {
+		if it.IsOverdue {
+			overdue++
+		}
+
+		if it.NoDeadline {
+			noDeadline++
+		}
+
+		if it.RiskScore >= 5 {
+			highRisk++
+		}
+
+		if it.HasBlockers {
+			blockers++
+		}
+	}
+
+	penalty := overdue*12 + noDeadline*8 + highRisk*10 + blockers*6
+	healthScore := 100 - penalty
+	if healthScore < 0 {
+		healthScore = 0
+	}
+
+	healthLevel := "green"
+	if healthScore < 70 {
+		healthLevel = "yellow"
+	}
+
+	if healthScore < 45 {
+		healthLevel = "red"
+	}
+
+	sort.SliceStable(items, func(i, j int) bool { return items[i].RiskScore > items[j].RiskScore })
+	lines := []string{
+		"Project health summary",
+		fmt.Sprintf("Охват: %d задач", total),
+		fmt.Sprintf("Health score: %d/100 (%s)", healthScore, healthLevel),
+		fmt.Sprintf("Драйверы риска: просрочено=%d, без дедлайна=%d, high-risk=%d, блокеры=%d", overdue, noDeadline, highRisk, blockers),
+		"",
+		"Критичные точки внимания:",
+	}
+
+	top := items
+	if len(top) > 10 {
+		top = top[:10]
+	}
+
+	for _, it := range top {
+		risk := "низкий"
+		if it.RiskScore >= 5 {
+			risk = "высокий"
+		} else if it.RiskScore >= 2 {
+			risk = "средний"
+		}
+
+		lines = append(lines, fmt.Sprintf("- #%d %s | статус=%s | риск=%s | просрочено=%t | блокеры=%t", it.TaskID, emptyIfBlank(it.Title, "(без названия)"), it.StatusLabel, risk, it.IsOverdue, it.HasBlockers))
+	}
+
+	lines = append(lines, "", "Рекомендации:")
+	if overdue > 0 {
+		lines = append(lines, "- Приоритизировать просроченные задачи и зафиксировать обновленный план закрытия.")
+	}
+
+	if noDeadline > 0 {
+		lines = append(lines, "- Добавить дедлайны для активных задач без срока.")
+	}
+
+	if blockers > 0 {
+		lines = append(lines, "- Назначить владельца и срок снятия по каждому блокеру.")
+	}
+
+	if overdue == 0 && noDeadline == 0 && blockers == 0 {
+		lines = append(lines, "- Поддерживать текущий ритм контроля и weekly health-check.")
+	}
+
+	lines = append(lines, "", "=== Вывод ===")
+	if healthLevel == "red" {
+		lines = append(lines, formatConclusion("критично", fmt.Sprintf("низкий health score (%d/100)", healthScore), "антикризисное перепланирование портфеля", "сегодня"))
+	} else if healthLevel == "yellow" {
+		lines = append(lines, formatConclusion("под контролем", fmt.Sprintf("снижен health score (%d/100)", healthScore), "снять ключевые риски и вернуть портфель в зеленую зону", "в течение 1 рабочего дня"))
+	} else {
+		lines = append(lines, formatConclusion("стабильно", fmt.Sprintf("портфель в зеленой зоне (%d/100)", healthScore), "поддерживать текущий контур управления", "по текущему регламенту"))
+	}
+
+	return strings.Join(lines, "\n"), nil
 }

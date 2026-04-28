@@ -24,6 +24,12 @@ type bitrixClient struct {
 	retryBackoff time.Duration
 }
 
+var readOnlyBitrixMethods = map[string]struct{}{
+	"tasks.task.list":          {},
+	"tasks.task.get":           {},
+	"task.commentitem.getlist": {},
+}
+
 func newBitrixClient(baseURL string, timeout time.Duration, logLevel string, retryMax int, retryBackoff time.Duration) (*bitrixClient, error) {
 	trimmed := strings.TrimSpace(baseURL)
 	if trimmed == "" {
@@ -59,6 +65,9 @@ func (c *bitrixClient) call(ctx context.Context, method string, payload any) (ma
 	method = strings.TrimSpace(method)
 	if method == "" {
 		return nil, fmt.Errorf("method is empty")
+	}
+	if err := validateReadOnlyBitrixMethod(method); err != nil {
+		return nil, err
 	}
 	reqID, _ := requestIDFromContext(ctx)
 
@@ -155,6 +164,19 @@ func (c *bitrixClient) call(ctx context.Context, method string, payload any) (ma
 	log.Printf("[b24-mcp] req_id=%s http method=%q ok", reqID, method)
 
 	return response, nil
+}
+
+func validateReadOnlyBitrixMethod(method string) error {
+	normalized := strings.ToLower(strings.TrimSpace(method))
+	if normalized == "" {
+		return fmt.Errorf("bitrix method is empty")
+	}
+
+	if _, ok := readOnlyBitrixMethods[normalized]; ok {
+		return nil
+	}
+
+	return fmt.Errorf("bitrix method %q is blocked by read-only policy", method)
 }
 
 func (c *bitrixClient) isDebugLogEnabled() bool {

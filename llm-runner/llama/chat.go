@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"strings"
 	"unsafe"
+
+	"github.com/magomedcoder/gen/llm-runner/streamtext"
 )
 
 func formatChatMessages(model *Model, messages []ChatMessage, opts ChatOptions) (string, error) {
@@ -184,15 +186,15 @@ func (m *Model) chatStreamWithContext(ctx gocontext.Context, c *Context, message
 				content, reasoning, err := parseReasoning(accumulated.String(), opts.ReasoningFormat, chatFormat)
 				if err != nil {
 					select {
-					case deltaCh <- ChatDelta{Content: token}:
+					case deltaCh <- ChatDelta{Content: strings.ToValidUTF8(token, "")}:
 					case <-ctx.Done():
 						return
 					}
 					continue
 				}
 
-				contentDelta := content[len(prevContent):]
-				reasoningDelta := reasoning[len(prevReasoning):]
+				contentDelta := streamtext.StreamTextDelta(prevContent, content)
+				reasoningDelta := streamtext.StreamTextDelta(prevReasoning, reasoning)
 
 				if contentDelta != "" || reasoningDelta != "" {
 					select {

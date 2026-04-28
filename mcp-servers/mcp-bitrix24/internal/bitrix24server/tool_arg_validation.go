@@ -1,7 +1,55 @@
 package bitrix24server
 
-func validateListTasksArgs(start *int) error {
-	return validateOptionalNonNegativeInt("start", start)
+import (
+	"fmt"
+	"strings"
+)
+
+func validateListTasksArgs(start *int, filter map[string]any) error {
+	if err := validateOptionalNonNegativeInt("start", start); err != nil {
+		return err
+	}
+
+	return validateListFilterTaskIDConsistency(filter)
+}
+
+func validateListFilterTaskIDConsistency(filter map[string]any) error {
+	if len(filter) == 0 {
+		return nil
+	}
+
+	values := make(map[string]int)
+	for _, key := range []string{"ID", "id", "=ID", "=id", "TASK_ID", "task_id", "taskId"} {
+		raw, ok := filter[key]
+		if !ok {
+			continue
+		}
+
+		taskID, err := parseTaskID(raw)
+		if err != nil || taskID <= 0 {
+			continue
+		}
+
+		values[key] = taskID
+	}
+
+	if len(values) <= 1 {
+		return nil
+	}
+
+	var expected int
+	for _, v := range values {
+		expected = v
+		break
+	}
+
+	for key, v := range values {
+		if v != expected {
+			return fmt.Errorf("conflicting task id filters: %q=%d conflicts with other id fields", key, v)
+		}
+	}
+
+	return nil
 }
 
 func validateAnalyzeTasksByQueryArgs(start, limit *int) error {
@@ -70,4 +118,20 @@ func validateStatusTrendsArgs(start, limit, periodDays *int) error {
 	}
 
 	return validateOptionalIntRange("period_days", periodDays, 1, 30)
+}
+
+func validateResponsiblePerformanceArgs(start, limit *int, responsibleID string) error {
+	if err := validateOptionalNonNegativeInt("start", start); err != nil {
+		return err
+	}
+
+	if err := validateOptionalIntRange("limit", limit, 1, 50); err != nil {
+		return err
+	}
+
+	if strings.TrimSpace(responsibleID) == "" {
+		return fmt.Errorf("responsible_id is required")
+	}
+
+	return nil
 }

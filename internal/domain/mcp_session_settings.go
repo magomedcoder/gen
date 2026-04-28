@@ -11,6 +11,10 @@ type MCPSessionSettingsWire struct {
 
 var DefaultMCPSessionSettingsJSON = []byte(`{"enabled":false,"server_ids":[]}`)
 
+func DefaultMCPSessionSettingsJSONCopy() []byte {
+	return append([]byte(nil), DefaultMCPSessionSettingsJSON...)
+}
+
 func MarshalMCPSessionSettings(enabled bool, serverIDs []int64) ([]byte, error) {
 	if serverIDs == nil {
 		serverIDs = []int64{}

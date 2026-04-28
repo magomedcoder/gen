@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -108,5 +109,35 @@ func TestCallTaskCommentItemGetList_UsesStablePayloadOrder(t *testing.T) {
 	}
 	if !(idxTask < idxOrder && idxOrder < idxFilter) {
 		t.Fatalf("unexpected key order, want TASKID->ORDER->FILTER, got: %s", gotBody)
+	}
+}
+
+func TestBitrixClientCall_BlocksWriteMethodsByReadOnlyPolicy(t *testing.T) {
+	var hitCount int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&hitCount, 1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"result":{"ok":true}}`))
+	}))
+	defer srv.Close()
+
+	client, err := newBitrixClient(srv.URL, time.Second, "debug", 0, 200*time.Millisecond)
+	if err != nil {
+		t.Fatalf("newBitrixClient: %v", err)
+	}
+
+	_, err = client.call(context.Background(), "tasks.task.update", map[string]any{
+		"taskId": 1001,
+	})
+	if err == nil {
+		t.Fatalf("expected read-only policy error")
+	}
+
+	if !strings.Contains(strings.ToLower(err.Error()), "read-only policy") {
+		t.Fatalf("unexpected error text: %v", err)
+	}
+
+	if atomic.LoadInt32(&hitCount) != 0 {
+		t.Fatalf("write method must be blocked before HTTP call, hit_count=%d", hitCount)
 	}
 }

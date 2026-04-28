@@ -10,24 +10,24 @@ import (
 func analyzeTask(task map[string]any, comments []map[string]any, now time.Time) string {
 	title := stringField(task, "title", "TITLE")
 	status := statusLabel(numberLike(task["status"]))
-	statusCode := numberLike(field(task, "status", "STATUS"))
+	statusCode := taskStatusCode(task)
 
-	createdAt := parseBitrixTime(stringField(task, "createdDate", "CREATED_DATE"))
-	changedAt := parseBitrixTime(stringField(task, "changedDate", "CHANGED_DATE"))
-	closedAt := parseBitrixTime(stringField(task, "closedDate", "CLOSED_DATE"))
-	deadline := parseBitrixTime(stringField(task, "deadline", "DEADLINE"))
-	lastActivity := parseBitrixTime(stringField(task, "activityDate", "ACTIVITY_DATE"))
+	createdAt := parseBitrixTime(taskCreatedAtRaw(task))
+	changedAt := parseBitrixTime(taskChangedAtRaw(task))
+	closedAt := parseBitrixTime(taskClosedAtRaw(task))
+	deadline := parseBitrixTime(taskDeadlineRaw(task))
+	lastActivity := parseBitrixTime(taskActivityAtRaw(task))
 
 	var out []string
 	if title == "" {
 		title = "(без названия)"
 	}
 	taskID := stringField(task, "id", "ID")
-	responsible := stringField(task, "responsibleId", "RESPONSIBLE_ID")
-	creator := stringField(task, "createdBy", "CREATED_BY")
-	priority := numberLike(field(task, "priority", "PRIORITY"))
-	timeEstimate := numberLike(field(task, "timeEstimate", "TIME_ESTIMATE"))
-	timeSpent := numberLike(field(task, "timeSpentInLogs", "TIME_SPENT_IN_LOGS"))
+	responsible := taskResponsibleID(task)
+	creator := taskCreatedBy(task)
+	priority := taskPriority(task)
+	timeEstimate := taskTimeEstimate(task)
+	timeSpent := taskTimeSpent(task)
 
 	out = append(out, "=== Паспорт задачи ===")
 	if taskID != "" {
@@ -247,7 +247,7 @@ func scoreMentionsBlockers(comments []map[string]any) bool {
 }
 
 func recommendActions(task map[string]any, comments []map[string]any, now, deadline, lastCommentAt time.Time, risk string) []string {
-	statusCode := numberLike(field(task, "status", "STATUS"))
+	statusCode := taskStatusCode(task)
 	var actions []string
 	if !deadline.IsZero() && deadline.Before(now) && statusCode != 5 && statusCode != 7 {
 		actions = append(actions, "Пересогласуйте срок или срочно обновите план закрытия с ответственным.")
@@ -368,19 +368,38 @@ func parseBitrixTime(value string) time.Time {
 		return time.Time{}
 	}
 
-	layouts := []string{
+	zonedLayouts := []string{
 		time.RFC3339,
+		"2006-01-02T15:04:05.000Z07:00",
 		"2006-01-02T15:04:05-0700",
+		"2006-01-02T15:04:05.000-0700",
+		"2006-01-02T15:04:05Z0700",
+		"2006-01-02T15:04:05.000Z0700",
+		"2006-01-02T15:04:05Z",
+		"2006-01-02T15:04:05.000Z",
+	}
+	localLayouts := []string{
 		"2006-01-02 15:04:05",
+		"2006-01-02 15:04",
+		"2006-01-02T15:04:05",
+		"2006-01-02T15:04",
 		"2006-01-02",
 	}
 
-	for _, layout := range layouts {
+	for _, layout := range zonedLayouts {
 		t, err := time.Parse(layout, value)
 		if err == nil {
 			return t
 		}
 	}
+
+	for _, layout := range localLayouts {
+		t, err := time.ParseInLocation(layout, value, time.Local)
+		if err == nil {
+			return t
+		}
+	}
+
 	return time.Time{}
 }
 

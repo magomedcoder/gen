@@ -5,6 +5,11 @@
 - список задач (`tasks.task.list`)
 - получение задачи (`tasks.task.get`)
 - комментарии (`task.commentitem.getlist`)
+- таймлайн задачи (`b24_get_task_timeline`)
+- анализ блокеров задачи (`b24_analyze_task_blockers`)
+- анализ дрифта исполнения (`b24_analyze_task_execution_drift`)
+- performance по ответственному (`b24_analyze_responsible_performance`)
+- health-score проекта (`b24_analyze_project_health`)
 - сводка по задаче (`b24_analyze_task`)
 - аналитика по запросу (`b24_analyze_tasks_by_query`)
 - портфельная аналитика (`b24_analyze_tasks_portfolio`)
@@ -13,9 +18,10 @@
 
 ## Переменные окружения
 
-| Переменная         | Назначение                                                                       |
-|--------------------|----------------------------------------------------------------------------------|
-| `B24_WEBHOOK_BASE` | Базовый URL webhook, например `https://bitrix24.example.com/rest/43176/00000000` |
+| Переменная                    | Назначение                                                                                                         |
+|-------------------------------|--------------------------------------------------------------------------------------------------------------------|
+| `B24_WEBHOOK_BASE`            | Базовый URL webhook, например `https://bitrix24.example.com/rest/43176/00000000`                                   |
+| `B24_DISABLE_HEAVY_ANALYTICS` | Если `1/true`, отключает тяжелые аналитические tools (`timeline`, `blockers`, `execution_drift`, `project_health`) |
 
 ---
 
@@ -85,18 +91,23 @@ url = http://127.0.0.1:8786/
 
 Схемы аргументов отдаёт сам сервер MCP (поля инструментов):
 
-| Tool                                  | Назначение                                                                                                    |
-|---------------------------------------|---------------------------------------------------------------------------------------------------------------|
-| `b24_list_tasks`                      | `tasks.task.list` (`filter`, `select`, `order`, `params`, `start`)                                            |
-| `b24_get_task`                        | `tasks.task.get` (`task_id`, `select`)                                                                        |
-| `b24_get_task_comments`               | `task.commentitem.getlist` (`task_id`, `order`, `filter`)                                                     |
-| `b24_analyze_task`                    | Глубокий анализ одной задачи (`task_id`, `include_comments`)                                                  |
-| `b24_analyze_tasks_by_query`          | Аналитика по текстовому запросу (`query`, `task_id`, `filter`, `order`, `start`, `limit`, `include_comments`) |
-| `b24_analyze_tasks_portfolio`         | Портфельная аналитика (`filter`, `order`, `start`, `limit`, `include_comments`, `group_by`)                   |
-| `b24_analyze_tasks_executive_summary` | Управленческая сводка за период (`filter`, `order`, `start`, `limit`, `period_days`, `include_comments`)      |
-| `b24_analyze_tasks_sla`               | SLA-контроль (`filter`, `order`, `start`, `limit`, `soon_hours_threshold`, `include_comments`)                |
-| `b24_analyze_tasks_workload`          | Баланс нагрузки по ответственным (`filter`, `order`, `start`, `limit`, `include_comments`, `overload_tasks`)  |
-| `b24_analyze_tasks_status_trends`     | Тренды по статусам (`filter`, `order`, `start`, `limit`, `period_days`)                                       |
+| Tool                                  | Назначение                                                                                                                                 |
+|---------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| `b24_list_tasks`                      | `tasks.task.list` (`filter`, `select`, `order`, `params`, `start`)                                                                         |
+| `b24_get_task`                        | `tasks.task.get` (`task_id`, `select`)                                                                                                     |
+| `b24_get_task_comments`               | `task.commentitem.getlist` (`task_id`, `order`, `filter`)                                                                                  |
+| `b24_get_task_timeline`               | Таймлайн задачи: события по задаче + комментарии (`task_id`, `include_comments`, `limit`)                                                  |
+| `b24_analyze_task_blockers`           | Анализ блокеров по комментариям задачи (`task_id`, `limit`)                                                                                |
+| `b24_analyze_task_execution_drift`    | Анализ дрифта исполнения задачи: факт/план и тишина коммуникаций (`task_id`)                                                               |
+| `b24_analyze_responsible_performance` | Сводка по ответственному: объем, просрочки, high-risk, блокеры (`responsible_id`, `filter`, `order`, `start`, `limit`, `include_comments`) |
+| `b24_analyze_project_health`          | Health-score портфеля задач и драйверы риска (`filter`, `order`, `start`, `limit`, `include_comments`)                                     |
+| `b24_analyze_task`                    | Глубокий анализ одной задачи (`task_id`, `include_comments`)                                                                               |
+| `b24_analyze_tasks_by_query`          | Аналитика по текстовому запросу (`query`, `task_id`, `filter`, `order`, `start`, `limit`, `include_comments`)                              |
+| `b24_analyze_tasks_portfolio`         | Портфельная аналитика (`filter`, `order`, `start`, `limit`, `include_comments`, `group_by`)                                                |
+| `b24_analyze_tasks_executive_summary` | Управленческая сводка за период (`filter`, `order`, `start`, `limit`, `period_days`, `include_comments`)                                   |
+| `b24_analyze_tasks_sla`               | SLA-контроль (`filter`, `order`, `start`, `limit`, `soon_hours_threshold`, `include_comments`)                                             |
+| `b24_analyze_tasks_workload`          | Баланс нагрузки по ответственным (`filter`, `order`, `start`, `limit`, `include_comments`, `overload_tasks`)                               |
+| `b24_analyze_tasks_status_trends`     | Тренды по статусам (`filter`, `order`, `start`, `limit`, `period_days`)                                                                    |
 
 Примечания:
 
