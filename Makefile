@@ -14,6 +14,16 @@ gen-proto:
 			$$proto; \
 	done
 
+	# Tools
+	@for proto in ./tools/b24-llm-server/api/proto/*.proto; do \
+		name=$$(basename $$proto .proto); \
+		mkdir -p ./tools/b24-llm-server/api/pb/$${name}pb; \
+		protoc --proto_path=./tools/b24-llm-server/api/proto \
+			--go_out=paths=source_relative:./tools/b24-llm-server/api/pb/$${name}pb \
+			--go-grpc_out=paths=source_relative:./tools/b24-llm-server/api/pb/$${name}pb \
+			$$proto; \
+	done
+
 build:
 	mkdir -p ./build
 	go build -o ./build/gen-server ./cmd/gen
