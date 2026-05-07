@@ -26,7 +26,7 @@ RUN mkdir /usr/src/gen
 
 WORKDIR /usr/src/gen
 
-COPY ../.. ./
+COPY . ./
 
 RUN make install
 

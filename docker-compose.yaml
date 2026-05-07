@@ -3,7 +3,7 @@ services:
     container_name: gen-server
     build:
       context: .
-    command: /usr/local/bin/gen-server
+    command: /usr/local/bin/gen
     restart: always
     ports:
       - 50051:50051
