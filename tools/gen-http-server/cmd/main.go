@@ -3,7 +3,7 @@ package main
 import (
 	"log"
 
-	"github.com/magomedcoder/gen/tools/tce-server/internal"
+	"github.com/magomedcoder/gen/tools/gen-http-server/internal"
 )
 
 func main() {

@@ -1,24 +1,24 @@
-# Tce-server
+# gen-http-server
 
-Лёгкий HTTP-адаптер для интеграции Tce с gen-раннером, с api в формате JSON/SSE
+Лёгкий HTTP-адаптер для интеграции с gen-раннером, API в формате JSON/SSE
 
 Формат: JSON, для стриминга - SSE (`text/event-stream`)
 
 ## Запуск
 
 ```bash
-go run ./tools/tce-server/cmd
+go run ./tools/gen-http-server/cmd
 ```
 
 Переменные окружения:
 
-- `TCE_SERVER_HOST` - HTTP сервер
+- `GEN_HTTP_SERVER_HOST` - HTTP сервер
 - `GEN_RUNNER_ADDR` - адрес gen-раннера
 - `GEN_MODEL` - идентификатор модели для запросов
 
 ## 1) Проверка доступности
 
-### `GET /tce/v1/health`
+### `GET /api/v1/health`
 
 Назначение: проверка доступности сервиса и связности с gen-раннером
 
@@ -34,7 +34,7 @@ go run ./tools/tce-server/cmd
 
 ## 2) Чат
 
-### `POST /tce/v1/chat`
+### `POST /api/v1/chat`
 
 Тело запроса:
 
@@ -107,7 +107,7 @@ data: {"finish":"stop"}
 
 ## 3) Шаг агента
 
-### `POST /tce/v1/agent/step`
+### `POST /api/v1/agent/step`
 
 Назначение: выполнение одного шага автономного агента
 
@@ -208,7 +208,7 @@ data: {"finish":"stop"}
 
 #### Совместимость с текущей реализацией
 
-Текущий `tce-server` возвращает stub-ответ с `finish/summary/calls`; этого достаточно для первичной клиентской интеграции.
+Текущий `gen-http-server` возвращает stub-ответ с `finish/summary/calls`; этого достаточно для первичной клиентской интеграции.
 
 ## 4) Ошибки
 

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/magomedcoder/gen"
-	"github.com/magomedcoder/gen-runner/pb/llm-runner/llmrunnerpb"
+	"github.com/magomedcoder/gen-runner/pb/llmrunnerpb"
 	"github.com/magomedcoder/gen/api/pb/app/authpb"
 	"github.com/magomedcoder/gen/api/pb/app/chatpb"
 	"github.com/magomedcoder/gen/api/pb/app/editorpb"

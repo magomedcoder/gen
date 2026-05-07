@@ -20,7 +20,7 @@ type App struct {
 func NewFromEnv() (*App, error) {
 	runnerAddr := strings.TrimSpace(os.Getenv("GEN_RUNNER_ADDR"))
 	model := strings.TrimSpace(os.Getenv("GEN_MODEL"))
-	host := strings.TrimSpace(os.Getenv("TCE_SERVER_HOST"))
+	host := strings.TrimSpace(os.Getenv("GEN_HTTP_SERVER_HOST"))
 
 	if runnerAddr == "" {
 		runnerAddr = "0.0.0.0:50052"
@@ -59,15 +59,15 @@ func (a *App) Close() {
 
 func (a *App) Run() error {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/tce/v1/health", a.handleHealth)
-	mux.HandleFunc("/tce/v1/chat", a.handleChat)
-	mux.HandleFunc("/tce/v1/agent/step", a.handleAgentStep)
+	mux.HandleFunc("/api/v1/health", a.handleHealth)
+	mux.HandleFunc("/api/v1/chat", a.handleChat)
+	mux.HandleFunc("/api/v1/agent/step", a.handleAgentStep)
 
-	log.Printf("Tce-server запущен на %s", a.host)
+	log.Printf("gen-http-server запущен на %s", a.host)
 	log.Printf("раннер: %s, модель: %s", a.runnerAddr, a.model)
-	log.Printf("проверка здоровья: GET  http://%s/tce/v1/health", a.host)
-	log.Printf("чат:               POST http://%s/tce/v1/chat", a.host)
-	log.Printf("шаг агента:        POST http://%s/tce/v1/agent/step", a.host)
+	log.Printf("проверка здоровья: GET  http://%s/api/v1/health", a.host)
+	log.Printf("чат:               POST http://%s/api/v1/chat", a.host)
+	log.Printf("шаг агента:        POST http://%s/api/v1/agent/step", a.host)
 
 	return http.ListenAndServe(a.host, withCORS(mux))
 }

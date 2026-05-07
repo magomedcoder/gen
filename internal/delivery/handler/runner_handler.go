@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/magomedcoder/gen-runner/pb/llm-runner/llmrunnerpb"
+	"github.com/magomedcoder/gen-runner/pb/llmrunnerpb"
 	"github.com/magomedcoder/gen/api/pb/app/commonpb"
 	"github.com/magomedcoder/gen/api/pb/app/runnerpb"
 	"github.com/magomedcoder/gen/internal/domain"
